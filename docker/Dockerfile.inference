@@ -40,12 +40,15 @@ RUN pip install --upgrade pip && \
 COPY src/ /app/src/
 COPY config/ /app/config/
 
+# Copy pretrained models
+COPY models/ /app/models/
+
 # Copy legacy lightweight API (kept for reference/debugging)
 # NOTE: do NOT copy into /app/api because it can shadow your real package imports
 COPY docker/api/ /app/docker_api/
 
 # Create runtime dirs
-RUN mkdir -p /app/models /app/logs
+RUN mkdir -p /app/logs
 
 EXPOSE 8000
 
