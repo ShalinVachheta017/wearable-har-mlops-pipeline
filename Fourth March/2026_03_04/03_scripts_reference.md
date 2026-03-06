@@ -303,7 +303,7 @@ flowchart LR
 |-------|--------|
 | **Purpose** | Rebuilds `PAPER_SUPPORT_MAP.json` — maps pipeline components to supporting academic papers |
 | **Run** | `python scripts/regenerate_support_map.py` |
-| **Outputs** | Updated `PAPER_SUPPORT_MAP.json` |
+| **Outputs** | Updated `reports/PAPER_SUPPORT_MAP.json` |
 
 ---
 
@@ -336,7 +336,12 @@ flowchart LR
 |-------|--------|
 | **Purpose** | Builds baseline statistics specifically for Layer 3 drift detection on normalized data |
 | **Run** | `python scripts/build_normalized_baseline.py` |
-| **Outputs** | `models/baselines/normalized_baseline.json` |
+| **Outputs** | `models/normalized_baseline.json` |
+
+### Cleanup note for script outputs
+
+- Files in `outputs/` are mostly transient and can usually be regenerated.
+- Files in `reports/` are mixed: some are disposable spot-check outputs, but many are cited thesis evidence and should be kept unless you are intentionally rebuilding them from the generating script.
 
 ### `scripts/run_tests.py`
 

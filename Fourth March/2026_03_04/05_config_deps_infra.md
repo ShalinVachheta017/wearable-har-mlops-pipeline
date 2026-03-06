@@ -408,6 +408,16 @@ flowchart TD
     style MLF fill:#ffeaa7
 ```
 
+## Runtime Folder Policy
+
+| Location | Nature | Cleanup guidance |
+|---------|--------|------------------|
+| `artifacts/<run_id>/` | Per-run runtime artifacts | Safe to prune old runs after they are no longer needed |
+| `outputs/` `*_fresh*` and timestamped predictions | Regenerable runtime output | Safe to delete |
+| `outputs/` thesis figures | Regenerable but often referenced | Keep unless you are intentionally rebuilding figures |
+| `reports/` verification logs | Regenerable check output | Usually safe to delete |
+| `reports/` evidence/governance files | Shared cited assets | Keep by default |
+
 ---
 
 ## Quick Reference — All Config Files

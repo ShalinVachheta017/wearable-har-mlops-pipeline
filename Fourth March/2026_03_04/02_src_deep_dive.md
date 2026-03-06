@@ -220,7 +220,7 @@ flowchart LR
 | **Purpose** | Wraps `scripts/post_inference_monitoring.py` — 3-layer health check |
 | **Calls** | `PostInferenceMonitor.run()` |
 | **Returns** | `PostInferenceMonitoringArtifact(monitoring_report, overall_status, layer1_confidence, layer2_temporal, layer3_drift)` |
-| **Key logic** | Loads baseline from `models/baselines/`, applies calibration temperature if available |
+| **Key logic** | Loads baseline from `models/normalized_baseline.json`, applies calibration temperature if available |
 
 ### Stage 7 — `trigger_evaluation.py`
 

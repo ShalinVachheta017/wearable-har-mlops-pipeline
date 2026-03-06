@@ -236,7 +236,7 @@ flowchart TD
 | **Layer 1** | Softmax confidence: mean, std, uncertain %, entropy |
 | **Layer 2** | Temporal stability: flip rate, dwell time, short-dwell ratio |
 | **Layer 3** | Distribution drift: Wasserstein distance per channel vs training baseline |
-| **Baseline** | `models/baselines/training_baseline.json` (built by Stage 10) |
+| **Baseline** | `models/training_baseline.json` and `models/normalized_baseline.json` (built by Stage 10) |
 | **Artifact** | `artifacts/<run>/monitoring/monitoring_summary.json` |
 | **Run it** | `python run_pipeline.py --stages monitoring` |
 
@@ -377,7 +377,7 @@ flowchart TD
     C --> E["normalized_baseline.json\n(z-score space stats)"]
     D --> F{"promote_to_shared?"}
     E --> F
-    F -->|"YES\n(explicit flag)"| G["Copy → models/baselines/\n(shared, used by Stage 6)"]
+    F -->|"YES\n(explicit flag)"| G["Copy → models/\n(shared, used by Stage 6)"]
     F -->|"NO\n(default = safe)"| H["Keep in artifacts/\n(run-local only)"]
 
     style D fill:#55efc4
@@ -669,7 +669,7 @@ flowchart TD
 
     subgraph MODELS["📁 models/"]
         PRE["pretrained/\nfine_tuned_model_1dcnnbilstm.keras"]
-        BASE["baselines/\ntraining_baseline.json"]
+        BASE["training_baseline.json\nnormalized_baseline.json"]
         RET["retrained/\n(after Stage 8)"]
         REG["registry/\n(after Stage 9)"]
     end
@@ -731,6 +731,14 @@ python scripts/preprocess.py --csv data/processed/sensor_fused_50Hz.csv
 # Standalone training
 python scripts/train.py --data data/all_users_data_labeled.csv
 ```
+
+## Generated Files: What Can Be Cleaned
+
+- `artifacts/<run_id>/`: safe to delete old timestamped run folders after you no longer need them for debugging, screenshots, or thesis evidence.
+- `outputs/`: safe to delete transient files such as `*_fresh*`, timestamped prediction dumps, and rerunnable analysis exports.
+- `outputs/` thesis figure PNGs: keep by default unless you are intentionally regenerating them.
+- `reports/`: keep cited evidence and governance files by default, even if generated. In this repo that includes `ABLATION_WINDOWING.*`, `THRESHOLD_CALIBRATION.*`, `TRIGGER_POLICY_EVAL.*`, `DECISION_REGISTER.csv`, `EXTERNAL_REFERENCES.txt`, and `PAPER_SUPPORT_MAP.json`.
+- Do not treat `models/`, `config/`, `src/`, or `tests/` as cleanup targets.
 
 ---
 

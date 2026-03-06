@@ -274,10 +274,17 @@ for f in pipeline_config.outputs_dir.glob("*_fresh*.png"):
     artifacts_manager.save_file(f, "outputs")
 ```
 
-`reports/` holds static governance documents that do not change per-run:
-`DECISION_REGISTER.csv`, `PIPELINE_FACTSHEET.md`, `THRESHOLD_CALIBRATION.*`,
-`ABLATION_WINDOWING.*`. These do not need to be copied per run — the
-`run_info.json` can reference them by path.
+`reports/` is mixed-purpose. Keep governance/evidence files by default:
+`DECISION_REGISTER.csv`, `EXTERNAL_REFERENCES.txt`, `PAPER_SUPPORT_MAP.json`,
+`THRESHOLD_CALIBRATION.*`, `TRIGGER_POLICY_EVAL.*`, `ABLATION_WINDOWING.*`.
+These do not need to be copied per run — the `run_info.json` can reference
+them by path. Disposable verification outputs can be regenerated when needed.
+
+### Safe cleanup summary
+
+- Delete old `artifacts/<run_id>/` folders when they are no longer needed.
+- Delete transient `outputs/*_fresh*` and timestamped prediction files freely.
+- Keep cited thesis evidence in `reports/` unless you are intentionally regenerating it from the owning script.
 
 ---
 
