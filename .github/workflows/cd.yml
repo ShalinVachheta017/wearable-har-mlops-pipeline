@@ -72,10 +72,10 @@ jobs:
           docker run -d --name har-test -p 8000:8000 \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}
 
-      - name: Verify /health
+      - name: Verify /api/health
         run: |
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8000/health > /dev/null; then
+            if curl -fsS http://localhost:8000/api/health > /dev/null; then
               echo "Health OK"
               exit 0
             fi
