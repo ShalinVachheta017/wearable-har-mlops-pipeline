@@ -230,6 +230,17 @@ class PredictionAnalyzer:
                 f"⚠️ '{dominant}' dominates ({dominant_pct:.1f}%) - possible imbalance"
             )
 
+        # Structured dominance flag (>95%): informational, does not trigger retraining
+        distribution_dominance_warning = dominant_pct > 95.0
+        if distribution_dominance_warning:
+            self.logger.warning(
+                f"⚠️ distribution_dominance_warning=True: '{dominant}' at {dominant_pct:.1f}%"
+                " — single-class batch detected (see docs/TRIGGER_POLICY_EXPLANATION.md)"
+            )
+
+        results["_dominant_class"] = dominant
+        results["_dominant_pct"] = float(dominant_pct)
+        results["_distribution_dominance_warning"] = distribution_dominance_warning
         return results
 
     def analyze_confidence(self, df: pd.DataFrame) -> Dict:

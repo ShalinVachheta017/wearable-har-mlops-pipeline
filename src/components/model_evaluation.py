@@ -52,11 +52,18 @@ class ModelEvaluation:
         pipe = _EvalPipeline(config=eval_cfg)
         result = pipe.run(predictions_csv=predictions_csv)
 
+        dist = result.get("distribution", {})
+        dominance_warning = bool(dist.pop("_distribution_dominance_warning", False))
+        # Remove internal keys added by analyze_distribution before storing.
+        dist.pop("_dominant_class", None)
+        dist.pop("_dominant_pct", None)
+
         return ModelEvaluationArtifact(
             report_json_path=result.get("report_json"),
             report_text_path=result.get("report_text"),
-            distribution_summary=result.get("distribution", {}),
+            distribution_summary=dist,
             confidence_summary=result.get("confidence", {}),
             has_labels=result.get("has_labels", False),
             classification_metrics=result.get("classification_metrics"),
+            distribution_dominance_warning=dominance_warning,
         )

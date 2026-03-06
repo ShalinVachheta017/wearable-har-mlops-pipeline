@@ -330,13 +330,16 @@ class MLflowTracker:
                 predictions = model.predict(input_example[:1], verbose=0)
                 signature = infer_signature(input_example[:1], predictions)
 
-            # Log model (handle artifact_path→name rename in MLflow >=2.9)
+            # Log model (handle artifact_path→name rename in MLflow >=2.9).
+            # input_example is intentionally NOT passed to log_model: the signature
+            # already captures input/output shape, and passing input_example triggers
+            # an mlflow.keras serialisation bug (input_example.json written to a temp
+            # path that is cleaned up before MLflow reads it back — FileNotFoundError).
             try:
                 mlflow.keras.log_model(
                     model,
                     name=artifact_path,
                     signature=signature,
-                    input_example=input_example[:1] if input_example is not None else None,
                     registered_model_name=registered_model_name,
                 )
             except TypeError:
@@ -345,7 +348,6 @@ class MLflowTracker:
                     model,
                     artifact_path,
                     signature=signature,
-                    input_example=input_example[:1] if input_example is not None else None,
                     registered_model_name=registered_model_name,
                 )
             logger.info(f"Logged Keras model to {artifact_path}")

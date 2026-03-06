@@ -583,9 +583,119 @@ def _safe_print(text: str):
         )
 
 
+def _print_compact_run_summary(result):
+    """Print a compact boxed RUN SUMMARY block — one glance overview."""
+    P = _safe_print
+
+    # ── collect values ────────────────────────────────────────────────────
+    run_id = result.run_id or "—"
+
+    # Input source
+    input_src = "—"
+    if result.ingestion and result.ingestion.sensor_csv_path:
+        import os
+
+        input_src = os.path.basename(str(result.ingestion.sensor_csv_path))
+        if getattr(result.ingestion, "reused_existing", False):
+            input_src += " (reused)"
+
+    # Windows
+    n_windows = "—"
+    if result.transformation and result.transformation.n_windows:
+        n_windows = f"{result.transformation.n_windows:,}"
+
+    # Inference
+    infer_line = "—"
+    if result.inference:
+        inf = result.inference
+        dur = getattr(inf, "inference_time_seconds", None)
+        n_win = getattr(inf, "n_predictions", None)
+        if dur and n_win:
+            rate = int(n_win / dur) if dur > 0 else 0
+            infer_line = f"{dur:.2f}s  ({rate:,} win/sec)"
+
+    # Mean confidence
+    conf_line = "—"
+    if result.inference and result.inference.confidence_stats:
+        m = result.inference.confidence_stats.get("mean", 0)
+        conf_line = f"{m*100:.1f}%"
+
+    # Dominant class
+    dom_line = "—"
+    if result.inference and result.inference.activity_distribution:
+        ad = result.inference.activity_distribution
+        dom_cls = max(ad, key=lambda k: ad[k])
+        dom_n = ad[dom_cls]
+        total = max(result.inference.n_predictions, 1)
+        dom_pct = dom_n / total * 100
+        dom_line = f"{dom_cls} ({dom_pct:.1f}%)"
+        dom_warn = (
+            result.evaluation.distribution_dominance_warning
+            if result.evaluation
+            else dom_pct > 95.0
+        )
+        if dom_warn:
+            dom_line += "  [!] dominance flag"
+
+    # Drift
+    drift_line = "—"
+    if result.monitoring and result.monitoring.layer3_drift:
+        drift_val = result.monitoring.layer3_drift.get("max_drift", 0)
+        drift_status = "PASS" if result.monitoring.overall_status == "PASS" else "FAIL"
+        drift_line = f"{drift_status}  (max={drift_val:.3f})"
+
+    # Trigger
+    trigger_line = "—"
+    if result.trigger:
+        action = result.trigger.action if result.trigger.action else "NONE"
+        reasons = result.trigger.reasons or []
+        reason_str = reasons[0] if reasons else "all metrics normal"
+        trigger_line = f"{action}  ({reason_str})"
+
+    # MLflow
+    mlflow_line = "run logged"
+
+    # Overall
+    total_stages = len(result.stages_completed) + len(result.stages_failed)
+    ok_stages = len(result.stages_completed)
+    status = result.overall_status or "UNKNOWN"
+    overall_line = f"{status}  ({ok_stages}/{total_stages} stages)"
+
+    # ── format box ────────────────────────────────────────────────────────
+    W = 64  # inner width (between the border pipes)
+    border_top = "+" + "=" * W + "+"
+    border_sep = "+" + "-" * W + "+"
+    border_bot = "+" + "=" * W + "+"
+
+    def row(label, value, warn=False):
+        marker = " [!]" if warn else "    "
+        cell = f"  {label:<18}{marker}{value}"
+        if len(cell) > W - 1:
+            cell = cell[: W - 4] + "..."
+        return "|" + cell.ljust(W) + "|"
+
+    P("\n" + border_top)
+    title = "RUN SUMMARY"
+    P("|" + title.center(W) + "|")
+    P(border_sep)
+    P(row("Run ID", run_id))
+    P(row("Input source", input_src))
+    P(row("Windows", n_windows))
+    P(row("Inference", infer_line))
+    P(row("Mean confidence", conf_line))
+    dom_flag = result.evaluation.distribution_dominance_warning if result.evaluation else False
+    P(row("Dominant class", dom_line, warn=dom_flag))
+    P(row("Drift status", drift_line))
+    P(row("Trigger", trigger_line))
+    P(row("MLflow", mlflow_line))
+    P(row("Overall", overall_line))
+    P(border_bot + "\n")
+
+
 def _print_pipeline_summary(result):
     """Print a clean summary of key pipeline metrics."""
     P = _safe_print  # shorthand
+    _print_compact_run_summary(result)
     P("\n" + "=" * 70)
     P("  PIPELINE SUMMARY")
     P("=" * 70)

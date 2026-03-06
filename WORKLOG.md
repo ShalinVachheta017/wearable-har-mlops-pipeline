@@ -5,120 +5,65 @@ Daily running log of major repo changes, progress, decisions, and next steps.
 Auto-generated from git commit history and supplemented manually.
 
 ---
+
+## 2026-03-07
+### Done
+- **CI black / isort fixes** — CI lint job was failing on 2 checks:
+  - `black --check`: 53 files re-formatted (`python -m black .`, committed `"style: auto-format with black"`)
+  - `isort --check-only src/`: 2 files in `src/monitoring/` had wrong import order — fixed manually (`"style: fix isort import ordering"`)
+- **Archive duplicate audit** — read-only scan of all 506 PDFs:
+  - `scripts/find_duplicate_papers.py` — SHA-256 based, never modifies files
+  - `reports/repo_audit/ARCHIVE_DUPLICATES_REPORT.md` — 95 duplicate groups, 75 cross-tree, 1 name collision
+  - `reports/repo_audit/ARCHIVE_DUPLICATES.csv` — machine-readable detail
+  - `reports/repo_audit/ARCHIVE_DUPLICATE_ACTION_PLAN.md` — Bucket A/B/C classification + 3-phase cleanup plan
+  - `.gitignore` changed `reports/` → `reports/*` + `!reports/repo_audit/` to track audit outputs
+- **`run_pipeline.py` — stage manifest** — added `_print_planned_stages(args)`, prints full 14-stage queue/skip table before execution
+- **README updates** — 4 sections updated: Architecture (3-pipeline overview), Pipeline Stages (stage-group table + quick usage), Project Structure (domain-structured `src/` layout), CI/CD (ASCII workflow diagrams + common fix commands)
+- **Pipeline log improvements (this session)**:
+  - `docs/TRIGGER_POLICY_EXPLANATION.md` — new: explains Healthy/Warning/Critical states, why class dominance ≠ retrain, run classification table for 2026-03-06 run
+  - `src/evaluate_predictions.py` `analyze_distribution()` — added `distribution_dominance_warning` flag (fires when dominant class > 95 %); returns `_distribution_dominance_warning`, `_dominant_class`, `_dominant_pct` keys
+  - `src/entity/artifact_entity.py` `ModelEvaluationArtifact` — new `distribution_dominance_warning: bool = False` field
+  - `src/components/model_evaluation.py` — extracts and propagates dominance flag to artifact
+  - `src/mlflow_tracking.py` `log_keras_model()` — removed `input_example` from `mlflow.keras.log_model` calls (fixes `input_example.json FileNotFoundError`); signature is still inferred and passed
+  - `run_pipeline.py` — added `_print_compact_run_summary()` — ASCII box printed before the detailed summary (Run ID, input source, windows, inference speed, confidence, dominant class, drift, trigger, MLflow, overall)
+
+### Files / Areas Affected
+- `src/monitoring/post_inference_monitoring.py` — isort fix
+- `src/monitoring/build_training_baseline.py` — isort fix
+- `scripts/find_duplicate_papers.py` — NEW
+- `reports/repo_audit/ARCHIVE_DUPLICATES_REPORT.md` — NEW
+- `reports/repo_audit/ARCHIVE_DUPLICATES.csv` — NEW
+- `reports/repo_audit/ARCHIVE_DUPLICATE_ACTION_PLAN.md` — NEW
+- `.gitignore` — reports/* + !reports/repo_audit/
+- `run_pipeline.py` — `_print_planned_stages()` + `_print_compact_run_summary()`
+- `README.md` — 4 sections updated
+- `docs/TRIGGER_POLICY_EXPLANATION.md` — NEW
+- `src/evaluate_predictions.py` — dominance warning flag
+- `src/entity/artifact_entity.py` — `distribution_dominance_warning` field
+- `src/components/model_evaluation.py` — propagates dominance flag
+- `src/mlflow_tracking.py` — removed `input_example` from `log_model` calls
+
+### Why
+- CI was blocking merges — linting must be green before any other work
+- Archive had ~95 duplicate PDFs in two locations — needed an audit before semi-annual cleanup
+- Stage manifest gives instant visibility into what the pipeline will actually run
+- README was missing 3-pipeline overview and had stale `src/` structure
+- `TRIGGER_POLICY_EXPLANATION.md` needed because the 2026-03-06 run triggered a dominance warning but correctly did NOT retrain — this decision needed to be documented for the thesis
+- MLflow Keras `input_example.json` FileNotFoundError was silently swallowing the model registration step; signature-only logging is correct and sufficient
+- Compact RUN SUMMARY gives at-a-glance health status without scrolling the full log
+
+### Status
+- All CI checks passing (black, isort, flake8, pytest, docker-build)
+- Branch: `chore/repo-cleanup`
+- Pipeline tested: 7/7 stages SUCCESS, trigger=NONE (healthy)
+
+### Next
+- Execute archive cleanup Phase 1 (Bucket A — safe removals from `archive/`)
+- Run pipeline again with `--retrain` to verify dominance flag flows through the RUN SUMMARY box
+- Monitor next production run — if class dominance continues, schedule a labelling session
+
+---
 # for 6tgh march morning, 
-Yes — **I would merge the branch**, but **not as a blind direct merge**.
-
-## My recommendation
-
-Your `main` branch is still the default branch and looks older, while `chore/docs-restructure` contains the important recent work. GitHub’s compare page shows `chore/docs-restructure` is **3 commits ahead**, with **336 files changed**, and those commits are exactly the big ones you just finished: the repo refactor, the stronger CD smoke test, and the Docker/CD fix. ([GitHub][1])
-
-Because of that, this branch is basically your **new real baseline**. So:
-
-### Best option
-
-Open a PR:
-**`main` ← `chore/docs-restructure`**
-
-Then do a **Squash and merge**.
-
-Why squash:
-
-* only one contributor
-* only 3 meaningful commits in this branch
-* cleaner history on `main`
-* easier for thesis repo maintenance later ([GitHub][2])
-
-## But before merging, do one 10-minute check
-
-I would merge **after** this quick checklist:
-
-1. Confirm the latest **CD run is green**
-   Your screenshot shows the newest CD run succeeded, so this is a very good sign.
-
-2. Confirm local checks still pass:
-
-```bash
-python -m compileall src -q
-pytest -q
-python run_pipeline.py
-```
-
-3. Check that you are not merging too much runtime/generated clutter.
-
-From your updated repo structure, I would **not love keeping all of these tracked long-term**:
-
-* `artifacts/`
-* `logs/`
-* `mlruns/`
-* `--auto-install=yes/`
-* `pytest-cache-files-wx0d7jnt/`
-
-You also now have **multiple paper locations**, including:
-
-* `archive/research_papers/76 papers/`
-* `archive/papers/research_papers/76 papers/`
-* `thesis/refs/papers_all/`
-
-
-That does **not** mean “don’t merge.”
-It means: **merge the branch now, then do one cleanup branch next**.
-
-## My honest decision
-
-### Merge now if:
-
-* CD is green
-* tests are green
-* this branch is the version you want to build on
-
-### Do not delay the merge just because the repo is not perfectly clean
-
-If you wait too long, `main` becomes useless and your real work stays on a side branch.
-
-So my answer is:
-
-## **Yes, merge it now — via PR, preferably squash merge.**
-
-## Then immediately create a follow-up cleanup branch
-
-After merge:
-
-```bash
-git checkout main
-git pull
-git checkout -b chore/repo-cleanup
-```
-
-And in that cleanup branch, focus only on:
-
-* `.gitignore` hardening
-* removing generated/runtime folders from tracking
-* deciding the **single source of truth** for papers
-* maybe removing stale legacy code like `docker/api/` if it is no longer used
-
-## Very practical merge plan
-
-1. Open PR from `chore/docs-restructure` to `main`
-2. Title:
-   **Refactor repo structure, paper library, worklog, and CD fixes**
-3. In PR description, mention:
-
-   * src/scripts refactor complete
-   * docs/topic restructure complete
-   * paper library added
-   * CD fixed
-   * tests passing
-4. Squash and merge
-5. Create cleanup branch next
-
-## One more thing
-
-Your updated structure is much better than before. The biggest remaining issue is **not branch state** — it is **repo hygiene** around generated files and duplicated paper storage. 
-
-If you want, I can give you the exact **PR description text** and also a **post-merge cleanup checklist** for the next branch.
-
-[1]: https://github.com/ShalinVachheta017/MasterArbeit_MLops/branches "Branches · ShalinVachheta017/MasterArbeit_MLops · GitHub"
-[2]: https://github.com/ShalinVachheta017/MasterArbeit_MLops/compare/main...chore/docs-restructure "Comparing main...chore/docs-restructure · ShalinVachheta017/MasterArbeit_MLops · GitHub"
 
 
 
