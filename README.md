@@ -95,7 +95,7 @@ An end-to-end MLOps pipeline for **anxiety behavior recognition** using wearable
 | 3-Layer Monitoring | Confidence + Temporal + Z-Score Drift vs Baseline | ✅ Complete |
 | Temperature Calibration | Softmax temperature scaling | ✅ Complete |
 | Domain Adaptation | AdaBN / TENT / Pseudo-label | ✅ Complete |
-| CI/CD Pipeline | GitHub Actions (weekly schedule) | ✅ Complete |
+| CI/CD Pipeline | GitHub Actions — lint + unit-tests + docker-build (CI) / docker-push + smoke-test (CD) | ✅ Complete |
 | Dependency Pinning | pip freeze lock file (578 pkgs) | ✅ Complete |
 | Prometheus/Grafana | Config ready, not wired to app | ⏳ Optional |
 
@@ -121,6 +121,56 @@ An end-to-end MLOps pipeline for **anxiety behavior recognition** using wearable
 ---
 
 ## 🏗️ Architecture & Pipeline Flow
+
+The system is composed of **three independent pipelines** that connect through
+the model registry:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│              THREE-PIPELINE ARCHITECTURE OVERVIEW                │
+└──────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────┐
+  │   TRAINING PIPELINE     │  python run_pipeline.py
+  │   Stages 1-7 (core)     │  → ingestion → validation → transformation
+  │   Stages 8-10 (retrain) │    → inference → evaluation → monitoring → trigger
+  │   Stages 11-14 (advanced│
+  └────────────┬────────────┘
+               │ model artifact (.keras)
+               ▼
+  ┌─────────────────────────┐
+  │     MODEL REGISTRY      │  models/pretrained/  +  MLflow
+  │   Version · Deploy ·    │
+  │   Rollback              │
+  └────────────┬────────────┘
+               │ loaded at startup
+               ▼
+  ┌─────────────────────────┐
+  │   INFERENCE PIPELINE    │  python -m src.api.app   or   Docker
+  │   FastAPI  ·  Batch     │  → /api/upload → windowing → prediction
+  │   CSV upload endpoint   │    → confidence scoring → response
+  └────────────┬────────────┘
+               │ predictions + confidence
+               ▼
+  ┌─────────────────────────┐
+  │   MONITORING PIPELINE   │  triggered after every inference batch
+  │   Layer 1: Confidence   │  → low-confidence detection
+  │   Layer 2: Temporal     │  → anomalous pattern detection
+  │   Layer 3: Drift        │  → z-score vs baseline
+  └────────────┬────────────┘
+               │ PASS / WARNING / ALERT
+               ▼
+         Retraining Trigger
+         (feeds back to Training Pipeline stage 8)
+```
+
+> **Module mapping:**
+> `src/data/` `src/training/` `src/pipeline/` → Training Pipeline  
+> `src/inference/` `docker/` → Inference Pipeline  
+> `src/monitoring/` `src/domain_adaptation/` → Monitoring Pipeline  
+> `src/deployment/` → Registry & rollback (shared)
+
+---
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -409,37 +459,48 @@ MasterArbeit_MLops/
 │   ├── trained/                    # New trained models
 │   └── pretrained.dvc              # DVC tracking file
 │
-├── 📂 src/                         # Source code
-│   ├── config.py                   # Path configurations
-│   ├── sensor_data_pipeline.py     # Raw sensor fusion & resampling (50 Hz)
-│   ├── preprocess_data.py          # CSV → windowed .npy arrays
-│   ├── data_validator.py           # Input data schema validation
-│   ├── mlflow_tracking.py          # MLflow experiment logging
-│   ├── run_inference.py            # Batch inference script
-│   ├── evaluate_predictions.py     # Model evaluation & metrics
-│   ├── train.py                    # Model training (1D-CNN-BiLSTM)
-│   ├── calibration.py              # Temperature scaling calibration
-│   ├── trigger_policy.py           # Retraining trigger logic (17 params)
-│   ├── model_rollback.py           # Model rollback & registry management
-│   ├── deployment_manager.py       # Deployment lifecycle manager
-│   ├── prometheus_metrics.py       # Prometheus metrics export
-│   ├── ood_detection.py            # Out-of-distribution detection
-│   ├── robustness.py               # Robustness evaluation utilities
-│   ├── sensor_placement.py         # Sensor placement analysis (Stage 14)
-│   ├── active_learning_export.py   # Active learning sample export (Stage 11)
-│   ├── curriculum_pseudo_labeling.py # Curriculum pseudo-labeling (Stage 13)
-│   ├── wasserstein_drift.py        # Wasserstein distance drift detection
-│   ├── diagnostic_pipeline_check.py # Pipeline diagnostics
-│   ├── api/
-│   │   └── app.py                  # FastAPI inference service (port 8000)
-│   ├── components/                 # Stage-level components
-│   ├── core/                       # Core ML utilities
-│   ├── domain_adaptation/          # AdaBN / TENT / Pseudo-label adaptors
-│   ├── entity/                     # Dataclass artifacts & configs
-│   ├── pipeline/
-│   │   ├── production_pipeline.py  # 14-stage orchestrator
+├── 📂 src/                         # Source code (domain-structured)
+│   ├── config.py                   # Global path + constant definitions
+│   ├── logger.py                   # Centralised logging setup
+│   │
+│   ├── 📂 data/                    # ── Training Pipeline: stages 1-3 ──
+│   │   ├── sensor_data_pipeline.py # Stage 1: raw fusion → sensor_fused_50Hz.csv
+│   │   ├── data_validator.py       # Stage 2: schema + value-range validation
+│   │   └── preprocess_data.py      # Stage 3: CSV → windowed production_X.npy
+│   │
+│   ├── 📂 training/                # ── Training Pipeline: model training ──
+│   │   ├── train.py                # 1D-CNN-BiLSTM training (5-fold stratified CV)
+│   │   ├── evaluate_predictions.py # Stage 5: confidence / ECE / distribution
+│   │   └── mlflow_tracking.py      # MLflow run logging helper
+│   │
+│   ├── 📂 inference/               # ── Inference Pipeline ──
+│   │   ├── run_inference.py        # Stage 4: batch .npy → predictions CSV/NPY
+│   │   └── api/
+│   │       └── app.py              # FastAPI service  (port 8000, /api/upload)
+│   │
+│   ├── 📂 monitoring/              # ── Monitoring Pipeline ──
+│   │   ├── post_inference_monitoring.py  # Stage 6: 3-layer monitoring runner
+│   │   ├── build_training_baseline.py    # Build drift / calibration baselines
+│   │   ├── trigger_policy.py             # Stage 7: PASS / WARNING / ALERT logic
+│   │   ├── wasserstein_drift.py          # Stage 12: Wasserstein + change-point
+│   │   └── ood_detection.py              # Out-of-distribution detection
+│   │
+│   ├── 📂 domain_adaptation/       # ── Retraining cycle: stage 8 ──
+│   │   ├── adabn.py                # Adaptive Batch Normalisation
+│   │   ├── tent.py                 # TENT entropy minimisation
+│   │   └── pseudo_label.py         # Calibrated pseudo-labelling
+│   │
+│   ├── 📂 deployment/              # ── Registry + rollback (shared) ──
+│   │   ├── deployment_manager.py   # Stage 9: deploy / rollback lifecycle
+│   │   └── model_rollback.py       # Rollback to previous registry version
+│   │
+│   ├── 📂 pipeline/                # ── Orchestration ──
+│   │   ├── production_pipeline.py  # 14-stage orchestrator (run_pipeline.py entry)
 │   │   └── inference_pipeline.py   # Inference-only pipeline
-│   └── utils/                      # Shared utility helpers
+│   │
+│   ├── 📂 entity/                  # Dataclasses: configs + result artifacts
+│   ├── 📂 utils/                   # Shared helpers (config_loader, metrics, …)
+│   └── 📂 components/              # Stage-level component wrappers
 │
 ├── 📂 docker/                      # Docker configurations
 │   ├── Dockerfile.training         # Training container
@@ -750,6 +811,46 @@ services:
 ---
 
 ## 🔄 Pipeline Stages
+
+### Stage groups
+
+```
+─── Training Pipeline ─────────────────────────────────────────────────────
+ Stage  1  ingestion         Raw Garmin CSV/XLSX  →  sensor_fused_50Hz.csv
+ Stage  2  validation        Schema + value-range checks
+ Stage  3  transformation    CSV  →  normalised, windowed production_X.npy
+ Stage  4  inference         .npy + pretrained model  →  predictions CSV/NPY
+ Stage  5  evaluation        Confidence / distribution / ECE analysis
+ Stage  6  monitoring        3-layer (confidence, temporal, z-score drift)
+ Stage  7  trigger           Automated retraining decision (PASS/WARN/ALERT)
+
+─── Retraining Cycle (--retrain) ──────────────────────────────────────────
+ Stage  8  retraining        AdaBN / TENT / pseudo-label  →  retrained .keras
+ Stage  9  registration      Proxy validation, deploy or rollback
+ Stage 10  baseline_update   Rebuild drift + calibration baselines
+
+─── Advanced Analytics (--advanced) ───────────────────────────────────────
+ Stage 11  calibration              Temperature scaling + MC Dropout
+ Stage 12  wasserstein_drift        Wasserstein distance + change-point
+ Stage 13  curriculum_pseudo_labeling  Progressive self-training with EWC
+ Stage 14  sensor_placement         Hand detection + axis-mirroring augment.
+
+─── Runtime components (not pipeline stages) ──────────────────────────────
+  inference/          FastAPI service  (runs via docker or src/api/app.py)
+  monitoring/         Post-prediction 3-layer monitoring
+  deployment/         Model deploy / rollback manager
+  domain_adaptation/  AdaBN / TENT / pseudo-label adaptors
+```
+
+**Quick stage reference:**
+```bash
+python run_pipeline.py                              # stages 1-7
+python run_pipeline.py --retrain --adapt adabn_tent  # + stages 8-10
+python run_pipeline.py --advanced                    # + stages 11-14
+python run_pipeline.py --stages inference evaluation  # specific stages only
+```
+
+---
 
 ### Stage 1: Data Ingestion
 
@@ -1172,6 +1273,41 @@ This project is part of a Master's Thesis at [University Name].
 
 ## GitHub Actions CI/CD
 
+### Workflow overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  CI  (every pull_request → main,  push → main / develop)       │
+├─────────────────────────────────────────────────────────────────┤
+│  Job 1 — lint                                                   │
+│    flake8 src/        (syntax + serious errors only)            │
+│    black --check .    (formatting — auto-fix with: black .)     │
+│    isort --check-only src/  (import order)                      │
+│                                                                 │
+│  Job 2 — unit-tests                                             │
+│    pytest -m "not slow and not integration"                     │
+│    (runs all fast unit tests; all 225 must pass)                │
+│                                                                 │
+│  Job 3 — docker-build-check                                     │
+│    docker build -f docker/Dockerfile.inference .                │
+│    (build only — no push; verifies image still compiles)        │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  CD  (push of tag v*.*.*  OR  workflow_dispatch)                │
+├─────────────────────────────────────────────────────────────────┤
+│  Step 1 — docker Build & Push                                   │
+│    Builds har-inference image, tags with release semver         │
+│    Pushes to GHCR:                                              │
+│    ghcr.io/shalinvachheta017/masterarbeit_mlops/har-inference   │
+│                                                                 │
+│  Step 2 — smoke test                                            │
+│    Pulls the just-pushed image                                  │
+│    Starts container, hits /api/health endpoint                  │
+│    Fails CD if health check does not return HTTP 200            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ### CI triggers
 - CI runs on `pull_request` targeting `main`.
 - CI runs on `push` to `main` and `develop`.
@@ -1187,3 +1323,18 @@ This project is part of a Master's Thesis at [University Name].
 ### Published image
 - Docker image is published to GHCR at:
   - `ghcr.io/shalinvachheta017/masterarbeit_mlops/har-inference:<tag>`
+
+### Common CI fix commands
+```bash
+# Fix black formatting
+python -m black .
+
+# Fix isort import ordering
+python -m isort src/
+
+# Check what flake8 will catch
+python -m flake8 src/ --max-line-length=120
+
+# Run the unit tests locally before pushing
+python -m pytest tests/ -m "not slow and not integration" -q
+```

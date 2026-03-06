@@ -39,8 +39,8 @@ Result JSON → logs/pipeline/pipeline_result_<timestamp>.json
 =============================================================================
 """
 
-import sys
 import argparse
+import sys
 from pathlib import Path
 
 # Ensure project root is on sys.path
@@ -49,22 +49,23 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 # Import centralized logger
-from src.logger import logging, CURRENT_LOG_FILE
+from src.logger import CURRENT_LOG_FILE, logging
+
 logger = logging.getLogger(__name__)
 
-from src.pipeline.production_pipeline import ProductionPipeline
 from src.entity.config_entity import (
-    PipelineConfig,
     DataIngestionConfig,
     DataTransformationConfig,
     ModelInferenceConfig,
     ModelRetrainingConfig,
+    PipelineConfig,
 )
+from src.pipeline.production_pipeline import ProductionPipeline
 from src.utils.config_loader import (
-    load_yaml_overrides,
     apply_overrides,
     load_monitoring_config,
     load_trigger_config,
+    load_yaml_overrides,
 )
 
 # Logging is already configured in src.logger module - no need for basicConfig here
@@ -118,11 +119,20 @@ Examples:
         "--stages",
         nargs="+",
         choices=[
-            "ingestion", "validation", "transformation",
-            "inference", "evaluation", "monitoring", "trigger",
-            "retraining", "registration", "baseline_update",
-            "calibration", "wasserstein_drift",
-            "curriculum_pseudo_labeling", "sensor_placement",
+            "ingestion",
+            "validation",
+            "transformation",
+            "inference",
+            "evaluation",
+            "monitoring",
+            "trigger",
+            "retraining",
+            "registration",
+            "baseline_update",
+            "calibration",
+            "wasserstein_drift",
+            "curriculum_pseudo_labeling",
+            "sensor_placement",
         ],
         default=None,
         help="Run only these stages (default: 1-7; use --retrain for 8-10, --advanced for 11-14)",
@@ -255,7 +265,7 @@ Examples:
         "--advanced",
         action="store_true",
         help="Include stages 11-14 (calibration, Wasserstein drift, "
-             "curriculum pseudo-labeling, sensor placement)",
+        "curriculum pseudo-labeling, sensor placement)",
     )
     parser.add_argument(
         "--curriculum-iterations",
@@ -283,6 +293,7 @@ def _detect_gpu() -> str:
     """Detect GPU availability, enable memory growth, and return 'gpu' or 'cpu'."""
     try:
         import tensorflow as tf
+
         gpus = tf.config.list_physical_devices("GPU")
         if gpus:
             for gpu in gpus:
@@ -316,13 +327,14 @@ def _detect_gpu() -> str:
 def load_preprocessing_config(config_path: str) -> dict:
     """Load preprocessing toggles from YAML config file."""
     import yaml
+
     path = Path(config_path)
     if not path.exists():
         print(f"Config file not found: {path}, using defaults")
         return {}
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
-    return cfg.get('preprocessing', {})
+    return cfg.get("preprocessing", {})
 
 
 def main():
@@ -335,18 +347,18 @@ def main():
     print("=" * 80)
     print()
     logger.info("Pipeline starting... (device=%s)", device)
-    
+
     args = parse_args()
 
     # ── Load config from YAML ─────────────────────────────────────────
     yaml_preproc = load_preprocessing_config(args.config)
 
     # Resolve preprocessing toggles: CLI flags override YAML config
-    enable_unit_conversion   = yaml_preproc.get('enable_unit_conversion', True)
-    enable_gravity_removal   = yaml_preproc.get('enable_gravity_removal', False)
-    enable_calibration       = yaml_preproc.get('enable_calibration', False)
-    enable_normalization     = yaml_preproc.get('enable_normalization', True)
-    normalization_variant    = yaml_preproc.get('normalization_variant', 'zscore')
+    enable_unit_conversion = yaml_preproc.get("enable_unit_conversion", True)
+    enable_gravity_removal = yaml_preproc.get("enable_gravity_removal", False)
+    enable_calibration = yaml_preproc.get("enable_calibration", False)
+    enable_normalization = yaml_preproc.get("enable_normalization", True)
+    normalization_variant = yaml_preproc.get("normalization_variant", "zscore")
 
     # CLI overrides
     if args.no_unit_conversion:
@@ -362,11 +374,16 @@ def main():
 
     # Show what's active using logger
     logger.info("Preprocessing configuration (from %s):", args.config)
-    logger.info("  Unit Conversion (milliG\u2192m/s\u00b2): %s", 'ON' if enable_unit_conversion else 'OFF')
-    logger.info("  Gravity Removal:               %s", 'ON' if enable_gravity_removal else 'OFF')
-    logger.info("  Domain Calibration:            %s", 'ON' if enable_calibration else 'OFF')
-    logger.info("  Normalization:                 %s  (variant=%s)",
-                'ON' if enable_normalization else 'OFF', normalization_variant)
+    logger.info(
+        "  Unit Conversion (milliG\u2192m/s\u00b2): %s", "ON" if enable_unit_conversion else "OFF"
+    )
+    logger.info("  Gravity Removal:               %s", "ON" if enable_gravity_removal else "OFF")
+    logger.info("  Domain Calibration:            %s", "ON" if enable_calibration else "OFF")
+    logger.info(
+        "  Normalization:                 %s  (variant=%s)",
+        "ON" if enable_normalization else "OFF",
+        normalization_variant,
+    )
 
     # ── Build configs ─────────────────────────────────────────────────
     pipeline_cfg = PipelineConfig()
@@ -401,6 +418,7 @@ def main():
     )
 
     from src.entity.config_entity import ModelRegistrationConfig
+
     registration_cfg = ModelRegistrationConfig(
         auto_deploy=args.auto_deploy,
     )
@@ -408,10 +426,11 @@ def main():
     # Advanced configs
     from src.entity.config_entity import (
         CalibrationUncertaintyConfig,
-        WassersteinDriftConfig,
         CurriculumPseudoLabelingConfig,
         SensorPlacementConfig,
+        WassersteinDriftConfig,
     )
+
     calibration_cfg = CalibrationUncertaintyConfig(
         mc_forward_passes=args.mc_dropout_passes,
     )
@@ -430,6 +449,9 @@ def main():
         apply_overrides(calibration_cfg, _overrides.get("calibration", {}))
         apply_overrides(curriculum_cfg, _overrides.get("curriculum", {}))
         logger.info("YAML overrides applied from config/pipeline_overrides.yaml")
+
+    # ── Print planned stages ──────────────────────────────────────────
+    _print_planned_stages(args)
 
     # ── Build and run pipeline ────────────────────────────────────────
     pipeline = ProductionPipeline(
@@ -467,26 +489,113 @@ def main():
         sys.exit(1)
 
 
+def _print_planned_stages(args):
+    """Print a clear stage manifest so the user (and thesis logs) know exactly
+    which stages are scheduled to run before execution begins."""
+    P = _safe_print
+
+    # Determine which stage groups are active
+    core_stages = [
+        ("1", "ingestion", "Raw Garmin CSV/XLSX → sensor_fused_50Hz.csv"),
+        ("2", "validation", "Schema + value-range checks on fused data"),
+        ("3", "transformation", "CSV → normalised, windowed production_X.npy"),
+        ("4", "inference", ".npy + pretrained model → predictions CSV/NPY"),
+        ("5", "evaluation", "Confidence / distribution / ECE analysis"),
+        ("6", "monitoring", "3-layer (confidence, temporal, z-score drift)"),
+        ("7", "trigger", "Automated retraining decision (PASS/WARN/ALERT)"),
+    ]
+    retrain_stages = [
+        ("8", "retraining", f"Domain adaptation: {args.adapt} → retrained .keras"),
+        ("9", "registration", "Version, validate proxy metrics, deploy or rollback"),
+        ("10", "baseline_update", "Rebuild drift + calibration baselines from new data"),
+    ]
+    advanced_stages = [
+        ("11", "calibration", "Temperature scaling + MC Dropout uncertainty"),
+        ("12", "wasserstein_drift", "Wasserstein distance + change-point detection"),
+        ("13", "curriculum_pseudo_labeling", "Progressive self-training with EWC"),
+        ("14", "sensor_placement", "Hand detection + axis-mirroring augmentation"),
+    ]
+
+    # Filter to explicitly requested stages when --stages is used
+    explicit = set(args.stages) if args.stages else None
+
+    def _will_run(name: str) -> bool:
+        if explicit:
+            return name in explicit
+        return True  # default: all applicable groups run
+
+    P("\n" + "=" * 70)
+    P("  PLANNED PIPELINE STAGES")
+    P("=" * 70)
+
+    P("\n  ── Training Pipeline (stages 1-7, always included) ──────────")
+    skipped = {"ingestion"} if args.skip_ingestion else set()
+    skipped |= {"validation"} if args.skip_validation else set()
+    for num, name, desc in core_stages:
+        if explicit and name not in explicit:
+            status = "  skip  "
+        elif name in skipped:
+            status = " --skip "
+        else:
+            status = "  queue "
+        P(f"    [{status}] Stage {num:>2}: {name:<30}  {desc}")
+
+    if args.retrain or (explicit and any(n in explicit for _, n, _ in retrain_stages)):
+        P("\n  ── Retraining Cycle (stages 8-10, --retrain) ────────────────")
+        for num, name, desc in retrain_stages:
+            if explicit and name not in explicit:
+                status = "  skip  "
+            else:
+                status = "  queue "
+            P(f"    [{status}] Stage {num:>2}: {name:<30}  {desc}")
+
+    if args.advanced or (explicit and any(n in explicit for _, n, _ in advanced_stages)):
+        P("\n  ── Advanced Analytics (stages 11-14, --advanced) ────────────")
+        for num, name, desc in advanced_stages:
+            if explicit and name not in explicit:
+                status = "  skip  "
+            else:
+                status = "  queue "
+            P(f"    [{status}] Stage {num:>2}: {name:<30}  {desc}")
+
+    P("\n  ── Runtime components (not pipeline stages) ─────────────────")
+    P("    [ always ]        inference/     FastAPI service  (docker/ or src/api/)")
+    P("    [ always ]        monitoring/    Post-prediction monitoring layer")
+    P("    [ on demand ]     deployment/    Model deploy / rollback manager")
+    P("    [ retraining ]    domain_adaptation/  AdaBN / TENT / pseudo-label")
+
+    P("\n" + "=" * 70)
+    P("  Starting execution …")
+    P("=" * 70 + "\n")
+
+
 def _safe_print(text: str):
     """Print text, replacing characters that can't be encoded on Windows cp1252."""
     import sys as _sys
+
     try:
         print(text)
     except UnicodeEncodeError:
-        print(text.encode(_sys.stdout.encoding or "utf-8", errors="replace").decode(
-            _sys.stdout.encoding or "utf-8", errors="replace"
-        ))
+        print(
+            text.encode(_sys.stdout.encoding or "utf-8", errors="replace").decode(
+                _sys.stdout.encoding or "utf-8", errors="replace"
+            )
+        )
 
 
 def _print_pipeline_summary(result):
     """Print a clean summary of key pipeline metrics."""
-    P = _safe_print   # shorthand
-    P("\n" + "="*70)
+    P = _safe_print  # shorthand
+    P("\n" + "=" * 70)
     P("  PIPELINE SUMMARY")
-    P("="*70)
+    P("=" * 70)
 
     # Overall status
-    status_icon = "[OK]" if result.overall_status == "SUCCESS" else "[!!]" if result.overall_status == "PARTIAL" else "[FAIL]"
+    status_icon = (
+        "[OK]"
+        if result.overall_status == "SUCCESS"
+        else "[!!]" if result.overall_status == "PARTIAL" else "[FAIL]"
+    )
     P(f"\n{status_icon} Overall Status: {result.overall_status}")
     P(f"   Completed: {len(result.stages_completed)} stages")
     P(f"   Failed: {len(result.stages_failed)} stages")
@@ -503,7 +612,9 @@ def _print_pipeline_summary(result):
         if result.inference.confidence_stats:
             conf = result.inference.confidence_stats
             P(f"    - Mean Confidence: {conf.get('mean', 0)*100:.1f}%")
-            P(f"    - Uncertain: {conf.get('n_uncertain', 0)} ({conf.get('n_uncertain', 0)/max(result.inference.n_predictions, 1)*100:.1f}%)")
+            P(
+                f"    - Uncertain: {conf.get('n_uncertain', 0)} ({conf.get('n_uncertain', 0)/max(result.inference.n_predictions, 1)*100:.1f}%)"
+            )
 
     # Monitoring metrics
     if result.monitoring:
@@ -512,7 +623,7 @@ def _print_pipeline_summary(result):
 
         if result.monitoring.layer3_drift:
             drift = result.monitoring.layer3_drift
-            drift_score = drift.get('max_drift', 0)
+            drift_score = drift.get("max_drift", 0)
             P(f"    - Drift Score: {drift_score:.4f}")
 
             if drift_score > 1.50:
@@ -548,18 +659,16 @@ def _print_pipeline_summary(result):
     if result.inference and result.inference.activity_distribution:
         P(f"\n  Top 3 Activities Detected:")
         sorted_activities = sorted(
-            result.inference.activity_distribution.items(),
-            key=lambda x: x[1],
-            reverse=True
+            result.inference.activity_distribution.items(), key=lambda x: x[1], reverse=True
         )[:3]
         for activity, count in sorted_activities:
             pct = count / max(result.inference.n_predictions, 1) * 100
             P(f"    - {activity}: {count} ({pct:.1f}%)")
 
-    P("\n" + "="*70)
+    P("\n" + "=" * 70)
     P(f"  Artifacts saved to: artifacts/{result.run_id}")
     P(f"  Log file: {CURRENT_LOG_FILE}")
-    P("="*70 + "\n")
+    P("=" * 70 + "\n")
 
 
 if __name__ == "__main__":
