@@ -74,6 +74,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from src.utils.label_mapping import get_activity_classes
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -109,20 +110,8 @@ class EvaluationConfig:
             self.labels_path = Path(self.labels_path)
 
 
-# Activity classes (same as inference)
-ACTIVITY_CLASSES: Dict[int, str] = {
-    0: "ear_rubbing",
-    1: "forehead_rubbing",
-    2: "hair_pulling",
-    3: "hand_scratching",
-    4: "hand_tapping",
-    5: "knuckles_cracking",
-    6: "nail_biting",
-    7: "nape_rubbing",
-    8: "sitting",
-    9: "smoking",
-    10: "standing",
-}
+# Activity classes (single source of truth)
+ACTIVITY_CLASSES: Dict[int, str] = get_activity_classes()
 
 
 # ============================================================================
@@ -619,6 +608,8 @@ class ReportGenerator:
                 f.write("ACTIVITY DISTRIBUTION\n")
                 f.write("-" * 40 + "\n")
                 for activity, data in results["distribution"].items():
+                    if activity.startswith("_") or not isinstance(data, dict):
+                        continue
                     f.write(f"{activity:20s}: {data['count']:5d} ({data['percentage']:5.1f}%)\n")
                 f.write("\n")
 

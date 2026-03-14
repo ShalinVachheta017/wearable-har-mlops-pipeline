@@ -8,18 +8,13 @@ Auto-generated from git commit history and supplemented manually.
 
 ## 2026-03-07
 ### Done
-- **CI black / isort fixes** — CI lint job was failing on 2 checks:
   - `black --check`: 53 files re-formatted (`python -m black .`, committed `"style: auto-format with black"`)
   - `isort --check-only src/`: 2 files in `src/monitoring/` had wrong import order — fixed manually (`"style: fix isort import ordering"`)
-- **Archive duplicate audit** — read-only scan of all 506 PDFs:
   - `scripts/find_duplicate_papers.py` — SHA-256 based, never modifies files
   - `reports/repo_audit/ARCHIVE_DUPLICATES_REPORT.md` — 95 duplicate groups, 75 cross-tree, 1 name collision
   - `reports/repo_audit/ARCHIVE_DUPLICATES.csv` — machine-readable detail
   - `reports/repo_audit/ARCHIVE_DUPLICATE_ACTION_PLAN.md` — Bucket A/B/C classification + 3-phase cleanup plan
   - `.gitignore` changed `reports/` → `reports/*` + `!reports/repo_audit/` to track audit outputs
-- **`run_pipeline.py` — stage manifest** — added `_print_planned_stages(args)`, prints full 14-stage queue/skip table before execution
-- **README updates** — 4 sections updated: Architecture (3-pipeline overview), Pipeline Stages (stage-group table + quick usage), Project Structure (domain-structured `src/` layout), CI/CD (ASCII workflow diagrams + common fix commands)
-- **Pipeline log improvements (this session)**:
   - `docs/TRIGGER_POLICY_EXPLANATION.md` — new: explains Healthy/Warning/Critical states, why class dominance ≠ retrain, run classification table for 2026-03-06 run
   - `src/evaluate_predictions.py` `analyze_distribution()` — added `distribution_dominance_warning` flag (fires when dominant class > 95 %); returns `_distribution_dominance_warning`, `_dominant_class`, `_dominant_pct` keys
   - `src/entity/artifact_entity.py` `ModelEvaluationArtifact` — new `distribution_dominance_warning: bool = False` field
@@ -28,66 +23,29 @@ Auto-generated from git commit history and supplemented manually.
   - `run_pipeline.py` — added `_print_compact_run_summary()` — ASCII box printed before the detailed summary (Run ID, input source, windows, inference speed, confidence, dominant class, drift, trigger, MLflow, overall)
 
 ### Files / Areas Affected
-- `src/monitoring/post_inference_monitoring.py` — isort fix
-- `src/monitoring/build_training_baseline.py` — isort fix
-- `scripts/find_duplicate_papers.py` — NEW
-- `reports/repo_audit/ARCHIVE_DUPLICATES_REPORT.md` — NEW
-- `reports/repo_audit/ARCHIVE_DUPLICATES.csv` — NEW
-- `reports/repo_audit/ARCHIVE_DUPLICATE_ACTION_PLAN.md` — NEW
-- `.gitignore` — reports/* + !reports/repo_audit/
-- `run_pipeline.py` — `_print_planned_stages()` + `_print_compact_run_summary()`
-- `README.md` — 4 sections updated
-- `docs/TRIGGER_POLICY_EXPLANATION.md` — NEW
-- `src/evaluate_predictions.py` — dominance warning flag
-- `src/entity/artifact_entity.py` — `distribution_dominance_warning` field
-- `src/components/model_evaluation.py` — propagates dominance flag
-- `src/mlflow_tracking.py` — removed `input_example` from `log_model` calls
 
 ### Why
-- CI was blocking merges — linting must be green before any other work
-- Archive had ~95 duplicate PDFs in two locations — needed an audit before semi-annual cleanup
-- Stage manifest gives instant visibility into what the pipeline will actually run
-- README was missing 3-pipeline overview and had stale `src/` structure
-- `TRIGGER_POLICY_EXPLANATION.md` needed because the 2026-03-06 run triggered a dominance warning but correctly did NOT retrain — this decision needed to be documented for the thesis
-- MLflow Keras `input_example.json` FileNotFoundError was silently swallowing the model registration step; signature-only logging is correct and sufficient
-- Compact RUN SUMMARY gives at-a-glance health status without scrolling the full log
 
 ### Status
-- All CI checks passing (black, isort, flake8, pytest, docker-build)
-- Branch: `chore/repo-cleanup`
-- Pipeline tested: 7/7 stages SUCCESS, trigger=NONE (healthy)
 
 ### Next
-- Execute archive cleanup Phase 1 (Bucket A — safe removals from `archive/`)
-- Run pipeline again with `--retrain` to verify dominance flag flows through the RUN SUMMARY box
-- Monitor next production run — if class dominance continues, schedule a labelling session
 
----
 # for 6tgh march morning, 
 
 
 
 ## 2026-03-06
 ### Done
-- Refactored `src/` into domain-based subpackages: `data/`, `training/`, `inference/`, `monitoring/`, `deployment/`
-- Removed reversed dependencies from `scripts/` into `src/`
-- Added backward-compatibility shim modules
-- Verified `python -m compileall src -q` — clean
-- Verified `pytest -q` — 258/258 passed
 - Restructured `docs/` into organized subdirectories: `01_PIPELINE/`, `02_TECH/`, `03_EXPERIMENTS/`, `04_THESIS_WRITING/`, `99_ARCHIVE/`
 - Created pipeline stage documentation (stages 01–10)
 - Created thesis writing guides, chapter drafts, research Q&A, mentor questions
-- Moved archived docs to `99_ARCHIVE/` and `thesis/_snapshots/`
 - Improved CD workflow: added debug endpoints step, robust multi-route smoke test (`/openapi.json` → `/health` → `/api/health` → `/`)
 - Created paper catalog (`archive/_index/PAPERS_CATALOG.md`)
-- Organized 76 research PDFs into `thesis/refs/papers_all/` (6 topic folders)
 - Created `thesis/refs/papers_all/READING_LIST_BY_CHAPTER.md` — chapter-to-paper mapping
-- Created `docs/WORKLOG.md` — this file
 - **Fixed Docker build failure**: `docker/Dockerfile.inference` referenced deleted `api/` folder
   - Changed `COPY api/ /app/api/` → `COPY src/ /app/src/`
   - Changed `CMD uvicorn api.main:app` → `CMD uvicorn src.api.app:app`
   - Updated `PYTHONPATH=/app` → `PYTHONPATH=/app:/app/src`
-  - Updated `HEALTHCHECK` to try `/health` then `/api/health` then `/openapi.json`
   - Root cause: refactor moved API from `api/` to `src/api/app.py` but Dockerfile was not updated
 
 ### Files / Areas Affected
@@ -98,33 +56,21 @@ Auto-generated from git commit history and supplemented manually.
 - `src/training/active_learning_export.py` — moved from `src/`
 - `src/training/curriculum_pseudo_labeling.py` — moved from `src/`
 - `src/inference/run_inference.py` — moved from `src/`
-- `src/inference/evaluate_predictions.py` — moved from `src/`
-- `src/monitoring/build_training_baseline.py` — moved from `src/`
-- `src/monitoring/calibration.py` — moved from `src/`
 - `src/monitoring/ood_detection.py` — moved from `src/`
-- `src/monitoring/prometheus_metrics.py` — moved from `src/`
 - `src/monitoring/robustness.py` — moved from `src/`
 - `src/monitoring/sensor_placement.py` — moved from `src/`
 - `src/monitoring/trigger_policy.py` — moved from `src/`
 - `src/monitoring/wasserstein_drift.py` — moved from `src/`
 - `src/deployment/deployment_manager.py` — moved from `src/`
 - `src/deployment/mlflow_tracking.py` — moved from `src/`
-- `src/deployment/model_rollback.py` — moved from `src/`
-- `src/pipeline/inference_pipeline.py` — updated imports to new subpackage paths
-- `src/components/baseline_update.py` — updated imports
-- `src/components/post_inference_monitoring.py` — updated imports
-- `tests/test_baseline_update.py` — updated imports
 - `docker/Dockerfile.inference` — fixed COPY path, CMD entrypoint, PYTHONPATH, HEALTHCHECK
 - `.github/workflows/cd.yml` — debug step + 60-iteration wait + multi-route smoke test
 - `docs/01_PIPELINE/stages/` — 10 new stage documentation files (01–10)
 - `docs/02_TECH/guides/` — 8 new operation guides
 - `docs/03_EXPERIMENTS/` — evidence pack, threshold calibration summary
-- `docs/04_THESIS_WRITING/` — chapter drafts, mentor Q&A, research analysis
 - `docs/99_ARCHIVE/` — archived old doc files
 - `thesis/_snapshots/` — historical work snapshots (Feb snapshots)
-- `archive/_index/PAPERS_CATALOG.md` — 76-paper categorized index
 - `thesis/refs/papers_all/01_mlops/` — 18 MLOps PDFs
-- `thesis/refs/papers_all/02_monitoring_drift/` — 3 monitoring PDFs
 - `thesis/refs/papers_all/03_har_wearables/` — 27 HAR/sensor PDFs
 - `thesis/refs/papers_all/04_domain_adaptation/` — 3 domain adaptation PDFs
 - `thesis/refs/papers_all/05_deployment_cicd/` — 6 deployment PDFs

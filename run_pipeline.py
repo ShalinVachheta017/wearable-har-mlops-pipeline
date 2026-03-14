@@ -592,10 +592,10 @@ def _print_compact_run_summary(result):
 
     # Input source
     input_src = "—"
-    if result.ingestion and result.ingestion.sensor_csv_path:
+    if result.ingestion and getattr(result.ingestion, "fused_csv_path", None):
         import os
 
-        input_src = os.path.basename(str(result.ingestion.sensor_csv_path))
+        input_src = os.path.basename(str(result.ingestion.fused_csv_path))
         if getattr(result.ingestion, "reused_existing", False):
             input_src += " (reused)"
 
