@@ -16,7 +16,7 @@
 
 ## 📊 Current Status
 
-> **🎯 PROGRESS OVERVIEW:** See [Thesis_report/things to do/01_REMAINING_WORK.md](Thesis_report/things%20to%20do/01_REMAINING_WORK.md) for the authoritative task list. See [Thesis_report/things to do/CHATGPT_2_PIPELINE_WORK_DONE.md](Thesis_report/things%20to%20do/CHATGPT_2_PIPELINE_WORK_DONE.md) for a complete log of what was built.
+> **🎯 PROGRESS OVERVIEW:** See [Thesis Workflow](THESIS_WORKFLOW_MAR_JUN_2026.md) for the timeline and [Evidence Tracker](docs/thesis_workflow/THESIS_EVIDENCE.md) for experiment-to-artifact mapping.
 
 **Completed (as of Feb 26, 2026):**
 - ✅ **14-stage pipeline** fully orchestrated (`--advanced` flag enables all 14 stages)
@@ -35,10 +35,10 @@
 **Quick Links:**
 - 🚀 [Examiner Quickstart](#-examiner-quickstart-3-commands): Reproduce results in 3 commands
 - 🧪 [Run Tests](#-testing): `pytest tests/`
-- 🔧 [Pipeline Runbook](Thesis_report/docs/19_Feb/PIPELINE_RUNBOOK.md): Full pipeline operations guide
-- 📋 [Remaining Work](Thesis_report/things%20to%20do/CHATGPT_3_REMAINING_WORK.md): What's left to do
-- 📚 [Stage Index](Thesis_report/docs/stages/00_STAGE_INDEX.md): All 14 stages documented
-- 🔍 [22-Feb Audit](Thesis_report/docs/22Feb_Opus_Understanding/00_README.md): Comprehensive Feb 2026 code audit
+- 🔧 [Workflow Plan](THESIS_WORKFLOW_MAR_JUN_2026.md): March to June execution plan
+- 📋 [Thesis Workflow Docs](docs/thesis_workflow/THESIS_WORKFLOW_MAR_JUN_2026.md): Repo-managed workflow file
+- 📚 [Evidence Tracker](docs/thesis_workflow/THESIS_EVIDENCE.md): Experiment to artifact map
+- 🔍 [Wave 2 Validation](reports/repo_audit/WAVE2_STAGE6_BASELINE_SPACE_FIX_VALIDATION.md): Baseline-space consistency proof
 
 ---
 
@@ -46,19 +46,16 @@
 
 | Document | Purpose |
 |----------|---------|
-| [Thesis Structure Outline](Thesis_report/docs/thesis/THESIS_STRUCTURE_OUTLINE.md) | **Main document** - Thesis structure, objectives, chapter plan |
-| [Remaining Work](Thesis_report/things%20to%20do/01_REMAINING_WORK.md) | **Authoritative task list** — what is done, what is left |
-| [Work Done Log](Thesis_report/things%20to%20do/CHATGPT_2_PIPELINE_WORK_DONE.md) | Complete log of everything built |
-| [CI/CD Beginner's Guide](Thesis_report/docs/technical/guide-cicd-beginner.md) | Complete GitHub Actions tutorial from scratch |
-| [Thesis Plan (Original)](Thesis_report/Thesis_Plan.md) | Original 6-month roadmap (Oct 2025 - Apr 2026) |
-| [Pipeline Operations](Thesis_report/docs/technical/guide-pipeline-operations-architecture.md) | Complete pipeline documentation & architecture |
-| [Pipeline Runbook](Thesis_report/docs/19_Feb/PIPELINE_RUNBOOK.md) | Step-by-step pipeline operations guide |
-| [API Documentation](Thesis_report/docs/technical/guide-data-ingestion-inference.md) | FastAPI endpoints and usage |
-| [Research Papers Analysis](Thesis_report/docs/research/qna-har-mlops-papers.md) | Insights from 77+ research papers |
-| [Stage Index](Thesis_report/docs/stages/00_STAGE_INDEX.md) | All 14 pipeline stages documented |
-| [22-Feb Audit](Thesis_report/docs/22Feb_Opus_Understanding/00_README.md) | Comprehensive 28-file repo audit from Feb 2026 |
-| [Monitoring Deep Dive](Thesis_report/docs/22Feb_Opus_Understanding/12_STAGE_MONITORING_3_LAYER_DEEP_DIVE.md) | 3-layer monitoring architecture detail |
-| [Retraining & Rollback](Thesis_report/docs/22Feb_Opus_Understanding/14_STAGE_RETRAINING_TRIGGER_GOVERNANCE_ROLLBACK.md) | Retraining trigger, governance & rollback |
+| [Thesis Workflow](THESIS_WORKFLOW_MAR_JUN_2026.md) | Master March to June thesis execution plan |
+| [Thesis Workflow (docs)](docs/thesis_workflow/THESIS_WORKFLOW_MAR_JUN_2026.md) | Repo-local workflow copy for docs maintenance |
+| [Evidence Tracker](docs/thesis_workflow/THESIS_EVIDENCE.md) | Experiment-artifact-chapter tracking |
+| [Experiment Plan](docs/thesis_workflow/EXPERIMENT_PLAN.md) | Required experiment definitions and outputs |
+| [Defense Plan](docs/thesis_workflow/DEFENSE_PLAN.md) | Defense preparation checklist |
+| [Pipeline Config](config/pipeline_config.yaml) | Runtime pipeline behavior and preprocessing toggles |
+| [Trigger Policy Explanation](docs/TRIGGER_POLICY_EXPLANATION.md) | Stage 7 policy logic explanation |
+| [Wave 1 Fixes](reports/repo_audit/WAVE1_STAGE5_STAGE7_LABELMAP_FIXES.md) | Stage 5/7/label-map integrity fixes |
+| [Wave 2 Step 1](reports/repo_audit/WAVE2_BASELINE_SPACE_VERIFICATION.md) | Baseline-space mismatch evidence (FAIL) |
+| [Wave 2 Step 2](reports/repo_audit/WAVE2_STAGE6_BASELINE_SPACE_FIX_VALIDATION.md) | Baseline-space fix validation (PASS) |
 
 ---
 
