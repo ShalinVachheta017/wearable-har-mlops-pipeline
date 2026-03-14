@@ -6,8 +6,568 @@ Auto-generated from git commit history and supplemented manually.
 
 ---
 
+## 2026-03-14
+### Done Today
+- Stabilized thesis writing structure under `thesis/` with canonical entrypoint `thesis/main.tex` and tracked chapter files (`ch1` to `ch8`).
+- Added real bibliography usage and Chapter 1 problem statement:
+  - `thesis/references.bib`
+  - `thesis/chapters/ch1_introduction.tex`
+- Verified thesis build pipeline with full sequence:
+  - `pdflatex main.tex`
+  - `bibtex main`
+  - `pdflatex main.tex`
+  - `pdflatex main.tex`
+- Cleaned `docker/Dockerfile.inference` (kept only valid Docker instructions; removed accidental command text).
+- Consolidated thesis planning docs under `docs/thesis/`:
+  - `docs/thesis/THESIS_WORKFLOW_MAR_JUN_2026.md`
+  - `docs/thesis/THESIS_EVIDENCE.md`
+  - `docs/thesis/EXPERIMENT_PLAN.md`
+  - `docs/thesis/DEFENSE_PLAN.md`
+- Updated README links and added thesis reproducible build command block.
+
+### Commits (Today)
+- `80e01ae` - thesis: finalize workflow docs and chapter-1 citation baseline
+- `1aad2a6` - thesis: add chapter placeholders 2-8
+- `fd7ada2` - docs: consolidate thesis workflow under docs/thesis
+- `f69d874` - docs: update thesis links and add latex build steps
+
+### Planning Alignment
+- Followed the March to June execution strategy: structure first, then writing, then experiments.
+- Current phase focus remains: documentation and thesis writing momentum during exam period.
+
+### Next Work (Important)
+- Before starting any next task, check this file first:
+  - `docs/thesis/THESIS_WORKFLOW_MAR_JUN_2026.md`
+- Use this as the release/checkpoint reference for March to June planning.
+- Next high-impact writing task: continue `thesis/chapters/ch2_background_related_work.tex`.
+
 ## 2026-03-07
 ### Done
+Perfect — let’s make this **practical and actionable**. I’ll give you:
+
+1️⃣ **Exactly what you should do today (realistic tasks)**
+2️⃣ The **final Markdown file** you can paste directly into your repo
+3️⃣ Instructions to **rename and update your workflow file**
+4️⃣ A **clean structure** so Copilot and you can maintain it easily
+
+You can copy the Markdown below into:
+
+```
+docs/MARCH_TO_JUNE_THESIS_WORKFLOW.md
+```
+
+or
+
+```
+THESIS_WORKFLOW_MAR_JUN_2026.md
+```
+
+---
+
+# 1️⃣ What You Should Do **Today**
+
+Keep today **light**, because you also have exams.
+
+### Today’s Tasks (2–3 hours max)
+
+**1️⃣ Rename the existing workflow file**
+
+Rename:
+
+```
+TODO_MARCH.md
+```
+
+to
+
+```
+THESIS_WORKFLOW_MAR_JUN_2026.md
+```
+
+---
+
+**2️⃣ Fix two repo issues Copilot detected**
+
+Small but important.
+
+### Fix README path drift
+
+Update links pointing to old thesis folders.
+
+---
+
+### Fix Dockerfile inference
+
+Check file:
+
+```
+docker/Dockerfile.inference
+```
+
+Remove any accidental text like:
+
+```
+git commit
+git status
+```
+
+or anything not part of Docker commands.
+
+---
+
+**3️⃣ Create thesis folder**
+
+Inside repo:
+
+```
+thesis/
+```
+
+Structure:
+
+```
+thesis
+ ├── main.tex
+ ├── chapters
+ ├── figures
+ ├── tables
+ └── references.bib
+```
+
+---
+
+**4️⃣ Test LaTeX once**
+
+Run:
+
+```
+pdflatex main.tex
+```
+
+or in VS Code:
+
+```
+CTRL + ALT + B
+```
+
+Make sure **one PDF compiles successfully**.
+
+---
+
+**5️⃣ Create Evidence Tracker**
+
+Create:
+
+```
+THESIS_EVIDENCE.md
+```
+
+Example:
+
+```
+Experiment → Artifact → Chapter
+```
+
+This will save you huge time later.
+
+---
+
+# 2️⃣ Final Markdown File (Paste This)
+
+Create file:
+
+```
+THESIS_WORKFLOW_MAR_JUN_2026.md
+```
+
+Paste this:
+
+---
+
+# THESIS WORKFLOW (March – June 2026)
+
+Master Thesis: **Offline MLOps Pipeline for Human Activity Recognition**
+
+Student: **Shalin Vachheta**
+
+University: **University of Siegen**
+
+Submission Deadline: **1 July 2026**
+
+---
+
+# 1. Thesis Objective
+
+Design and implement an **offline-first MLOps pipeline** for Human Activity Recognition that supports:
+
+* reproducible model training
+* monitoring of production predictions
+* drift detection
+* trigger-based retraining
+* containerized deployment
+* reproducible experiments
+
+---
+
+# 2. System Pipeline Overview
+
+Pipeline stages implemented in the repository:
+
+```
+Stage 0  Data ingestion
+Stage 1  Data validation
+Stage 2  Data preprocessing
+Stage 3  Model training
+Stage 4  Model inference
+Stage 5  Model evaluation
+Stage 6  Monitoring and drift detection
+Stage 7  Trigger decision
+Stage 8  Retraining pipeline
+Stage 9  Model management
+Stage 10 Deployment interface
+```
+
+---
+
+# 3. Phase Plan
+
+## Phase 1 — Exam Mode
+
+**Now → April 15**
+
+Focus:
+
+* exam preparation
+* thesis structure
+* documentation
+* diagrams
+* evidence organization
+
+* bug fixes
+
+Engineering blocked:
+
+* architecture redesign
+
+---
+
+## Phase 2 — Pipeline Finalization
+**April 16 → April 30**
+
+* run experiments
+* generate artifacts
+
+* clean environment pipeline run
+* drift detection experiments
+---
+
+## Phase 3 — Thesis Writing
+
+**May 1 → May 31**
+
+Write main thesis chapters.
+
+Focus:
+
+* architecture explanation
+* pipeline implementation
+* monitoring system
+* experiments
+
+---
+
+## Phase 4 — Finalization
+
+**June 1 → June 20**
+
+Tasks:
+
+* editing
+* figures
+* citations
+* formatting
+
+---
+
+## Phase 5 — Defense Preparation
+
+**June 20 → June 30**
+
+Tasks:
+
+* presentation slides
+* demo preparation
+* defense rehearsal
+
+---
+
+# 4. Weekly Roadmap
+
+## March 16 – March 22
+
+* finalize thesis chapter structure
+* create thesis LaTeX project
+* build figure inventory
+* create evidence tracking file
+
+---
+
+## March 23 – March 29
+
+* draft Chapter 1
+* draft system architecture overview
+* map repository components to thesis chapters
+
+---
+
+## March 30 – April 5
+
+* prepare pipeline architecture diagrams
+* collect Wave 1 and Wave 2 evidence
+* update documentation
+
+---
+
+## April 6 – April 15
+
+Exam period.
+
+Tasks:
+
+* finalize architecture diagrams
+* prepare experiment plan
+* minimal pipeline sanity run if necessary
+
+---
+
+## April 16 – April 22
+
+* run reproducibility pipeline
+* validate monitoring pipeline
+* verify trigger logic
+
+---
+
+## April 23 – April 30
+
+Run experiments:
+
+* baseline evaluation
+* drift detection
+* trigger behaviour
+* runtime analysis
+
+Export artifacts.
+
+---
+
+## May 1 – May 7
+
+Write:
+
+* dataset description
+* preprocessing
+* model architecture
+
+---
+
+## May 8 – May 14
+
+Write:
+
+* MLOps pipeline implementation
+* DVC usage
+* MLflow tracking
+
+---
+
+## May 15 – May 21
+
+Write:
+
+* monitoring system
+* drift detection
+* trigger policy
+
+---
+
+## May 22 – May 31
+
+Write results chapter.
+
+Include:
+
+* experiment tables
+* evaluation plots
+* runtime charts
+
+---
+
+## June 1 – June 10
+
+Editing pass.
+
+Fix:
+
+* grammar
+* diagrams
+* cross references
+
+---
+
+## June 10 – June 20
+
+Finalize:
+
+* bibliography
+* appendix
+* reproducibility instructions
+
+---
+
+## June 20 – June 30
+
+Defense preparation.
+
+Tasks:
+
+* build presentation slides
+* prepare demo pipeline run
+* rehearse defense talk
+
+---
+
+# 5. Experiments Required
+
+The thesis requires **five experiments**.
+
+### Experiment 1
+
+Model performance evaluation.
+
+Metrics:
+
+* accuracy
+* precision
+* recall
+* F1 score
+
+---
+
+### Experiment 2
+
+Drift detection validation.
+
+Measure detection sensitivity.
+
+---
+
+### Experiment 3
+
+Prediction monitoring behaviour.
+
+Evaluate:
+
+* confidence
+* entropy
+* prediction distribution
+
+---
+
+### Experiment 4
+
+Trigger policy evaluation.
+
+Demonstrate retraining trigger logic.
+
+---
+
+### Experiment 5
+
+Pipeline runtime evaluation.
+
+Measure:
+
+* runtime vs dataset size
+* resource consumption
+
+---
+
+# 6. Repository Validation Checklist
+
+Pipeline:
+
+* full pipeline executes end-to-end
+* artifacts are reproducible
+
+Monitoring:
+
+* drift detection works
+* baseline statistics valid
+
+CI/CD:
+
+* tests run successfully
+* Docker images build successfully
+
+Documentation:
+
+* README updated
+* thesis docs aligned with repo structure
+
+---
+
+# 7. Evidence Tracking
+
+Create mapping between experiments and artifacts.
+
+Example:
+
+| Experiment          | Artifact              | Chapter   |
+| ------------------- | --------------------- | --------- |
+| Baseline evaluation | MLflow run            | Chapter 7 |
+| Drift experiment    | monitoring logs       | Chapter 6 |
+| Trigger evaluation  | trigger_decision.json | Chapter 6 |
+
+---
+
+# 3️⃣ Recommended Repo Folder for Thesis Docs
+
+Inside repo:
+
+```
+docs/
+   thesis_workflow/
+```
+
+Store:
+
+```
+THESIS_WORKFLOW_MAR_JUN_2026.md
+THESIS_EVIDENCE.md
+EXPERIMENT_PLAN.md
+DEFENSE_PLAN.md
+```
+
+---
+
+# 4️⃣ One Last Recommendation
+
+Once this file is created, run Copilot prompt:
+
+```
+Audit the repository against THESIS_WORKFLOW_MAR_JUN_2026.md
+and identify completed tasks, pending tasks, and risks
+for the thesis completion timeline.
+```
+
+This makes Copilot **act like a project manager**.
+
+---
+
+If you want, I can also show you something **very powerful for your thesis**:
+
+The **10 diagrams you should create from your repo** that will dramatically improve the quality of your thesis presentation.
   - `black --check`: 53 files re-formatted (`python -m black .`, committed `"style: auto-format with black"`)
   - `isort --check-only src/`: 2 files in `src/monitoring/` had wrong import order — fixed manually (`"style: fix isort import ordering"`)
   - `scripts/find_duplicate_papers.py` — SHA-256 based, never modifies files

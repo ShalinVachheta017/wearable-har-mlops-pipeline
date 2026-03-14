@@ -319,6 +319,17 @@ class PostInferenceMonitor:
                     f"Re-run Stage 10 (baseline update) to regenerate."
                 )
 
+            # Feature-space guard: Stage 6 expects transformed-space baseline
+            # because production_data_path is loaded from production_X.npy
+            # after preprocessing transform mode.
+            metadata = baseline.get("metadata", {}) if isinstance(baseline, dict) else {}
+            feature_space = metadata.get("feature_space")
+            if feature_space != "transformed":
+                raise ValueError(
+                    "Baseline feature-space mismatch: expected metadata.feature_space='transformed' "
+                    f"but got '{feature_space}'. Rebuild baseline via Stage 10."
+                )
+
             # Calculate production statistics
             prod_mean = production_data.mean(axis=(0, 1))  # Average over windows and timesteps
             prod_std = production_data.std(axis=(0, 1))
@@ -327,6 +338,13 @@ class PostInferenceMonitor:
             if 'mean' in baseline and 'std' in baseline:
                 baseline_mean = np.array(baseline['mean'])
                 baseline_std = np.array(baseline['std'])
+
+                if baseline_mean.shape[0] != prod_mean.shape[0] or baseline_std.shape[0] != prod_std.shape[0]:
+                    raise ValueError(
+                        "Baseline channel-shape mismatch: "
+                        f"baseline_mean={baseline_mean.shape[0]}, baseline_std={baseline_std.shape[0]}, "
+                        f"production={prod_mean.shape[0]}"
+                    )
                 
                 # Calculate drift metrics (simple: normalized difference)
                 mean_diff = np.abs(prod_mean - baseline_mean) / (baseline_std + 1e-8)

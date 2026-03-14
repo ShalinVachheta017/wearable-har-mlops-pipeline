@@ -47,6 +47,8 @@ class TriggerEvaluation:
             confidence_critical=self.config.confidence_critical,
             drift_zscore_warn=self.config.drift_zscore_warn,
             drift_zscore_critical=self.config.drift_zscore_critical,
+            flip_rate_warn=self.config.temporal_flip_warn,
+            flip_rate_critical=self.config.temporal_flip_critical,
         )
         cooldown = CooldownConfig(
             retrain_cooldown_hours=self.config.cooldown_hours,

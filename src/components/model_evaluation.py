@@ -52,18 +52,41 @@ class ModelEvaluation:
         pipe = _EvalPipeline(config=eval_cfg)
         result = pipe.run(predictions_csv=predictions_csv)
 
-        dist = result.get("distribution", {})
+        if not result.get("success", False):
+            err = result.get("error", "unknown evaluation error")
+            raise RuntimeError(f"Stage 5 evaluation failed: {err}")
+
+        payload = result.get("results", {})
+        if not payload:
+            logger.warning("Stage 5: evaluation payload is empty after successful run")
+
+        dist = payload.get("distribution", {})
+        conf = payload.get("confidence", {})
+        output_files = payload.get("output_files", {})
+
         dominance_warning = bool(dist.pop("_distribution_dominance_warning", False))
         # Remove internal keys added by analyze_distribution before storing.
         dist.pop("_dominant_class", None)
         dist.pop("_dominant_pct", None)
 
+        report_json_path = output_files.get("json")
+        report_text_path = output_files.get("txt")
+        if report_json_path:
+            report_json_path = Path(report_json_path)
+        if report_text_path:
+            report_text_path = Path(report_text_path)
+
+        if not dist:
+            logger.warning("Stage 5: distribution summary is empty")
+        if not conf:
+            logger.warning("Stage 5: confidence summary is empty")
+
         return ModelEvaluationArtifact(
-            report_json_path=result.get("report_json"),
-            report_text_path=result.get("report_text"),
+            report_json_path=report_json_path,
+            report_text_path=report_text_path,
             distribution_summary=dist,
-            confidence_summary=result.get("confidence", {}),
-            has_labels=result.get("has_labels", False),
-            classification_metrics=result.get("classification_metrics"),
+            confidence_summary=conf,
+            has_labels=bool(self.config.labels_path),
+            classification_metrics=payload.get("classification_metrics"),
             distribution_dominance_warning=dominance_warning,
         )
