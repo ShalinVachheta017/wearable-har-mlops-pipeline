@@ -16,7 +16,7 @@
 
 ## 📊 Current Status
 
-> **🎯 PROGRESS OVERVIEW:** See [Thesis Workflow](THESIS_WORKFLOW_MAR_JUN_2026.md) for the timeline and [Evidence Tracker](docs/thesis_workflow/THESIS_EVIDENCE.md) for experiment-to-artifact mapping.
+> **🎯 PROGRESS OVERVIEW:** See [Thesis Workflow](docs/thesis/THESIS_WORKFLOW_MAR_JUN_2026.md) for the timeline and [Evidence Tracker](docs/thesis/THESIS_EVIDENCE.md) for experiment-to-artifact mapping.
 
 **Completed (as of Feb 26, 2026):**
 - ✅ **14-stage pipeline** fully orchestrated (`--advanced` flag enables all 14 stages)
@@ -35,10 +35,19 @@
 **Quick Links:**
 - 🚀 [Examiner Quickstart](#-examiner-quickstart-3-commands): Reproduce results in 3 commands
 - 🧪 [Run Tests](#-testing): `pytest tests/`
-- 🔧 [Workflow Plan](THESIS_WORKFLOW_MAR_JUN_2026.md): March to June execution plan
-- 📋 [Thesis Workflow Docs](docs/thesis_workflow/THESIS_WORKFLOW_MAR_JUN_2026.md): Repo-managed workflow file
-- 📚 [Evidence Tracker](docs/thesis_workflow/THESIS_EVIDENCE.md): Experiment to artifact map
+- 🔧 [Workflow Plan](docs/thesis/THESIS_WORKFLOW_MAR_JUN_2026.md): March to June execution plan
+- 📋 [Thesis Workflow Docs](docs/thesis/THESIS_WORKFLOW_MAR_JUN_2026.md): Repo-managed workflow file
+- 📚 [Evidence Tracker](docs/thesis/THESIS_EVIDENCE.md): Experiment to artifact map
 - 🔍 [Wave 2 Validation](reports/repo_audit/WAVE2_STAGE6_BASELINE_SPACE_FIX_VALIDATION.md): Baseline-space consistency proof
+
+**Thesis Build (LaTeX + BibTeX):**
+```bash
+cd thesis
+pdflatex main.tex
+bibtex main
+pdflatex main.tex
+pdflatex main.tex
+```
 
 ---
 
@@ -46,11 +55,11 @@
 
 | Document | Purpose |
 |----------|---------|
-| [Thesis Workflow](THESIS_WORKFLOW_MAR_JUN_2026.md) | Master March to June thesis execution plan |
-| [Thesis Workflow (docs)](docs/thesis_workflow/THESIS_WORKFLOW_MAR_JUN_2026.md) | Repo-local workflow copy for docs maintenance |
-| [Evidence Tracker](docs/thesis_workflow/THESIS_EVIDENCE.md) | Experiment-artifact-chapter tracking |
-| [Experiment Plan](docs/thesis_workflow/EXPERIMENT_PLAN.md) | Required experiment definitions and outputs |
-| [Defense Plan](docs/thesis_workflow/DEFENSE_PLAN.md) | Defense preparation checklist |
+| [Thesis Workflow](docs/thesis/THESIS_WORKFLOW_MAR_JUN_2026.md) | Master March to June thesis execution plan |
+| [Thesis Workflow (docs)](docs/thesis/THESIS_WORKFLOW_MAR_JUN_2026.md) | Repo-local workflow copy for docs maintenance |
+| [Evidence Tracker](docs/thesis/THESIS_EVIDENCE.md) | Experiment-artifact-chapter tracking |
+| [Experiment Plan](docs/thesis/EXPERIMENT_PLAN.md) | Required experiment definitions and outputs |
+| [Defense Plan](docs/thesis/DEFENSE_PLAN.md) | Defense preparation checklist |
 | [Pipeline Config](config/pipeline_config.yaml) | Runtime pipeline behavior and preprocessing toggles |
 | [Trigger Policy Explanation](docs/TRIGGER_POLICY_EXPLANATION.md) | Stage 7 policy logic explanation |
 | [Wave 1 Fixes](reports/repo_audit/WAVE1_STAGE5_STAGE7_LABELMAP_FIXES.md) | Stage 5/7/label-map integrity fixes |
