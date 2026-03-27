@@ -13,6 +13,15 @@ This folder contains non-runtime, support, private, historical, and writing-assi
 - `old_plans/`: dated plans and legacy documentation sets retained for traceability.
 - `archive/`: uncertain or deprecated internal materials kept for safety instead of deletion.
 
+## Archive Subfolders
+
+- `archive/docs_old/`: historical documentation packs, old markdown sets, and superseded documentation collections.
+- `archive/old_plans/`: dated planning artifacts and old todo-style materials no longer active.
+- `archive/snapshots/`: archived index and snapshot artifacts from previous repo states.
+- `archive/misc/`: non-document miscellaneous assets (images and ad-hoc files) retained for traceability.
+- `archive/misc_papers/`: one-off PDF references not part of the active paper workflow.
+- `archive/deprecated_support/`: deprecated support scripts, AI conversation artifacts, and obsolete prep/conversion work.
+
 ## Scope Rules
 
 - Do not place runtime source code here.

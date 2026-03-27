@@ -20,6 +20,27 @@ Purpose: Track organization-only moves into `internal/`.
 | `docs/YOU_SHOULD_KNOW_BEFORE_MASTER_FILE/` | `internal/workflow/YOU_SHOULD_KNOW_BEFORE_MASTER_FILE/` | Decision ledgers and support files for thesis planning context. | Workflow | Reference |
 | `docs/thesis/FROM_APRIL_15_COMPLETION_AUDIT_AND_EXECUTION_PLAN.md` | `internal/workflow/FROM_APRIL_15_COMPLETION_AUDIT_AND_EXECUTION_PLAN.md` | Dated execution audit and completion plan note. | Workflow | Archive |
 
+## Archive Normalization (Root `archive/` to `internal/`)
+
+| Original Path | New Path | Summary | Category | Status |
+|---|---|---|---|---|
+| `archive/docs_old/` | `internal/archive/docs_old/` | Legacy docs container retained as historical reference. | Archived Docs | Archive |
+| `archive/docs_feb2026/` | `internal/archive/docs_old/docs_feb2026/` | Dated February 2026 docs kept for historical audit. | Archived Docs | Archive |
+| `archive/markdown_old/` | `internal/archive/docs_old/markdown_old/` | Old markdown notes and summaries retained for traceability. | Archived Docs | Archive |
+| `archive/old_docs/` | `internal/archive/docs_old/old_docs/` | Older document/paper packs and supporting files retained. | Archived Docs | Archive |
+| `archive/old_planning_docs/` | `internal/archive/old_plans/old_planning_docs/` | Dated planning files and old TODO materials. | Old Plans | Archive |
+| `archive/snapshots/` | `internal/archive/snapshots/` | Archived snapshot exports preserved for history. | Snapshots | Archive |
+| `archive/_index/` | `internal/archive/snapshots/_index/` | Historical index metadata retained with snapshots. | Snapshots | Archive |
+| `archive/misc/` | `internal/archive/misc/` | Miscellaneous non-core assets retained instead of deletion. | Misc | Archive |
+| `archive/misc_papers/` | `internal/archive/misc_papers/` | One-off paper PDFs and ad-hoc references. | Misc Papers | Archive |
+| `archive/scripts_feb2026/` | `internal/archive/deprecated_support/scripts_feb2026/` | Deprecated support scripts kept for historical context. | Deprecated Support | Archive |
+| `archive/Archived(prepare traning- production- conversion)/` | `internal/archive/deprecated_support/prepare_training_production_conversion/` | Superseded preprocessing/validation support work. | Deprecated Support | Archive |
+| `archive/ai_conversations/` | `internal/archive/deprecated_support/ai_conversations/` | AI conversation artifacts retained as historical support context. | Deprecated Support | Archive |
+| `archive/papers/` | `internal/papers/archive_papers/` | Paper library still useful as reference reading material. | Papers | Reference |
+| `archive/research_papers/` | `internal/papers/research_papers/` | Research-paper set preserved for ongoing literature support. | Papers | Reference |
+
+Root `archive/` was removed after relocation because all contents were migrated.
+
 ## Explicitly Kept Outside Internal
 
 - Runtime and code paths: `src/`, `scripts/`, `tests/`, `config/`, `docker/`

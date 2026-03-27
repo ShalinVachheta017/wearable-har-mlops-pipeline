@@ -34,7 +34,7 @@ python run_pipeline.py
 - [docker/](docker/) and [docker-compose.yml](docker-compose.yml): container setup
 - [docs/](docs/): technical and thesis support docs
 - [thesis/](thesis/): thesis manuscript sources
-- [archive/](archive/): historical notes and non-core materials
+- [internal/](internal/): non-core support, historical, and private working materials
 
 ## Thesis-Critical Docs
 
@@ -61,4 +61,4 @@ python -m compileall src scripts run_pipeline.py
 ## Notes
 
 - Root is intentionally kept minimal for defense readability.
-- Working notes and ad-hoc materials are moved under `docs/` or `archive/`.
+- Working notes and historical support materials are consolidated under `internal/`.
