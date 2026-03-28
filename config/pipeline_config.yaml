@@ -39,6 +39,7 @@ preprocessing:
   # WHY: Not part of original training pipeline.
   #      Only enable for domain adaptation experiments.
   enable_calibration: false
+  enable_domain_calibration: false
 
   # Data Normalization  (StandardScaler / RobustScaler z-score)
   # RECOMMENDED: true

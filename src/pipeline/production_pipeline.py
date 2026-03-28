@@ -219,11 +219,15 @@ class ProductionPipeline:
         retraining_art = None
         registration_art = None
         baseline_art = None
+        collapse_signals = {}
+        goto_cleanup = False
 
         # MLflow tracking (optional — wraps entire run)
         mlflow_tracker = self._init_mlflow()
 
         for stage in run_stages:
+            if goto_cleanup:
+                break
             try:
                 if stage == "ingestion":
                     from src.components.data_ingestion import DataIngestion
@@ -403,6 +407,7 @@ class ProductionPipeline:
                     )
                     evaluation_art = comp.initiate_model_evaluation()
                     result.evaluation = evaluation_art
+                    collapse_signals = self._extract_collapse_signals(evaluation_art)
 
                     # Save artifacts
                     if evaluation_art.report_json_path and evaluation_art.report_json_path.exists():
@@ -453,6 +458,12 @@ class ProductionPipeline:
                     monitoring_art = comp.initiate_post_inference_monitoring()
                     result.monitoring = monitoring_art
 
+                    # Propagate Stage 5 collapse indicators into Stage 6/7 flow.
+                    if collapse_signals:
+                        if monitoring_art.monitoring_report is None:
+                            monitoring_art.monitoring_report = {}
+                        monitoring_art.monitoring_report["collapse_signals"] = collapse_signals
+
                     # Save monitoring artifacts
                     if monitoring_art.report_path and monitoring_art.report_path.exists():
                         self.artifacts_manager.save_file(monitoring_art.report_path, "monitoring")
@@ -462,6 +473,7 @@ class ProductionPipeline:
                             "layer1_confidence": monitoring_art.layer1_confidence,
                             "layer2_temporal": monitoring_art.layer2_temporal,
                             "layer3_drift": monitoring_art.layer3_drift,
+                            "collapse_signals": collapse_signals,
                         },
                         "monitoring",
                         "monitoring_summary.json",
@@ -476,6 +488,9 @@ class ProductionPipeline:
                             ),
                             "temporal_status": monitoring_art.layer2_temporal.get("status", "N/A"),
                             "drift_status": monitoring_art.layer3_drift.get("status", "N/A"),
+                            "collapse_warning": collapse_signals.get("dominance_warning", False),
+                            "dominant_class": collapse_signals.get("dominant_class", ""),
+                            "dominant_pct": collapse_signals.get("dominant_pct", 0.0),
                         },
                     )
 
@@ -498,8 +513,14 @@ class ProductionPipeline:
                             "should_retrain": trigger_art.should_retrain,
                             "action": trigger_art.action,
                             "alert_level": trigger_art.alert_level,
+                            "reason": trigger_art.reasons[0] if trigger_art.reasons else "",
                             "reasons": trigger_art.reasons,
                             "cooldown_active": trigger_art.cooldown_active,
+                            "collapse_signals": (
+                                monitoring_art.monitoring_report.get("collapse_signals", {})
+                                if monitoring_art and monitoring_art.monitoring_report
+                                else {}
+                            ),
                         },
                         "trigger",
                         "trigger_decision.json",
@@ -516,6 +537,20 @@ class ProductionPipeline:
                     )
 
                 elif stage == "retraining":
+                    force_retrain = getattr(self.pipeline_config, "force_retraining", False)
+                    if not force_retrain and (
+                        trigger_art is None or not trigger_art.should_retrain
+                    ):
+                        logger.info(
+                            "Stages 8-10 SKIPPED — trigger=NONE. "
+                            "Use --retrain flag to force maintenance mode."
+                        )
+                        retraining_art = None
+                        registration_art = None
+                        baseline_art = None
+                        goto_cleanup = True
+                        continue
+
                     from src.components.model_retraining import ModelRetraining
 
                     comp = ModelRetraining(
@@ -529,7 +564,8 @@ class ProductionPipeline:
 
                 elif stage == "registration":
                     if retraining_art is None:
-                        raise ValueError("No retraining artifact — run retraining first.")
+                        logger.info("Stage 9 SKIPPED — no retraining artifact.")
+                        continue
                     from src.components.model_registration import ModelRegistration
 
                     comp = ModelRegistration(
@@ -542,6 +578,9 @@ class ProductionPipeline:
                     result.registration = registration_art
 
                 elif stage == "baseline_update":
+                    if retraining_art is None:
+                        logger.info("Stage 10 SKIPPED — no retraining artifact.")
+                        continue
                     from src.components.baseline_update import BaselineUpdate
 
                     # Governance: only promote to shared baseline when explicitly requested
@@ -690,6 +729,102 @@ class ProductionPipeline:
     # ================================================================== #
     # Helpers
     # ================================================================== #
+
+    @staticmethod
+    def _as_bool(value) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y"}
+        return bool(value)
+
+    def _extract_collapse_signals(self, evaluation_art) -> Dict:
+        """Extract collapse-related fields from Stage 5 artifact/report JSON.
+
+        Supports both underscored and non-underscored key variants.
+        """
+        signals = {
+            "dominance_warning": False,
+            "dominant_class": None,
+            "dominant_pct": None,
+            "mean_confidence": None,
+            "transition_rate": None,
+            "longest_sequence_length": None,
+        }
+
+        # From the typed artifact
+        signals["dominance_warning"] = self._as_bool(
+            getattr(evaluation_art, "distribution_dominance_warning", False)
+        )
+        dist = getattr(evaluation_art, "distribution_summary", {}) or {}
+        conf = getattr(evaluation_art, "confidence_summary", {}) or {}
+
+        signals["dominant_class"] = dist.get("_dominant_class") or dist.get("dominant_class")
+        signals["dominant_pct"] = dist.get("_dominant_pct") or dist.get("dominant_pct")
+        signals["mean_confidence"] = conf.get("mean") or conf.get("mean_confidence")
+
+        # Infer dominant class/pct when summary only contains class buckets.
+        if not signals["dominant_class"] and dist:
+            class_entries = {
+                k: v for k, v in dist.items() if isinstance(v, dict) and "percentage" in v
+            }
+            if class_entries:
+                dominant = max(class_entries.items(), key=lambda kv: kv[1].get("percentage", 0.0))
+                signals["dominant_class"] = dominant[0]
+                if signals["dominant_pct"] is None:
+                    signals["dominant_pct"] = dominant[1].get("percentage")
+
+        # From Stage 5 JSON report (contains underscore-prefixed internals)
+        report_path = getattr(evaluation_art, "report_json_path", None)
+        if report_path and Path(report_path).exists():
+            try:
+                payload = json.loads(Path(report_path).read_text(encoding="utf-8"))
+                d = payload.get("distribution", {})
+                t = payload.get("temporal", {})
+                c = payload.get("confidence", {})
+
+                if "_distribution_dominance_warning" in d:
+                    signals["dominance_warning"] = self._as_bool(
+                        d.get("_distribution_dominance_warning")
+                    )
+                elif "distribution_dominance_warning" in d:
+                    signals["dominance_warning"] = self._as_bool(
+                        d.get("distribution_dominance_warning")
+                    )
+
+                signals["dominant_class"] = (
+                    d.get("_dominant_class")
+                    or d.get("dominant_class")
+                    or signals["dominant_class"]
+                )
+                signals["dominant_pct"] = (
+                    d.get("_dominant_pct")
+                    or d.get("dominant_pct")
+                    or signals["dominant_pct"]
+                )
+
+                if signals["mean_confidence"] is None:
+                    signals["mean_confidence"] = c.get("mean") or c.get("mean_confidence")
+
+                signals["transition_rate"] = t.get("transition_rate", signals["transition_rate"])
+                if "longest_sequence_length" in t:
+                    signals["longest_sequence_length"] = t.get("longest_sequence_length")
+                elif "longest_sequences" in t and isinstance(t["longest_sequences"], dict):
+                    seq_values = [v for v in t["longest_sequences"].values() if isinstance(v, (int, float))]
+                    if seq_values:
+                        signals["longest_sequence_length"] = max(seq_values)
+            except Exception as exc:
+                logger.warning("Could not parse Stage 5 evaluation report for collapse signals: %s", exc)
+
+        # Normalize numeric fields
+        for key in ("dominant_pct", "mean_confidence", "transition_rate", "longest_sequence_length"):
+            try:
+                if signals[key] is not None:
+                    signals[key] = float(signals[key])
+            except Exception:
+                pass
+
+        return signals
 
     def _make_fallback_ingestion_artifact(self):
         """Create a synthetic ingestion artifact pointing to existing CSV."""

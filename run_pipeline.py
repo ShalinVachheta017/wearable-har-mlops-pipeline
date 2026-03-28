@@ -356,7 +356,9 @@ def main():
     # Resolve preprocessing toggles: CLI flags override YAML config
     enable_unit_conversion = yaml_preproc.get("enable_unit_conversion", True)
     enable_gravity_removal = yaml_preproc.get("enable_gravity_removal", False)
-    enable_calibration = yaml_preproc.get("enable_calibration", False)
+    enable_calibration = yaml_preproc.get(
+        "enable_calibration", yaml_preproc.get("enable_domain_calibration", False)
+    )
     enable_normalization = yaml_preproc.get("enable_normalization", True)
     normalization_variant = yaml_preproc.get("normalization_variant", "zscore")
 
