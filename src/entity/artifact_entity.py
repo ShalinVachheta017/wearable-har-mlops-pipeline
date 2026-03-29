@@ -100,6 +100,8 @@ class ModelEvaluationArtifact:
     # Informational flag: any single class > 95 % of predictions in this batch.
     # Does NOT trigger retraining — see docs/TRIGGER_POLICY_EXPLANATION.md.
     distribution_dominance_warning: bool = False
+    dominant_pct: Optional[float] = None
+    dominant_class: Optional[str] = None
 
 
 # ============================================================================

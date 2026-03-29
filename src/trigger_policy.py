@@ -151,6 +151,7 @@ class TriggerDecision:
     signals: Dict[str, Any]
     metrics_summary: Dict[str, float]
     recommendations: List[str]
+    cooldown_active: bool = False
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization."""
@@ -644,6 +645,8 @@ class TriggerPolicyEngine:
 
     def _apply_cooldowns(self, decision: TriggerDecision) -> TriggerDecision:
         """Apply cooldown logic to prevent rapid successive triggers."""
+        decision.cooldown_active = False
+
         if not decision.should_trigger:
             return decision
 
@@ -663,6 +666,7 @@ class TriggerPolicyEngine:
 
                 decision.should_trigger = False
                 decision.action = TriggerAction.QUEUE_RETRAIN
+                decision.cooldown_active = True
                 decision.recommendations.insert(
                     0, f"Cooldown active - retrain queued (wait {time_remaining.seconds//3600}h)"
                 )

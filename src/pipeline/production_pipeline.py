@@ -24,7 +24,7 @@ import json
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.entity.artifact_entity import PipelineResult
 from src.entity.config_entity import (
@@ -464,6 +464,19 @@ class ProductionPipeline:
                             monitoring_art.monitoring_report = {}
                         monitoring_art.monitoring_report["collapse_signals"] = collapse_signals
 
+                        # Keep the persisted monitoring report in sync with runtime enrichment.
+                        if monitoring_art.report_path:
+                            try:
+                                Path(monitoring_art.report_path).write_text(
+                                    json.dumps(monitoring_art.monitoring_report, indent=2),
+                                    encoding="utf-8",
+                                )
+                            except Exception as exc:
+                                logger.warning(
+                                    "Could not update monitoring report with collapse signals: %s",
+                                    exc,
+                                )
+
                     # Save monitoring artifacts
                     if monitoring_art.report_path and monitoring_art.report_path.exists():
                         self.artifacts_manager.save_file(monitoring_art.report_path, "monitoring")
@@ -742,7 +755,7 @@ class ProductionPipeline:
 
         Supports both underscored and non-underscored key variants.
         """
-        signals = {
+        signals: Dict[str, Any] = {
             "dominance_warning": False,
             "dominant_class": None,
             "dominant_pct": None,
@@ -758,12 +771,25 @@ class ProductionPipeline:
         dist = getattr(evaluation_art, "distribution_summary", {}) or {}
         conf = getattr(evaluation_art, "confidence_summary", {}) or {}
 
-        signals["dominant_class"] = dist.get("_dominant_class") or dist.get("dominant_class")
-        signals["dominant_pct"] = dist.get("_dominant_pct") or dist.get("dominant_pct")
+        # Read from typed artifact fields (reliable path).
+        signals["dominant_pct"] = getattr(evaluation_art, "dominant_pct", None)
+        signals["dominant_class"] = getattr(evaluation_art, "dominant_class", None)
+
+        # Fallback to distribution summary only when typed fields are missing.
+        if signals["dominant_class"] is None:
+            signals["dominant_class"] = dist.get("_dominant_class")
+            if signals["dominant_class"] is None:
+                signals["dominant_class"] = dist.get("dominant_class")
+
+        if signals["dominant_pct"] is None:
+            signals["dominant_pct"] = dist.get("_dominant_pct")
+            if signals["dominant_pct"] is None:
+                signals["dominant_pct"] = dist.get("dominant_pct")
+
         signals["mean_confidence"] = conf.get("mean") or conf.get("mean_confidence")
 
         # Infer dominant class/pct when summary only contains class buckets.
-        if not signals["dominant_class"] and dist:
+        if signals["dominant_class"] is None and dist:
             class_entries = {
                 k: v for k, v in dist.items() if isinstance(v, dict) and "percentage" in v
             }
@@ -791,16 +817,16 @@ class ProductionPipeline:
                         d.get("distribution_dominance_warning")
                     )
 
-                signals["dominant_class"] = (
-                    d.get("_dominant_class")
-                    or d.get("dominant_class")
-                    or signals["dominant_class"]
-                )
-                signals["dominant_pct"] = (
-                    d.get("_dominant_pct")
-                    or d.get("dominant_pct")
-                    or signals["dominant_pct"]
-                )
+                # JSON fallback only when artifact-derived values are still missing.
+                if signals["dominant_class"] is None:
+                    signals["dominant_class"] = d.get("_dominant_class")
+                    if signals["dominant_class"] is None:
+                        signals["dominant_class"] = d.get("dominant_class")
+
+                if signals["dominant_pct"] is None:
+                    signals["dominant_pct"] = d.get("_dominant_pct")
+                    if signals["dominant_pct"] is None:
+                        signals["dominant_pct"] = d.get("dominant_pct")
 
                 if signals["mean_confidence"] is None:
                     signals["mean_confidence"] = c.get("mean") or c.get("mean_confidence")

@@ -133,7 +133,7 @@ class TriggerEvaluation:
                 else str(decision.alert_level)
             ),
             reasons=self._build_reasons(decision),
-            cooldown_active=False,
+            cooldown_active=getattr(decision, "cooldown_active", False),
         )
 
     @staticmethod

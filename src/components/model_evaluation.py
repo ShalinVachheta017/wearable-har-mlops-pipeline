@@ -64,6 +64,10 @@ class ModelEvaluation:
         conf = payload.get("confidence", {})
         output_files = payload.get("output_files", {})
 
+        # Capture BEFORE popping internal keys used by downstream collapse checks.
+        _dominant_pct = dist.get("_dominant_pct")
+        _dominant_class = dist.get("_dominant_class")
+
         dominance_warning = bool(dist.pop("_distribution_dominance_warning", False))
         # Remove internal keys added by analyze_distribution before storing.
         dist.pop("_dominant_class", None)
@@ -89,4 +93,6 @@ class ModelEvaluation:
             has_labels=bool(self.config.labels_path),
             classification_metrics=payload.get("classification_metrics"),
             distribution_dominance_warning=dominance_warning,
+            dominant_pct=_dominant_pct,
+            dominant_class=_dominant_class,
         )
