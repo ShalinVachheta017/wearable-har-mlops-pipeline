@@ -835,14 +835,23 @@ class ProductionPipeline:
                 if "longest_sequence_length" in t:
                     signals["longest_sequence_length"] = t.get("longest_sequence_length")
                 elif "longest_sequences" in t and isinstance(t["longest_sequences"], dict):
-                    seq_values = [v for v in t["longest_sequences"].values() if isinstance(v, (int, float))]
+                    seq_values = [
+                        v for v in t["longest_sequences"].values() if isinstance(v, (int, float))
+                    ]
                     if seq_values:
                         signals["longest_sequence_length"] = max(seq_values)
             except Exception as exc:
-                logger.warning("Could not parse Stage 5 evaluation report for collapse signals: %s", exc)
+                logger.warning(
+                    "Could not parse Stage 5 evaluation report for collapse signals: %s", exc
+                )
 
         # Normalize numeric fields
-        for key in ("dominant_pct", "mean_confidence", "transition_rate", "longest_sequence_length"):
+        for key in (
+            "dominant_pct",
+            "mean_confidence",
+            "transition_rate",
+            "longest_sequence_length",
+        ):
             try:
                 if signals[key] is not None:
                     signals[key] = float(signals[key])

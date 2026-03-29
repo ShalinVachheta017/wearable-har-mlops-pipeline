@@ -28,6 +28,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
+
 from src.utils.label_mapping import get_activity_classes
 
 # ---------------------------------------------------------------------------

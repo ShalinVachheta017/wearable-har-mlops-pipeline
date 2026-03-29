@@ -10,7 +10,6 @@ import json
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-
 _CANONICAL_ACTIVITY_CLASSES = {
     0: "ear_rubbing",
     1: "forehead_rubbing",
@@ -38,9 +37,7 @@ def _validate_mapping(
         raise ValueError("Activity mapping cannot be empty.")
 
     if len(activity_to_label) != len(label_to_activity):
-        raise ValueError(
-            "Mapping length mismatch between activity_to_label and label_to_activity."
-        )
+        raise ValueError("Mapping length mismatch between activity_to_label and label_to_activity.")
 
     n_classes = len(activity_to_label)
     expected_ids = set(range(n_classes))
@@ -52,12 +49,12 @@ def _validate_mapping(
 
     for activity, label in activity_to_label.items():
         if label_to_activity.get(label) != activity:
-            raise ValueError(
-                f"Inconsistent reverse mapping for '{activity}' -> {label}."
-            )
+            raise ValueError(f"Inconsistent reverse mapping for '{activity}' -> {label}.")
 
 
-def _load_mapping_from_metadata(metadata_path: Path) -> Optional[Tuple[Dict[int, str], Dict[str, int]]]:
+def _load_mapping_from_metadata(
+    metadata_path: Path,
+) -> Optional[Tuple[Dict[int, str], Dict[str, int]]]:
     if not metadata_path.exists():
         return None
 

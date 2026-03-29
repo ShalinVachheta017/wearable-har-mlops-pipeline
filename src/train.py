@@ -56,6 +56,8 @@ from tensorflow import keras  # noqa: E402
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
+import mlflow  # noqa: E402
+
 from config import (  # noqa: E402, F401
     ACTIVITY_LABELS,
     DATA_PREPARED,
@@ -69,7 +71,6 @@ from config import (  # noqa: E402, F401
     SENSOR_COLUMNS,
     WINDOW_SIZE,
 )
-import mlflow  # noqa: E402
 from mlflow_tracking import MLflowTracker  # noqa: E402
 
 # Setup logging
