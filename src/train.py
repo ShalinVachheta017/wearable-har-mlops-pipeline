@@ -69,6 +69,7 @@ from config import (  # noqa: E402, F401
     SENSOR_COLUMNS,
     WINDOW_SIZE,
 )
+import mlflow  # noqa: E402
 from mlflow_tracking import MLflowTracker  # noqa: E402
 
 # Setup logging
@@ -693,6 +694,11 @@ class HARTrainer:
 
         # Start MLflow run
         run_name = self.config.run_name or f"training_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        # Guard: end any stale active run before starting a new one
+        if mlflow.active_run() is not None:
+            logger.warning("Stale MLflow run detected — ending it before starting a new one.")
+            mlflow.end_run()
 
         with self.tracker.start_run(run_name=run_name):
             # Log configuration

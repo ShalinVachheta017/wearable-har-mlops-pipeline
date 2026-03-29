@@ -542,8 +542,7 @@ class ProductionPipeline:
                         trigger_art is None or not trigger_art.should_retrain
                     ):
                         logger.info(
-                            "Stages 8-10 SKIPPED — trigger=NONE. "
-                            "Use --retrain flag to force maintenance mode."
+                            "Stages 8-10 SKIPPED — trigger decision is REVIEW with should_retrain=False. Unlabeled production data requires human review before retraining. Retraining stages were requested but not executed because the retrain gate was not satisfied."
                         )
                         retraining_art = None
                         registration_art = None

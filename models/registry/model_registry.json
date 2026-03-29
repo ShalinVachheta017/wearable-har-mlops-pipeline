@@ -3,18 +3,28 @@
     "auto": {
       "version": "auto",
       "path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\models\\registry\\har_model_vauto.keras",
-      "created_at": "2026-02-25T14:00:12.824699",
+      "created_at": "2026-03-27T22:39:18.656848",
       "deployed_at": null,
       "metrics": {
-        "final_accuracy": 0.2657563090324402,
-        "final_loss": 3.9356043338775635,
-        "val_accuracy": 1.0,
-        "val_loss": 0.808200478553772,
-        "pseudo_labeled_samples": 500,
-        "confidence_threshold": 0.7,
-        "entropy_threshold": 0.4
+        "final_accuracy": 0.9222797751426697,
+        "final_loss": 0.32622066140174866,
+        "f1_macro": 0.9223122028768788,
+        "f1_weighted": 0.9218209644502978,
+        "cohen_kappa": 0.9145027797671346,
+        "best_epoch": 44,
+        "f1_class_0": 0.9552238805970149,
+        "f1_class_1": 0.8985507246376812,
+        "f1_class_2": 0.9473684210526315,
+        "f1_class_3": 0.8615384615384616,
+        "f1_class_4": 0.9552238805970149,
+        "f1_class_5": 0.8533333333333334,
+        "f1_class_6": 0.9210526315789473,
+        "f1_class_7": 0.9565217391304348,
+        "f1_class_8": 0.9565217391304348,
+        "f1_class_9": 0.8823529411764706,
+        "f1_class_10": 0.9577464788732394
       },
-      "config_hash": "70d9640bb5b2",
+      "config_hash": "d708d10f38bc",
       "data_version": null,
       "status": "archived"
     }

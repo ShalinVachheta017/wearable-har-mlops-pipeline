@@ -365,6 +365,7 @@ app.add_middleware(
 # ========================== API Endpoints ==================================
 
 
+@app.get("/health", response_model=HealthResponse, tags=["System"])
 @app.get("/api/health", response_model=HealthResponse, tags=["System"])
 async def health():
     return HealthResponse(
