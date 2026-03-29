@@ -60,7 +60,7 @@ class TestModelRetrainingInit:
         from src.components.model_retraining import ModelRetraining
         config = ModelRetrainingConfig()
         comp = ModelRetraining(pipeline_config, config)
-        assert comp.config.adaptation_method == "adabn"
+        assert comp.config.adaptation_method == "none"
 
     def test_adaptation_disabled_by_default(self, pipeline_config):
         config = ModelRetrainingConfig()

@@ -35,8 +35,8 @@ class TestTriggerThresholds:
         """
         thresholds = TriggerThresholds()
         
-        assert thresholds.confidence_warn == 0.55
-        assert thresholds.confidence_critical == 0.45
+        assert thresholds.confidence_warn == 0.65
+        assert thresholds.confidence_critical == 0.50
         assert thresholds.drift_zscore_warn == 2.0
         assert thresholds.drift_zscore_critical == 3.0
     
@@ -112,6 +112,51 @@ class TestTriggerPolicyEngine:
         # Should at least note the low confidence
         assert 'confidence' in str(decision.signals).lower() or \
                decision.alert_level != AlertLevel.INFO
+
+    def test_collapse_guard_dominant_pct_95_forces_review(
+        self, temp_state_file, sample_monitoring_report
+    ):
+        """95%+ single-class dominance must return REVIEW and block auto-retrain."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = json.loads(json.dumps(sample_monitoring_report))
+        report["collapse_signals"] = {
+            "dominance_warning": False,
+            "dominant_class": "hand_tapping",
+            "dominant_pct": 95.0,
+            "mean_confidence": 0.85,
+            "transition_rate": 7.0,
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.should_trigger is False
+        assert decision.alert_level == AlertLevel.WARNING
+        assert "collapse_guard" in decision.signals
+        matched = decision.signals["collapse_guard"].get("matched_conditions", [])
+        assert "dominant_pct>=95" in matched
+
+    def test_collapse_guard_below_95_does_not_review_by_itself(
+        self, temp_state_file, sample_monitoring_report
+    ):
+        """Dominance below 95% should not hit collapse REVIEW unless other guard conditions match."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = json.loads(json.dumps(sample_monitoring_report))
+        report["collapse_signals"] = {
+            "dominance_warning": False,
+            "dominant_class": "hand_tapping",
+            "dominant_pct": 94.9,
+            "mean_confidence": 0.80,
+            "transition_rate": 5.0,
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action in [TriggerAction.NONE, TriggerAction.MONITOR]
+        assert decision.should_trigger is False
+        assert decision.alert_level == AlertLevel.INFO
     
     def test_multiple_signals_required(self, temp_state_file):
         """Test that multiple signals are required for trigger."""

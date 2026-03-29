@@ -3,6 +3,7 @@
 This repository contains an offline-first MLOps pipeline for anxiety-related human activity recognition (HAR) from wearable IMU data.
 
 The project focus is thesis-grade reproducibility and technical defensibility:
+
 - reproducible data/model workflow
 - explicit pipeline stages
 - monitoring + trigger policy for retraining decisions
@@ -43,6 +44,8 @@ python run_pipeline.py
 - Experiment plan: [docs/thesis/EXPERIMENT_PLAN.md](docs/thesis/EXPERIMENT_PLAN.md)
 - Defense plan: [docs/thesis/DEFENSE_PLAN.md](docs/thesis/DEFENSE_PLAN.md)
 - Trigger policy explanation: [docs/TRIGGER_POLICY_EXPLANATION.md](docs/TRIGGER_POLICY_EXPLANATION.md)
+- Pipeline data flow map: [docs/PIPELINE_DATA_FLOW_MAP.md](docs/PIPELINE_DATA_FLOW_MAP.md)
+- Consistency decisions (thresholds, Config D, AdaBN): [docs/THESIS_CONSISTENCY_NOTES.md](docs/THESIS_CONSISTENCY_NOTES.md)
 
 ## Testing
 

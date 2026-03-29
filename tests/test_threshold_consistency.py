@@ -42,6 +42,15 @@ def test_trigger_confidence_warn_geq_monitoring_warn():
     )
 
 
+def test_trigger_policy_defaults_align_with_trigger_config():
+    """TriggerPolicyEngine defaults should match TriggerEvaluationConfig defaults."""
+    trig = TriggerEvaluationConfig()
+    thresh = TriggerThresholds()
+
+    assert thresh.confidence_warn == pytest.approx(trig.confidence_warn)
+    assert thresh.confidence_critical == pytest.approx(trig.confidence_critical)
+
+
 def test_uncertain_window_threshold_is_probability():
     """uncertain_window_threshold must be a valid probability in (0, 1]."""
     mon = PostInferenceMonitoringConfig()

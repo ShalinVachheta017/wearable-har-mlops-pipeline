@@ -7,10 +7,10 @@ HAR MLOps — Production Pipeline  (Single Entry Point)
 Run the ENTIRE 14-stage production pipeline with one command:
 
     python run_pipeline.py                                      # stages 1-7
-    python run_pipeline.py --retrain --adapt adabn_tent         # + two-stage TTA (recommended)
-    python run_pipeline.py --retrain --adapt adabn              # + AdaBN only
-    python run_pipeline.py --retrain --adapt tent               # + TENT entropy-min
-    python run_pipeline.py --retrain --adapt pseudo_label       # + calibrated pseudo-labels
+    python run_pipeline.py --retrain --adapt adabn_tent         # + optional two-stage TTA (research)
+    python run_pipeline.py --retrain --adapt adabn              # + optional AdaBN (research)
+    python run_pipeline.py --retrain --adapt tent               # + optional TENT entropy-min (research)
+    python run_pipeline.py --retrain --adapt pseudo_label       # + optional calibrated pseudo-labels (research)
     python run_pipeline.py --advanced                  # + calibration, drift, etc.
     python run_pipeline.py --stages inference evaluation  # specific stages
     python run_pipeline.py --input-csv my_recording.csv   # your own data
@@ -89,16 +89,16 @@ Examples:
   # Your own recording — CSV input
   python run_pipeline.py --input-csv data/raw/my_recording.csv
 
-  # Full cycle + two-stage TTA (recommended for moderate drift)
+    # Full cycle + optional two-stage TTA (research)
   python run_pipeline.py --retrain --adapt adabn_tent
 
-  # Full cycle + AdaBN only (fastest)
+    # Full cycle + optional AdaBN only (research)
   python run_pipeline.py --retrain --adapt adabn
 
-  # Full cycle + TENT entropy minimisation
+    # Full cycle + optional TENT entropy minimisation (research)
   python run_pipeline.py --retrain --adapt tent
 
-  # Retrain with calibrated pseudo-labeling
+    # Retrain with optional calibrated pseudo-labeling (research)
   python run_pipeline.py --retrain --adapt pseudo_label
 
   # Advanced analytics (calibration, Wasserstein drift, etc.)
@@ -225,7 +225,7 @@ Examples:
         type=str,
         choices=["adabn", "tent", "adabn_tent", "pseudo_label", "none"],
         default="none",
-        help="Domain adaptation method for retraining (default: none)",
+        help="Domain adaptation method for retraining (default: none; adaptation is optional research mode)",
     )
     parser.add_argument(
         "--labels",

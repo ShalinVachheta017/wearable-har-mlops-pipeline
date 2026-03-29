@@ -98,8 +98,10 @@ class TriggerThresholds:
     """
 
     # Layer 1: Confidence thresholds
-    confidence_warn: float = 0.55  # Below this triggers WARNING
-    confidence_critical: float = 0.45  # Below this triggers CRITICAL
+    # Keep these aligned with TriggerEvaluationConfig defaults so standalone
+    # TriggerPolicyEngine behavior matches pipeline-wired stage-7 behavior.
+    confidence_warn: float = 0.65  # Below this triggers WARNING
+    confidence_critical: float = 0.50  # Below this triggers CRITICAL
     entropy_warn: float = 1.8  # Above this triggers WARNING
     entropy_critical: float = 2.2  # Above this triggers CRITICAL
     uncertain_ratio_warn: float = 0.20  # Above this triggers WARNING

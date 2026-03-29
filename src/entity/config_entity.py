@@ -243,7 +243,7 @@ class ModelRetrainingConfig:
 
     # Domain adaptation
     enable_adaptation: bool = False
-    adaptation_method: str = "adabn"  # adabn | tent | adabn_tent | pseudo_label
+    adaptation_method: str = "none"  # none | adabn | tent | adabn_tent | pseudo_label
     # NOTE: mmd and dann are NOT implemented.
     adabn_n_batches: int = 10  # batches for AdaBN / TENT steps
 
