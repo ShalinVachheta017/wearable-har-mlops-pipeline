@@ -13,6 +13,7 @@
 3. Prediction monitoring behavior
 - Metrics: confidence, entropy, class distribution concentration
 - Artifacts: evaluation and monitoring outputs
+- Disclosure: Stage 6 entropy is currently an approximation from top-1 confidence; see `METRIC_DISCLOSURES.md`
 
 4. Trigger policy evaluation
 - Metrics: warning/alert behavior under synthetic and real runs
@@ -27,3 +28,7 @@
 - Do not redesign architecture during exam period.
 - Isolate one integrity fix per wave.
 - Record command, run_id, timestamp, and artifact location for each experiment.
+
+## Accuracy/Disclosure Notes
+
+- Metric caveats that must be written transparently in thesis text are documented in `METRIC_DISCLOSURES.md`.
