@@ -29,6 +29,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
+from src.utils.label_mapping import get_activity_classes
+
 # ---------------------------------------------------------------------------
 # Prometheus metrics
 # ---------------------------------------------------------------------------
@@ -111,19 +113,7 @@ WINDOW_SIZE = 200
 OVERLAP = 0.5
 STEP_SIZE = int(WINDOW_SIZE * (1 - OVERLAP))
 
-ACTIVITY_CLASSES: Dict[int, str] = {
-    0: "ear_rubbing",
-    1: "forehead_rubbing",
-    2: "hair_pulling",
-    3: "hand_scratching",
-    4: "hand_tapping",
-    5: "knuckles_cracking",
-    6: "nail_biting",
-    7: "nape_rubbing",
-    8: "sitting",
-    9: "smoking",
-    10: "standing",
-}
+ACTIVITY_CLASSES: Dict[int, str] = get_activity_classes()
 
 # Possible column-name patterns for the 6 sensor channels
 ACC_PATTERNS = {
@@ -376,6 +366,7 @@ app.add_middleware(
 # ========================== API Endpoints ==================================
 
 
+@app.get("/health", response_model=HealthResponse, tags=["System"])
 @app.get("/api/health", response_model=HealthResponse, tags=["System"])
 async def health():
     return HealthResponse(

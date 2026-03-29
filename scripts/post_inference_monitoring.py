@@ -46,15 +46,19 @@ class PostInferenceMonitor:
     
     def __init__(
         self,
-        confidence_threshold: float = 0.5,
-        uncertain_threshold_pct: float = 10.0,
+        confidence_warn_threshold: float = 0.60,
+        confidence_threshold: float = 0.50,
+        uncertain_threshold_pct: float = 30.0,
+        transition_rate_threshold: float = 50.0,
         drift_threshold: float = 2.0,
         calibration_temperature: float = 1.0,
     ):
         """
         Args:
-            confidence_threshold: Minimum confidence for valid predictions
+            confidence_warn_threshold: Mean-confidence warning threshold for Layer 1
+            confidence_threshold: Per-window confidence cutoff to mark a prediction uncertain
             uncertain_threshold_pct: Max % of uncertain predictions allowed
+            transition_rate_threshold: Max transition-rate % allowed for Layer 2
             drift_threshold: Max z-score drift allowed (2σ ≈ 95th pct null;
                            Gama et al. 2014 DDM, Page 1954 CUSUM)
             calibration_temperature: Temperature T from Stage 11 (CalibrationUncertainty).
@@ -63,8 +67,10 @@ class PostInferenceMonitor:
                 This sharpens (T>1) or dampens (T<1) overconfident predictions before
                 monitoring thresholds are applied.
         """
+        self.confidence_warn_threshold = confidence_warn_threshold
         self.confidence_threshold = confidence_threshold
         self.uncertain_threshold_pct = uncertain_threshold_pct
+        self.transition_rate_threshold = transition_rate_threshold
         self.drift_threshold = drift_threshold
         self.calibration_temperature = float(calibration_temperature)
         self.logger = logging.getLogger(__name__)
@@ -184,6 +190,8 @@ class PostInferenceMonitor:
         results['std_confidence'] = float(std_conf)
         results['min_confidence'] = float(min_conf)
         results['max_confidence'] = float(max_conf)
+        results['confidence_warn_threshold'] = float(self.confidence_warn_threshold)
+        results['uncertain_pct_threshold'] = float(self.uncertain_threshold_pct)
         
         # Count by confidence level
         if 'is_uncertain' in df.columns:
@@ -207,13 +215,22 @@ class PostInferenceMonitor:
         self.logger.info(f"Mean entropy (approx): {mean_entropy:.4f}")
 
         self.logger.info(f"Uncertain predictions: {uncertain_count}/{len(df)} ({uncertain_pct:.1f}%)")
-        
-        # Check thresholds
+
+        # Layer-1 warning if either mean confidence is low or uncertainty is high.
+        alerts = []
+        if mean_conf < self.confidence_warn_threshold:
+            alerts.append(
+                f"Low mean confidence: {mean_conf:.3f} < {self.confidence_warn_threshold:.3f}"
+            )
         if uncertain_pct > self.uncertain_threshold_pct:
-            alert = f"High uncertainty rate: {uncertain_pct:.1f}% > {self.uncertain_threshold_pct}%"
+            alerts.append(
+                f"High uncertainty rate: {uncertain_pct:.1f}% > {self.uncertain_threshold_pct}%"
+            )
+
+        if alerts:
             results['status'] = 'ALERT'
-            results['alert'] = alert
-            self.logger.warning(f"⚠️ {alert}")
+            results['alert'] = " | ".join(alerts)
+            self.logger.warning(f"⚠️ {results['alert']}")
         else:
             results['status'] = 'PASS'
             self.logger.info(f"✅ Confidence check PASSED")
@@ -237,6 +254,7 @@ class PostInferenceMonitor:
         results['total_windows'] = len(df)
         results['transitions'] = int(transitions)
         results['transition_rate'] = float(transition_rate)
+        results['transition_rate_threshold'] = float(self.transition_rate_threshold)
         
         # Find longest sequences AND collect all dwell lengths
         sequences = {}
@@ -283,9 +301,12 @@ class PostInferenceMonitor:
         self.logger.info(f"Activity transitions: {transitions} ({transition_rate:.1f}%)")
         self.logger.info(f"Longest sequences: {sequences}")
         
-        # Simple check: very high transition rate might indicate noise
-        if transition_rate > 50:
-            alert = f"High transition rate: {transition_rate:.1f}% (possible noise)"
+        # Simple check: very high transition rate might indicate noise.
+        if transition_rate > self.transition_rate_threshold:
+            alert = (
+                f"High transition rate: {transition_rate:.1f}% > "
+                f"{self.transition_rate_threshold:.1f}% (possible noise)"
+            )
             results['status'] = 'WARNING'
             results['alert'] = alert
             self.logger.warning(f"⚠️ {alert}")
@@ -319,6 +340,17 @@ class PostInferenceMonitor:
                     f"Re-run Stage 10 (baseline update) to regenerate."
                 )
 
+            # Feature-space guard: Stage 6 expects transformed-space baseline
+            # because production_data_path is loaded from production_X.npy
+            # after preprocessing transform mode.
+            metadata = baseline.get("metadata", {}) if isinstance(baseline, dict) else {}
+            feature_space = metadata.get("feature_space")
+            if feature_space != "transformed":
+                raise ValueError(
+                    "Baseline feature-space mismatch: expected metadata.feature_space='transformed' "
+                    f"but got '{feature_space}'. Rebuild baseline via Stage 10."
+                )
+
             # Calculate production statistics
             prod_mean = production_data.mean(axis=(0, 1))  # Average over windows and timesteps
             prod_std = production_data.std(axis=(0, 1))
@@ -327,6 +359,13 @@ class PostInferenceMonitor:
             if 'mean' in baseline and 'std' in baseline:
                 baseline_mean = np.array(baseline['mean'])
                 baseline_std = np.array(baseline['std'])
+
+                if baseline_mean.shape[0] != prod_mean.shape[0] or baseline_std.shape[0] != prod_std.shape[0]:
+                    raise ValueError(
+                        "Baseline channel-shape mismatch: "
+                        f"baseline_mean={baseline_mean.shape[0]}, baseline_std={baseline_std.shape[0]}, "
+                        f"production={prod_mean.shape[0]}"
+                    )
                 
                 # Calculate drift metrics (simple: normalized difference)
                 mean_diff = np.abs(prod_mean - baseline_mean) / (baseline_std + 1e-8)

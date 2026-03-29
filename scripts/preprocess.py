@@ -6,6 +6,11 @@ scripts/preprocess.py — Standalone preprocessing entry point
 Runs the data pipeline stages (ingestion → validation → transformation)
 without the full production pipeline orchestrator.
 
+DEPRECATION NOTICE:
+This wrapper is retained for backward compatibility, but the canonical
+entrypoint is run_pipeline.py. Prefer:
+    python run_pipeline.py --stages ingestion validation transformation
+
 Usage:
     python scripts/preprocess.py
     python scripts/preprocess.py --input data/raw/my_recording.csv
@@ -66,6 +71,10 @@ def parse_args():
 
 
 def main():
+    logger.warning(
+        "DEPRECATED wrapper: use 'python run_pipeline.py --stages ingestion validation transformation' "
+        "for canonical preprocessing orchestration."
+    )
     args = parse_args()
     pipeline_cfg = PipelineConfig()
 

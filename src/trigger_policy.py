@@ -65,11 +65,16 @@ class AlertLevel(Enum):
     CRITICAL = "CRITICAL"  # Immediate action required
 
 
+# Numeric priority for correct severity comparison (string sort order is wrong)
+_ALERT_PRIORITY = {AlertLevel.INFO: 0, AlertLevel.WARNING: 1, AlertLevel.CRITICAL: 2}
+
+
 class TriggerAction(Enum):
     """Possible trigger actions."""
 
     NONE = "none"  # No action needed
     MONITOR = "monitor"  # Continue monitoring, no action
+    REVIEW = "review"  # Manual review required
     QUEUE_RETRAIN = "queue_retrain"  # Add to retrain queue
     TRIGGER_RETRAIN = "trigger"  # Trigger immediate retraining
     ROLLBACK = "rollback"  # Rollback to previous model
@@ -93,8 +98,10 @@ class TriggerThresholds:
     """
 
     # Layer 1: Confidence thresholds
-    confidence_warn: float = 0.55  # Below this triggers WARNING
-    confidence_critical: float = 0.45  # Below this triggers CRITICAL
+    # Keep these aligned with TriggerEvaluationConfig defaults so standalone
+    # TriggerPolicyEngine behavior matches pipeline-wired stage-7 behavior.
+    confidence_warn: float = 0.65  # Below this triggers WARNING
+    confidence_critical: float = 0.50  # Below this triggers CRITICAL
     entropy_warn: float = 1.8  # Above this triggers WARNING
     entropy_critical: float = 2.2  # Above this triggers CRITICAL
     uncertain_ratio_warn: float = 0.20  # Above this triggers WARNING
@@ -146,6 +153,7 @@ class TriggerDecision:
     signals: Dict[str, Any]
     metrics_summary: Dict[str, float]
     recommendations: List[str]
+    cooldown_active: bool = False
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization."""
@@ -246,6 +254,11 @@ class TriggerPolicyEngine:
 
         timestamp = datetime.now().isoformat()
 
+        # Stage 5→7 collapse guard for unlabeled production data.
+        collapse_decision = self._evaluate_collapse_guard(monitoring_report, timestamp)
+        if collapse_decision is not None:
+            return collapse_decision
+
         # Extract metrics from report
         confidence_metrics = self._extract_confidence_metrics(monitoring_report)
         temporal_metrics = self._extract_temporal_metrics(monitoring_report)
@@ -270,11 +283,8 @@ class TriggerPolicyEngine:
         # Aggregate signals using voting
         decision = self._aggregate_signals(signals, timestamp)
 
-        # Apply cooldown checks
-        decision = self._apply_cooldowns(decision)
-
-        # Update state
-        self._update_state(decision)
+        # Update state and apply final cooldown gate after any escalation.
+        decision = self._update_state(decision)
 
         # Log decision
         self.logger.info(f"\n{'─' * 60}")
@@ -320,6 +330,105 @@ class TriggerPolicyEngine:
             "overall_status": drift_report.get("overall_status", "UNKNOWN"),
         }
 
+    def _evaluate_collapse_guard(
+        self, monitoring_report: Dict[str, Any], timestamp: str
+    ) -> Optional[TriggerDecision]:
+        """Return REVIEW decision when collapse-like signals indicate data/path issues."""
+        collapse = monitoring_report.get("collapse_signals", {}) or {}
+
+        dominant_class = collapse.get("dominant_class")
+        dominant_pct = self._to_float(collapse.get("dominant_pct"))
+        dominance_warning = self._to_bool(collapse.get("dominance_warning", False))
+        mean_confidence = self._to_float(collapse.get("mean_confidence"))
+        transition_rate = self._to_float(collapse.get("transition_rate"))
+
+        # Fallback for legacy activity distribution payloads.
+        activity_dist = monitoring_report.get("activity_distribution", {})
+        if (dominant_pct is None or dominant_class is None) and activity_dist:
+            total = sum(activity_dist.values())
+            if total > 0:
+                dominant_class = max(activity_dist, key=activity_dist.get)
+                dominant_pct = (activity_dist[dominant_class] / total) * 100.0
+
+        # User-requested REVIEW conditions:
+        # 1) dominance warning true
+        # 2) dominant pct >= 95
+        # 3) dominant pct >= 90 with zero transition and high confidence
+        cond_1 = dominance_warning
+        cond_2 = dominant_pct is not None and dominant_pct >= 95.0
+        cond_3 = (
+            dominant_pct is not None
+            and dominant_pct >= 90.0
+            and transition_rate is not None
+            and abs(transition_rate) <= 1e-12
+            and mean_confidence is not None
+            and mean_confidence >= 0.92
+        )
+
+        if not (cond_1 or cond_2 or cond_3):
+            return None
+
+        matched = []
+        if cond_1:
+            matched.append("dominance_warning=true")
+        if cond_2:
+            matched.append("dominant_pct>=95")
+        if cond_3:
+            matched.append("dominant_pct>=90 & transition_rate==0 & mean_confidence>=0.92")
+
+        reason = (
+            "Prediction collapse proxy detected. "
+            f"dominant_class={dominant_class}, dominant_pct={dominant_pct}, "
+            f"transition_rate={transition_rate}, mean_confidence={mean_confidence}. "
+            f"Matched: {', '.join(matched)}. Manual review required; no auto-retrain."
+        )
+
+        return TriggerDecision(
+            timestamp=timestamp,
+            action=TriggerAction.REVIEW,
+            alert_level=AlertLevel.WARNING,
+            should_trigger=False,
+            reason=reason,
+            signals={
+                "collapse_guard": {
+                    "level": AlertLevel.WARNING.value,
+                    "dominance_warning": dominance_warning,
+                    "dominant_class": dominant_class,
+                    "dominant_pct": dominant_pct,
+                    "transition_rate": transition_rate,
+                    "mean_confidence": mean_confidence,
+                    "matched_conditions": matched,
+                }
+            },
+            metrics_summary={
+                "dominant_pct": dominant_pct or 0.0,
+                "transition_rate": transition_rate or 0.0,
+                "mean_confidence": mean_confidence or 0.0,
+            },
+            recommendations=[
+                "Inspect preprocessing/calibration path and feature distributions.",
+                "Collect labels or perform targeted data QA before retraining.",
+                "Keep monitoring active; retraining should remain gated.",
+            ],
+        )
+
+    @staticmethod
+    def _to_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y"}
+        return bool(value)
+
+    @staticmethod
+    def _to_float(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
     def _evaluate_confidence(self, metrics: Dict[str, float]) -> Dict[str, Any]:
         """Evaluate confidence metrics against thresholds."""
         issues = []
@@ -334,7 +443,7 @@ class TriggerPolicyEngine:
             level = AlertLevel.CRITICAL
             issues.append(f"Mean confidence critically low: {mean_conf:.3f}")
         elif mean_conf < self.thresholds.confidence_warn:
-            level = max(level, AlertLevel.WARNING, key=lambda x: x.value)
+            level = max(level, AlertLevel.WARNING, key=lambda x: _ALERT_PRIORITY[x])
             issues.append(f"Mean confidence low: {mean_conf:.3f}")
 
         # Check entropy
@@ -342,7 +451,7 @@ class TriggerPolicyEngine:
             level = AlertLevel.CRITICAL
             issues.append(f"Entropy critically high: {mean_entropy:.3f}")
         elif mean_entropy > self.thresholds.entropy_warn:
-            level = max(level, AlertLevel.WARNING, key=lambda x: x.value)
+            level = max(level, AlertLevel.WARNING, key=lambda x: _ALERT_PRIORITY[x])
             issues.append(f"Entropy elevated: {mean_entropy:.3f}")
 
         # Check uncertain ratio
@@ -350,7 +459,7 @@ class TriggerPolicyEngine:
             level = AlertLevel.CRITICAL
             issues.append(f"Uncertain ratio critically high: {uncertain_ratio:.1%}")
         elif uncertain_ratio > self.thresholds.uncertain_ratio_warn:
-            level = max(level, AlertLevel.WARNING, key=lambda x: x.value)
+            level = max(level, AlertLevel.WARNING, key=lambda x: _ALERT_PRIORITY[x])
             issues.append(f"Uncertain ratio elevated: {uncertain_ratio:.1%}")
 
         return {
@@ -372,7 +481,7 @@ class TriggerPolicyEngine:
             level = AlertLevel.CRITICAL
             issues.append(f"Flip rate critically high: {flip_rate:.1%}")
         elif flip_rate > self.thresholds.flip_rate_warn:
-            level = max(level, AlertLevel.WARNING, key=lambda x: x.value)
+            level = max(level, AlertLevel.WARNING, key=lambda x: _ALERT_PRIORITY[x])
             issues.append(f"Flip rate elevated: {flip_rate:.1%}")
 
         return {
@@ -409,7 +518,7 @@ class TriggerPolicyEngine:
                 f"{drift_zscore_critical_count} channels with critical drift (z>{self.thresholds.drift_zscore_critical}σ)"
             )
         elif drift_zscore_warn_count >= self.thresholds.min_drifted_channels_warn:
-            level = max(level, AlertLevel.WARNING, key=lambda x: x.value)
+            level = max(level, AlertLevel.WARNING, key=lambda x: _ALERT_PRIORITY[x])
             issues.append(
                 f"{drift_zscore_warn_count} channels with elevated drift (z>{self.thresholds.drift_zscore_warn}σ)"
             )
@@ -421,7 +530,7 @@ class TriggerPolicyEngine:
                 f"Aggregate drift z={aggregate_drift:.3f} exceeds critical threshold {self.thresholds.drift_zscore_critical}σ"
             )
         elif aggregate_drift > self.thresholds.drift_zscore_warn:
-            level = max(level, AlertLevel.WARNING, key=lambda x: x.value)
+            level = max(level, AlertLevel.WARNING, key=lambda x: _ALERT_PRIORITY[x])
             issues.append(
                 f"Aggregate drift z={aggregate_drift:.3f} exceeds warning threshold {self.thresholds.drift_zscore_warn}σ"
             )
@@ -535,6 +644,8 @@ class TriggerPolicyEngine:
 
     def _apply_cooldowns(self, decision: TriggerDecision) -> TriggerDecision:
         """Apply cooldown logic to prevent rapid successive triggers."""
+        decision.cooldown_active = False
+
         if not decision.should_trigger:
             return decision
 
@@ -554,14 +665,15 @@ class TriggerPolicyEngine:
 
                 decision.should_trigger = False
                 decision.action = TriggerAction.QUEUE_RETRAIN
+                decision.cooldown_active = True
                 decision.recommendations.insert(
                     0, f"Cooldown active - retrain queued (wait {time_remaining.seconds//3600}h)"
                 )
 
         return decision
 
-    def _update_state(self, decision: TriggerDecision):
-        """Update persistent state after evaluation."""
+    def _update_state(self, decision: TriggerDecision) -> TriggerDecision:
+        """Update persistent state after evaluation and return the final decision."""
         # Update warning counters
         if decision.alert_level == AlertLevel.WARNING:
             self.state["warning_count"] += 1
@@ -578,6 +690,9 @@ class TriggerPolicyEngine:
             decision.reason = (
                 f"Triggered by {self.state['consecutive_warnings']} consecutive warnings"
             )
+
+        # Cooldown is the final gate and must win over prior escalation paths.
+        decision = self._apply_cooldowns(decision)
 
         # Update retrain timestamp if triggered
         if decision.should_trigger:
@@ -601,6 +716,8 @@ class TriggerPolicyEngine:
 
         # Save state
         self._save_state()
+
+        return decision
 
     def get_trigger_summary(self) -> Dict[str, Any]:
         """Get summary of trigger state for reporting."""

@@ -64,6 +64,8 @@ import numpy as np
 import pandas as pd
 from mlflow.tracking import MlflowClient
 
+from src.utils.label_mapping import get_activity_classes, get_class_to_index
+
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 from config import DATA_PREPARED, LOGS_DIR, PRETRAINED_MODEL, PROJECT_ROOT
@@ -101,23 +103,11 @@ class InferenceConfig:
         self.output_dir = Path(self.output_dir)
 
 
-# Activity class mapping (from labeled training data)
-ACTIVITY_CLASSES: Dict[int, str] = {
-    0: "ear_rubbing",
-    1: "forehead_rubbing",
-    2: "hair_pulling",
-    3: "hand_scratching",
-    4: "hand_tapping",
-    5: "knuckles_cracking",
-    6: "nail_biting",
-    7: "nape_rubbing",
-    8: "sitting",
-    9: "smoking",
-    10: "standing",
-}
+# Activity class mapping (single source of truth)
+ACTIVITY_CLASSES: Dict[int, str] = get_activity_classes()
 
 # Reverse mapping for convenience
-CLASS_TO_INDEX: Dict[str, int] = {v: k for k, v in ACTIVITY_CLASSES.items()}
+CLASS_TO_INDEX: Dict[str, int] = get_class_to_index()
 
 
 # ============================================================================

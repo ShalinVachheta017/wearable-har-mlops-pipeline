@@ -120,11 +120,64 @@ class BaselineBuilder:
         sensor_columns: Optional[list] = None,
         window_size: int = WINDOW_SIZE,
         step_size: Optional[int] = None,
+        scaler_config_path: Optional[Path] = None,
     ):
         self.sensor_columns  = sensor_columns or SENSOR_COLUMNS
         self.window_size     = window_size
         self.step_size       = step_size or _STEP
+        self.scaler_config_path = Path(scaler_config_path) if scaler_config_path else (
+            _PROJECT_ROOT / "data" / "prepared" / "config.json"
+        )
         self._baseline: Optional[dict] = None   # populated by build_from_csv()
+        self._normalized_baseline: Optional[dict] = None
+
+    def _build_transformed_windows(self, X_raw: np.ndarray) -> np.ndarray:
+        """
+        Map raw windows into the canonical monitoring feature space.
+
+        Canonical space is defined by the training scaler config used by production
+        transform mode (data/prepared/config.json).
+        """
+        if not self.scaler_config_path.exists():
+            raise FileNotFoundError(
+                f"Scaler config not found: {self.scaler_config_path}. "
+                "Cannot build transformed-space normalized baseline."
+            )
+
+        with open(self.scaler_config_path, "r", encoding="utf-8") as fh:
+            scaler_cfg = json.load(fh)
+
+        variant = scaler_cfg.get("normalization_variant", "zscore")
+        X_transformed = X_raw.astype(np.float32, copy=True)
+
+        if variant == "none":
+            logger.info("Baseline transform variant: none (passthrough)")
+            return X_transformed
+
+        if variant == "zscore":
+            center = np.asarray(scaler_cfg["scaler_mean"], dtype=np.float32)
+            scale = np.asarray(scaler_cfg["scaler_scale"], dtype=np.float32)
+        elif variant == "robust":
+            center = np.asarray(scaler_cfg["scaler_center"], dtype=np.float32)
+            scale = np.asarray(scaler_cfg["scaler_scale"], dtype=np.float32)
+        else:
+            raise ValueError(
+                f"Unknown normalization_variant '{variant}'. "
+                "Expected one of: zscore, robust, none."
+            )
+
+        if center.shape[0] != X_transformed.shape[2] or scale.shape[0] != X_transformed.shape[2]:
+            raise ValueError(
+                "Scaler config shape mismatch for baseline transform: "
+                f"center={center.shape[0]}, scale={scale.shape[0]}, channels={X_transformed.shape[2]}"
+            )
+
+        if np.any(scale == 0):
+            raise ValueError("Scaler config has zero scale values; cannot normalize baseline safely.")
+
+        X_transformed = (X_transformed - center.reshape(1, 1, -1)) / scale.reshape(1, 1, -1)
+        logger.info("Baseline transform variant: %s (canonical transformed space)", variant)
+        return X_transformed
 
     # ------------------------------------------------------------------
     def build_from_csv(self, data_path) -> dict:
@@ -208,6 +261,28 @@ class BaselineBuilder:
                 "source_csv":   str(data_path),
                 "created_at":   datetime.now().isoformat(),
                 "sensor_columns": self.sensor_columns,
+                "feature_space": "raw",
+            },
+        }
+
+        # Build Stage-6 baseline in canonical transformed feature space.
+        X_transformed = self._build_transformed_windows(X)
+        normalized_stats = _compute_stats(X_transformed, ch_names)
+        self._normalized_baseline = {
+            "schema_version": 1,
+            **normalized_stats,
+            "n_channels": int(X_transformed.shape[2]),
+            "n_samples": int(X_transformed.shape[0]),
+            "metadata": {
+                "n_windows": int(X_transformed.shape[0]),
+                "window_size": self.window_size,
+                "step_size": self.step_size,
+                "n_channels": int(X_transformed.shape[2]),
+                "source_csv": str(data_path),
+                "created_at": datetime.now().isoformat(),
+                "sensor_columns": self.sensor_columns,
+                "feature_space": "transformed",
+                "scaler_config_path": str(self.scaler_config_path),
             },
         }
         return self._baseline
@@ -230,13 +305,12 @@ class BaselineBuilder:
         This is the same flat-stats format as ``build_normalized_baseline.py``
         produces — it omits per-class detail to keep the file compact.
         """
-        if self._baseline is None:
+        if self._normalized_baseline is None:
             raise RuntimeError("Call build_from_csv() before save_normalized().")
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        normalized = {k: v for k, v in self._baseline.items() if k != "per_class"}
         with open(path, "w", encoding="utf-8") as fh:
-            json.dump(normalized, fh, indent=2)
+            json.dump(self._normalized_baseline, fh, indent=2)
         logger.info("Normalized baseline saved: %s", path)
 
 

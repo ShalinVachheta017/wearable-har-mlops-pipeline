@@ -1,57 +1,48 @@
 # ============================================================================
-# Dockerfile for HAR Model Inference API
-# ============================================================================
-# Build: docker build -t har-inference -f docker/Dockerfile.inference .
-# Run:   docker run -p 8000:8000 -v $(pwd)/models:/app/models har-inference
+# Dockerfile for HAR Inference API (FastAPI)
+# Entrypoint: src/api/app.py  →  uvicorn src.api.app:app
 # ============================================================================
 
 FROM python:3.11-slim
 
-# Metadata
-LABEL maintainer="thesis-student"
-LABEL description="HAR Model Inference API"
-LABEL version="1.0.0"
-
-# Environment variables
+# Good defaults for containers
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     MODEL_PATH=/app/models/pretrained/fine_tuned_model_1dcnnbilstm.keras \
+    CONFIG_PATH=/app/config/pipeline_config.yaml \
+    # /app and /app/src both on PYTHONPATH so `from src.api.app import app` works
     PYTHONPATH=/app:/app/src
 
 WORKDIR /app
 
-# Minimal OS deps
+# Minimal OS deps (curl is used for HEALTHCHECK + debugging)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Install python deps first (layer cache-friendly)
 COPY config/requirements.txt /app/requirements.txt
-
-# Install Python deps
-# (we install from requirements to keep CI/Local/Docker consistent)
-RUN pip install --upgrade pip && \
+RUN python -m pip install --upgrade pip && \
     pip install -r /app/requirements.txt && \
     pip install "uvicorn[standard]"
 
-# Copy application code
+# Copy application source
+# After src/ refactor: API lives at src/api/app.py, domain code at src/*/
 COPY src/ /app/src/
 COPY config/ /app/config/
 
-# Copy legacy lightweight API (kept for reference/debugging)
-# NOTE: do NOT copy into /app/api because it can shadow your real package imports
-COPY docker/api/ /app/docker_api/
-
-# Create runtime dirs
+# Optional runtime directories (usually volume-mounted)
 RUN mkdir -p /app/models /app/logs
 
 EXPOSE 8000
 
-# Health check (align with compose + CD smoke-test)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Healthcheck — must match the FastAPI route registered in src/api/app.py
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -fsS http://localhost:8000/health || \
+        curl -fsS http://localhost:8000/api/health || \
+        curl -fsS http://localhost:8000/openapi.json || exit 1
 
-# Run FastAPI app
+# Start API using the refactored entrypoint
 CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]

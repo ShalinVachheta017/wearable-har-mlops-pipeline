@@ -6,6 +6,11 @@ scripts/train.py — Standalone training / retraining entry point
 Runs model retraining (stage 8) with optional AdaBN domain adaptation,
 model registration (stage 9), and baseline update (stage 10).
 
+DEPRECATION NOTICE:
+This wrapper is retained for backward compatibility, but the canonical
+entrypoint is run_pipeline.py. Prefer:
+    python run_pipeline.py --retrain
+
 Usage:
     python scripts/train.py
     python scripts/train.py --adapt adabn --epochs 50
@@ -79,6 +84,9 @@ def parse_args():
 
 
 def main():
+    logger.warning(
+        "DEPRECATED wrapper: use 'python run_pipeline.py --retrain' for canonical retraining orchestration."
+    )
     args = parse_args()
 
     # ── Stage 8: Model Retraining ─────────────────────────────────────

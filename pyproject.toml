@@ -78,7 +78,6 @@ gpu = [
 
 [project.scripts]
 har-pipeline = "src.cli:main"
-update-progress = "scripts.update_progress_dashboard:main"
 
 [project.urls]
 Repository = "https://github.com/shalini/MasterArbeit_MLops"

@@ -6,6 +6,7 @@ Tests for the automated retraining trigger logic.
 """
 
 import json
+from datetime import datetime
 import numpy as np
 import pytest
 from pathlib import Path
@@ -35,8 +36,8 @@ class TestTriggerThresholds:
         """
         thresholds = TriggerThresholds()
         
-        assert thresholds.confidence_warn == 0.55
-        assert thresholds.confidence_critical == 0.45
+        assert thresholds.confidence_warn == 0.65
+        assert thresholds.confidence_critical == 0.50
         assert thresholds.drift_zscore_warn == 2.0
         assert thresholds.drift_zscore_critical == 3.0
     
@@ -112,6 +113,51 @@ class TestTriggerPolicyEngine:
         # Should at least note the low confidence
         assert 'confidence' in str(decision.signals).lower() or \
                decision.alert_level != AlertLevel.INFO
+
+    def test_collapse_guard_dominant_pct_95_forces_review(
+        self, temp_state_file, sample_monitoring_report
+    ):
+        """95%+ single-class dominance must return REVIEW and block auto-retrain."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = json.loads(json.dumps(sample_monitoring_report))
+        report["collapse_signals"] = {
+            "dominance_warning": False,
+            "dominant_class": "hand_tapping",
+            "dominant_pct": 95.0,
+            "mean_confidence": 0.85,
+            "transition_rate": 7.0,
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.should_trigger is False
+        assert decision.alert_level == AlertLevel.WARNING
+        assert "collapse_guard" in decision.signals
+        matched = decision.signals["collapse_guard"].get("matched_conditions", [])
+        assert "dominant_pct>=95" in matched
+
+    def test_collapse_guard_below_95_does_not_review_by_itself(
+        self, temp_state_file, sample_monitoring_report
+    ):
+        """Dominance below 95% should not hit collapse REVIEW unless other guard conditions match."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = json.loads(json.dumps(sample_monitoring_report))
+        report["collapse_signals"] = {
+            "dominance_warning": False,
+            "dominant_class": "hand_tapping",
+            "dominant_pct": 94.9,
+            "mean_confidence": 0.80,
+            "transition_rate": 5.0,
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action in [TriggerAction.NONE, TriggerAction.MONITOR]
+        assert decision.should_trigger is False
+        assert decision.alert_level == AlertLevel.INFO
     
     def test_multiple_signals_required(self, temp_state_file):
         """Test that multiple signals are required for trigger."""
@@ -219,6 +265,74 @@ class TestConsecutiveWarnings:
         # After 3+ consecutive warnings, at least one should trigger
         # Note: state resets after trigger, so check across all decisions
         assert any(d.should_trigger for d in decisions)
+
+
+class TestCooldownOrdering:
+    """Regression tests for cooldown precedence in final trigger decisions."""
+
+    def test_cooldown_wins_over_consecutive_warning_escalation(self, temp_state_file):
+        """A cooldown-active run must not end with immediate retrain after escalation."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        previous_retrain = datetime.now().isoformat()
+        engine.state["last_retrain_timestamp"] = previous_retrain
+        engine.state["consecutive_warnings"] = (
+            engine.thresholds.consecutive_warnings_for_trigger - 1
+        )
+        engine._save_state()
+
+        warning_report = {
+            "confidence_report": {
+                "metrics": {
+                    "mean_confidence": 0.60,
+                    "mean_entropy": 1.0,
+                    "uncertain_ratio": 0.10,
+                }
+            },
+            "temporal_report": {
+                "metrics": {
+                    "flip_rate": 0.10,
+                }
+            },
+            "drift_report": {
+                "per_channel_metrics": {},
+                "n_drifted_channels": 0,
+                "aggregate_drift_score": 0.0,
+            },
+        }
+
+        decision = engine.evaluate(warning_report)
+
+        assert decision.cooldown_active is True
+        assert decision.should_trigger is False
+        assert decision.action == TriggerAction.QUEUE_RETRAIN
+        assert any("Cooldown active" in rec for rec in decision.recommendations)
+        assert engine.state["last_retrain_timestamp"] == previous_retrain
+
+    def test_cooldown_does_not_override_review_decision(self, temp_state_file):
+        """Collapse guard REVIEW should remain REVIEW even when cooldown state exists."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+        engine.state["last_retrain_timestamp"] = datetime.now().isoformat()
+        engine._save_state()
+
+        report = {
+            "confidence_report": {"metrics": {}},
+            "temporal_report": {"metrics": {}},
+            "drift_report": {"per_channel_metrics": {}, "n_drifted_channels": 0},
+            "collapse_signals": {
+                "dominance_warning": False,
+                "dominant_class": "hand_tapping",
+                "dominant_pct": 95.0,
+                "mean_confidence": 0.85,
+                "transition_rate": 5.0,
+            },
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.should_trigger is False
+        assert decision.cooldown_active is False
 
 
 class TestProxyModelValidator:

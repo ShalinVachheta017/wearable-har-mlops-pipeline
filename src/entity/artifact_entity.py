@@ -97,6 +97,11 @@ class ModelEvaluationArtifact:
     confidence_summary: Dict = field(default_factory=dict)
     has_labels: bool = False
     classification_metrics: Optional[Dict] = None
+    # Informational flag: any single class > 95 % of predictions in this batch.
+    # Does NOT trigger retraining — see docs/TRIGGER_POLICY_EXPLANATION.md.
+    distribution_dominance_warning: bool = False
+    dominant_pct: Optional[float] = None
+    dominant_class: Optional[str] = None
 
 
 # ============================================================================

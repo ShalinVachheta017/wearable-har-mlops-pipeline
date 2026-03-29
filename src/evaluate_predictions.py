@@ -75,6 +75,8 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from src.utils.label_mapping import get_activity_classes
+
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 from config import DATA_PREPARED, LOGS_DIR, OUTPUTS_DIR
@@ -109,20 +111,8 @@ class EvaluationConfig:
             self.labels_path = Path(self.labels_path)
 
 
-# Activity classes (same as inference)
-ACTIVITY_CLASSES: Dict[int, str] = {
-    0: "ear_rubbing",
-    1: "forehead_rubbing",
-    2: "hair_pulling",
-    3: "hand_scratching",
-    4: "hand_tapping",
-    5: "knuckles_cracking",
-    6: "nail_biting",
-    7: "nape_rubbing",
-    8: "sitting",
-    9: "smoking",
-    10: "standing",
-}
+# Activity classes (single source of truth)
+ACTIVITY_CLASSES: Dict[int, str] = get_activity_classes()
 
 
 # ============================================================================
@@ -230,6 +220,17 @@ class PredictionAnalyzer:
                 f"⚠️ '{dominant}' dominates ({dominant_pct:.1f}%) - possible imbalance"
             )
 
+        # Structured dominance flag (>95%): informational, does not trigger retraining
+        distribution_dominance_warning = dominant_pct > 95.0
+        if distribution_dominance_warning:
+            self.logger.warning(
+                f"⚠️ distribution_dominance_warning=True: '{dominant}' at {dominant_pct:.1f}%"
+                " — single-class batch detected (see docs/TRIGGER_POLICY_EXPLANATION.md)"
+            )
+
+        results["_dominant_class"] = dominant
+        results["_dominant_pct"] = float(dominant_pct)
+        results["_distribution_dominance_warning"] = distribution_dominance_warning
         return results
 
     def analyze_confidence(self, df: pd.DataFrame) -> Dict:
@@ -608,6 +609,8 @@ class ReportGenerator:
                 f.write("ACTIVITY DISTRIBUTION\n")
                 f.write("-" * 40 + "\n")
                 for activity, data in results["distribution"].items():
+                    if activity.startswith("_") or not isinstance(data, dict):
+                        continue
                     f.write(f"{activity:20s}: {data['count']:5d} ({data['percentage']:5.1f}%)\n")
                 f.write("\n")
 

@@ -47,6 +47,8 @@ class TriggerEvaluation:
             confidence_critical=self.config.confidence_critical,
             drift_zscore_warn=self.config.drift_zscore_warn,
             drift_zscore_critical=self.config.drift_zscore_critical,
+            flip_rate_warn=self.config.temporal_flip_warn,
+            flip_rate_critical=self.config.temporal_flip_critical,
         )
         cooldown = CooldownConfig(
             retrain_cooldown_hours=self.config.cooldown_hours,
@@ -61,10 +63,11 @@ class TriggerEvaluation:
         )
 
         # Transform monitoring report to trigger engine format
-        raw_report = self.monitoring_artifact.monitoring_report
+        raw_report = self.monitoring_artifact.monitoring_report or {}
         layer1 = raw_report.get("layer1_confidence", {})
         layer2 = raw_report.get("layer2_temporal", {})
         layer3 = raw_report.get("layer3_drift", {})
+        collapse = raw_report.get("collapse_signals", {})
 
         # Map monitoring keys → trigger-policy expected structure
         # Use direct artifact fields (populated from the monitoring component)
@@ -94,6 +97,18 @@ class TriggerEvaluation:
                 "aggregate_drift_score": layer3.get("max_drift", 0.0),
                 "overall_status": layer3.get("status", "UNKNOWN"),
             },
+            "collapse_signals": {
+                "dominance_warning": self._as_bool(collapse.get("dominance_warning", False)),
+                "dominant_class": collapse.get("dominant_class"),
+                "dominant_pct": collapse.get("dominant_pct"),
+                "mean_confidence": collapse.get(
+                    "mean_confidence", layer1.get("mean_confidence", 0.0)
+                ),
+                "transition_rate": collapse.get(
+                    "transition_rate", layer2.get("transition_rate", 0.0)
+                ),
+                "longest_sequence_length": collapse.get("longest_sequence_length"),
+            },
         }
 
         decision = engine.evaluate(trigger_report)
@@ -117,6 +132,33 @@ class TriggerEvaluation:
                 if hasattr(decision.alert_level, "value")
                 else str(decision.alert_level)
             ),
-            reasons=decision.recommendations if hasattr(decision, "recommendations") else [],
-            cooldown_active=False,
+            reasons=self._build_reasons(decision),
+            cooldown_active=getattr(decision, "cooldown_active", False),
         )
+
+    @staticmethod
+    def _build_reasons(decision) -> list[str]:
+        reasons: list[str] = []
+        primary_reason = getattr(decision, "reason", None)
+        if primary_reason:
+            reasons.append(str(primary_reason))
+
+        recommendations = (
+            list(getattr(decision, "recommendations", []))
+            if hasattr(decision, "recommendations")
+            else []
+        )
+        for item in recommendations:
+            text = str(item)
+            if text and text not in reasons:
+                reasons.append(text)
+
+        return reasons
+
+    @staticmethod
+    def _as_bool(value) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y"}
+        return bool(value)

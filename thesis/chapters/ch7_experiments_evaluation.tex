@@ -1,0 +1,13 @@
+\chapter{Experiments and System Evaluation}
+
+This chapter reports model, monitoring, trigger, and runtime evaluation results.
+
+\section{Negative Result: Unit-Fix + Abstain Experiment (26 Sessions)}
+
+We executed a controlled before/after comparison across 26 production sessions with three temporary changes enabled together: g-unit detection/conversion, stream-reuse guard, and low-motion/OOD abstain-review mode. The result was negative with respect to predictive improvement.
+
+Mean confidence stayed unchanged between baseline and modified runs, while dominant-class percentage decreased mainly because many windows were re-routed to \texttt{REVIEW}. Therefore, the apparent reduction in class collapse did not reflect improved class discrimination.
+
+Operationally, trigger outcomes became substantially stricter in the modified setting (many sessions shifting from \texttt{none} to \texttt{queue\_retrain}/\texttt{trigger}), and one session failed in both variants due to empty accelerometer input. This experiment is retained as a documented ablation and negative finding.
+
+Primary evidence files are stored at \texttt{thesis/tables/before\_vs\_after\_26datasets.csv} and \texttt{thesis/chapters/before\_vs\_after\_26datasets.md}.

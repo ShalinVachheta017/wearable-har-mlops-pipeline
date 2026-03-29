@@ -32,13 +32,16 @@ preprocessing:
   #      - all_users_data_labeled accel magnitude = 9.83 m/s2 (=1g)
   #      - ADAMSense wrist magnitude = 0.995 (approx 1g in g-units)
   #      - Paper says "NO gravity removal mentioned"
+  # CONFIRMED: Scaler was fitted on gravity-included data (Az mean = -3.5289 m/s2).
+  # Keeping this true introduces about +1.09 SD systematic offset on Az in production.
   enable_gravity_removal: false
 
   # Domain Calibration  (experimental)
   # RECOMMENDED: false
   # WHY: Not part of original training pipeline.
-  #      Only enable for domain adaptation experiments.
+  #      Keep both flags false unless ablation explicitly proves consistent improvement.
   enable_calibration: false
+  enable_domain_calibration: false
 
   # Data Normalization  (StandardScaler / RobustScaler z-score)
   # RECOMMENDED: true

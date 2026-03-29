@@ -57,8 +57,13 @@ data/prepared/
 *.xlsx
 *.npy
 
-# Models (we mount these as volumes)
+# Models
+# Keep pretrained artifacts in the build context so CD smoke tests can boot the API.
 models/
+!models/
+!models/pretrained/
+!models/pretrained/**
+!models/normalized_baseline.json
 
 # MLflow (we mount these as volumes)
 mlruns/
