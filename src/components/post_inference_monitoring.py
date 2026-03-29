@@ -68,7 +68,14 @@ class PostInferenceMonitoring:
                 except Exception as _e:
                     logger.warning("Could not load calibration temperature: %s", _e)
 
-        monitor = PostInferenceMonitor(calibration_temperature=calibration_temperature)
+        monitor = PostInferenceMonitor(
+            confidence_warn_threshold=self.config.confidence_warn_threshold,
+            confidence_threshold=self.config.uncertain_window_threshold,
+            uncertain_threshold_pct=self.config.uncertain_pct_threshold,
+            transition_rate_threshold=self.config.transition_rate_threshold,
+            drift_threshold=self.config.drift_zscore_threshold,
+            calibration_temperature=calibration_temperature,
+        )
 
         predictions_csv = Path(
             self.config.predictions_csv or self.inference_artifact.predictions_csv_path

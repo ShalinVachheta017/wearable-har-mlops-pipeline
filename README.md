@@ -47,6 +47,18 @@ python run_pipeline.py
 - Pipeline data flow map: [docs/PIPELINE_DATA_FLOW_MAP.md](docs/PIPELINE_DATA_FLOW_MAP.md)
 - Consistency decisions (thresholds, Config D, AdaBN): [docs/THESIS_CONSISTENCY_NOTES.md](docs/THESIS_CONSISTENCY_NOTES.md)
 
+## Consistency and Reproducibility Index
+
+- Threshold and trigger justification: [docs/thesis/THRESHOLD_TRIGGER_JUSTIFICATION.md](docs/thesis/THRESHOLD_TRIGGER_JUSTIFICATION.md)
+- Thesis consistency notes: [docs/THESIS_CONSISTENCY_NOTES.md](docs/THESIS_CONSISTENCY_NOTES.md)
+- Pipeline data flow map: [docs/PIPELINE_DATA_FLOW_MAP.md](docs/PIPELINE_DATA_FLOW_MAP.md)
+- Reproducibility guide: [REPRODUCE.md](REPRODUCE.md)
+- src vs scripts review: [docs/SRC_VS_SCRIPTS_REVIEW.md](docs/SRC_VS_SCRIPTS_REVIEW.md)
+- src/scripts rigorous audit: [docs/SRC_SCRIPTS_RIGOROUS_AUDIT.md](docs/SRC_SCRIPTS_RIGOROUS_AUDIT.md)
+- src/scripts overlap matrix: [docs/SRC_SCRIPTS_OVERLAP_MATRIX.md](docs/SRC_SCRIPTS_OVERLAP_MATRIX.md)
+- runtime dependency map: [docs/RUNTIME_DEPENDENCY_MAP.md](docs/RUNTIME_DEPENDENCY_MAP.md)
+- src/scripts simplification plan: [docs/SRC_SCRIPTS_SIMPLIFICATION_PLAN.md](docs/SRC_SCRIPTS_SIMPLIFICATION_PLAN.md)
+
 ## Testing
 
 Run a fast smoke subset:

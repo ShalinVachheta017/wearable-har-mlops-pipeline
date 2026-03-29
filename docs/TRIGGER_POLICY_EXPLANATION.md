@@ -1,161 +1,112 @@
 # Trigger Policy Explanation
 
-**Document:** `docs/TRIGGER_POLICY_EXPLANATION.md`  
-**Pipeline stage:** 7 — Trigger Evaluation  
-**Component:** `src/trigger_policy.py` → `TriggerPolicy`
+Document: docs/TRIGGER_POLICY_EXPLANATION.md
+Pipeline stage: 7 - Trigger Evaluation
+Core modules: src/components/trigger_evaluation.py, src/trigger_policy.py
 
----
+## Purpose
 
-## What the trigger policy decides
+The trigger policy converts Stage 6 monitoring outputs (plus Stage 5 collapse signals) into one action:
 
-After each inference run the trigger policy reads the monitoring signals from
-stages 5 (Evaluation) and 6 (Post-Inference Monitoring) and makes a single
-binary decision: **retrain the model now, or leave it alone**.
+- none
+- monitor
+- review
+- queue_retrain
+- trigger
 
-```
-Stage 5 → distribution + confidence metrics ──┐
-Stage 6 → confidence / temporal / drift layers ├──> TriggerPolicy → TriggerAction
-                                               ┘
-```
+The result is written into TriggerEvaluationArtifact and persisted in artifacts/*/trigger/trigger_decision.json.
 
-The decision is written to the pipeline result as `TriggerEvaluationArtifact`:
+## Runtime Decision Flow
 
-| Field            | Type              | Example                          |
-|------------------|-------------------|----------------------------------|
-| `action`         | `TriggerAction`   | `NONE`                           |
-| `alert_level`    | `AlertLevel`      | `INFO`                           |
-| `should_retrain` | `bool`            | `False`                          |
-| `reasons`        | `List[str]`       | `["All metrics within normal ranges"]` |
+1. Stage 6 produces layer metrics:
+- Layer 1 confidence/uncertainty
+- Layer 2 temporal transitions
+- Layer 3 drift
 
----
+2. Stage 7 maps these metrics into TriggerPolicyEngine inputs.
 
-## States
+3. Collapse guard is checked first.
+- If collapse conditions match, action is review with should_retrain=false.
 
-### HEALTHY — trigger = NONE
+4. If no collapse review, confidence/temporal/drift signals are scored.
 
-All three monitoring layers pass their thresholds:
+5. Signals are aggregated by voting:
+- Any CRITICAL signal -> trigger
+- 2+ WARNING signals -> queue_retrain
+- 1 WARNING signal -> monitor
+- Otherwise -> none
 
-| Layer | Signal | Healthy threshold |
-|-------|--------|-------------------|
-| Layer 1 – Confidence | Uncertain predictions | < 5 % |
-| Layer 2 – Temporal   | Activity transition rate | < 10 % |
-| Layer 3 – Drift      | Max channel drift (z-score) | < 1.50 |
+6. Consecutive-warning escalation can promote decision to trigger.
 
-```
-DECISION: NONE
-Alert Level: INFO
-Should Trigger: False
-Reason: All metrics within normal ranges
-```
+7. Cooldown is applied as the final gate.
+- If cooldown is active, final action is queue_retrain and should_retrain=false.
+- This final gate now has precedence over same-cycle escalation.
 
-No automatic action is taken. The pipeline ends after stage 7 and archives
-its artifacts.
+## Threshold Sources
 
----
+Stage 6 monitoring thresholds are defined in PostInferenceMonitoringConfig and passed at runtime into scripts/post_inference_monitoring.py by src/components/post_inference_monitoring.py.
 
-### WARNING — trigger = MONITOR
+Default Stage 6 thresholds:
+- confidence_warn_threshold: 0.60
+- uncertain_window_threshold: 0.50
+- uncertain_pct_threshold: 30.0
+- transition_rate_threshold: 50.0
+- drift_zscore_threshold: 2.0
 
-One or more signals are elevated but have not crossed the critical threshold:
+Stage 7 trigger thresholds are defined in TriggerEvaluationConfig and passed to TriggerPolicyEngine via TriggerThresholds in src/components/trigger_evaluation.py.
 
-- Moderate drift: 0.75 ≤ max_drift < 1.50
-- Elevated uncertainty: 5 % ≤ uncertain_pct < 15 %
-- High transition rate signalling potential out-of-distribution inputs
+Default Stage 7 thresholds:
+- confidence_warn: 0.65
+- confidence_critical: 0.50
+- temporal_flip_warn: 0.35
+- temporal_flip_critical: 0.50
+- drift_zscore_warn: 2.0
+- drift_zscore_critical: 3.0
+- cooldown_hours: 24
 
-```
-DECISION: MONITOR
-Alert Level: WARNING
-Should Trigger: False
-Reason: Drift approaching threshold (max=0.87) — monitoring recommended
-```
+Notes:
+- Stage 6 and Stage 7 are intentionally tiered (monitoring warning is earlier; trigger is stricter governance).
+- Runtime values can be overridden with config/pipeline_overrides.yaml or HAR_PIPELINE_OVERRIDES.
 
-Model is **not** retrained automatically. The run is flagged in MLflow and a
-warning appears in the pipeline summary. The recommended response is to
-schedule a labelling review in the next sprint.
+## Collapse Guard Semantics
 
----
+Collapse guard is intentionally conservative for unlabeled production data.
 
-### CRITICAL — trigger = TRIGGER_RETRAIN
+review is returned when any collapse condition holds, including:
+- dominance_warning=true from upstream signals, or
+- dominant_pct >= 95, or
+- dominant_pct >= 90 with transition_rate == 0 and high confidence.
 
-A hard threshold is crossed:
+When collapse guard matches:
+- should_retrain=false
+- action=review
+- recommendation is manual review, not automatic retraining.
 
-- Drift: max_drift ≥ 1.50 on any sensor channel
-- Confidence collapse: mean_confidence < 0.60 for the batch
-- Uncertainty flood: > 15 % uncertain predictions
+## Cooldown Semantics
 
-```
-DECISION: TRIGGER_RETRAIN
-Alert Level: CRITICAL
-Should Retrain: True
-Reason: Sensor drift exceeds threshold (max=1.73 on acc_z)
-```
+Cooldown exists to prevent rapid retraining loops.
 
-Automatic retraining is then initiated if `--retrain` is present in the run
-command. Without `--retrain` the decision is recorded but no action is taken —
-the pipeline does not self-modify without the explicit flag.
+Behavior:
+- If a decision would trigger retraining and a recent retrain is still within cooldown_hours,
+  the final decision is rewritten to queue_retrain with cooldown_active=true.
+- The final decision is persisted together with cooldown status.
 
----
+After the P0 fix, cooldown is enforced after escalation logic so it cannot be overridden later in the same evaluation cycle.
 
-## Why high class dominance alone does NOT trigger retraining
+## Practical Interpretation
 
-The 2026-03-06 production run showed `hand_tapping = 99.9 %` of predictions.
-Evaluation stage 5 emits a `⚠️ distribution dominance` warning, but the
-trigger policy correctly sets `NONE`:
+1. High confidence alone does not force trigger.
+2. Drift or temporal instability can trigger action even when confidence is relatively high.
+3. Dominance/collapse patterns route to review rather than automatic retraining.
+4. Cooldown prevents repeated immediate retrains from back-to-back runs.
 
-1. **All three monitoring layers passed.**  
-   Confidence was high (93.4 % mean, 99.7 % HIGH-tier). Temporal patterns
-   were stable (2 transitions / 1814 windows = 0.1 %). Drift was within
-   bounds (max = 0.569, threshold = 1.50).
+## Key Files
 
-2. **Class dominance is a data property, not a model failure.**  
-   If a participant genuinely performed `hand_tapping` for the entire
-   recording session the correct behaviour is to predict `hand_tapping`.
-   A model that correctly identifies a single-activity session is *working*,
-   not degrading.
-
-3. **Retraining on a single-class batch would cause catastrophic forgetting.**  
-   Fine-tuning on a batch containing only `hand_tapping` would reduce
-   performance on the other 10 activity classes. The trigger policy
-   intentionally prevents this.
-
-4. **The appropriate response to class dominance is a *labelling* action,**  
-   not an automated retrain: collect a more representative batch, verify the
-   label, and include it in the next supervised retraining cycle.
-
-### The 95 % dominance flag
-
-Starting from this commit, the evaluation stage additionally sets a structured
-flag `distribution_dominance_warning = True` whenever any single class exceeds
-95 % of predictions. This flag flows through the `ModelEvaluationArtifact`
-into the pipeline summary and MLflow metrics, where it is logged as
-`metric: distribution_dominance_warning = 1.0`.
-
-The flag does **not** affect the trigger decision; it is informational only.
-
----
-
-## Run classification — 2026-03-06 15:06
-
-| Signal | Value | Threshold | Status |
-|--------|-------|-----------|--------|
-| Mean confidence | 93.4 % | > 80 % | ✅ PASS |
-| HIGH-tier predictions | 99.7 % | > 90 % | ✅ PASS |
-| Uncertain predictions | 0 / 1814 | < 5 % | ✅ PASS |
-| Activity transitions | 0.1 % | < 10 % | ✅ PASS |
-| Max sensor drift | 0.569 | < 1.50 | ✅ PASS |
-| Class dominance | 99.9 % (`hand_tapping`) | — | ⚠️ WARNING (informational) |
-| **Trigger decision** | **NONE** | — | ✅ **HEALTHY** |
-
-Overall classification: **Healthy overall, monitoring note on class dominance.**
-
----
-
-## Key source files
-
-| File | Role |
-|------|------|
-| `src/trigger_policy.py` | `TriggerPolicy` — reads signals, returns `TriggerAction` |
-| `src/components/trigger_evaluation.py` | Pipeline component wrapper for stage 7 |
-| `src/evaluate_predictions.py` | `analyze_distribution()` — emits dominance warning |
-| `src/components/post_inference_monitoring.py` | 3-layer monitoring runner |
-| `src/entity/artifact_entity.py` | `TriggerEvaluationArtifact`, `ModelEvaluationArtifact` |
-| `config/pipeline_config.yaml` | Drift / confidence threshold values |
+- src/components/post_inference_monitoring.py
+- scripts/post_inference_monitoring.py
+- src/components/trigger_evaluation.py
+- src/trigger_policy.py
+- src/entity/config_entity.py
+- docs/thesis/THRESHOLD_TRIGGER_JUSTIFICATION.md
+- docs/THESIS_CONSISTENCY_NOTES.md
+- docs/PIPELINE_DATA_FLOW_MAP.md

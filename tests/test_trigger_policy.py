@@ -6,6 +6,7 @@ Tests for the automated retraining trigger logic.
 """
 
 import json
+from datetime import datetime
 import numpy as np
 import pytest
 from pathlib import Path
@@ -264,6 +265,74 @@ class TestConsecutiveWarnings:
         # After 3+ consecutive warnings, at least one should trigger
         # Note: state resets after trigger, so check across all decisions
         assert any(d.should_trigger for d in decisions)
+
+
+class TestCooldownOrdering:
+    """Regression tests for cooldown precedence in final trigger decisions."""
+
+    def test_cooldown_wins_over_consecutive_warning_escalation(self, temp_state_file):
+        """A cooldown-active run must not end with immediate retrain after escalation."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        previous_retrain = datetime.now().isoformat()
+        engine.state["last_retrain_timestamp"] = previous_retrain
+        engine.state["consecutive_warnings"] = (
+            engine.thresholds.consecutive_warnings_for_trigger - 1
+        )
+        engine._save_state()
+
+        warning_report = {
+            "confidence_report": {
+                "metrics": {
+                    "mean_confidence": 0.60,
+                    "mean_entropy": 1.0,
+                    "uncertain_ratio": 0.10,
+                }
+            },
+            "temporal_report": {
+                "metrics": {
+                    "flip_rate": 0.10,
+                }
+            },
+            "drift_report": {
+                "per_channel_metrics": {},
+                "n_drifted_channels": 0,
+                "aggregate_drift_score": 0.0,
+            },
+        }
+
+        decision = engine.evaluate(warning_report)
+
+        assert decision.cooldown_active is True
+        assert decision.should_trigger is False
+        assert decision.action == TriggerAction.QUEUE_RETRAIN
+        assert any("Cooldown active" in rec for rec in decision.recommendations)
+        assert engine.state["last_retrain_timestamp"] == previous_retrain
+
+    def test_cooldown_does_not_override_review_decision(self, temp_state_file):
+        """Collapse guard REVIEW should remain REVIEW even when cooldown state exists."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+        engine.state["last_retrain_timestamp"] = datetime.now().isoformat()
+        engine._save_state()
+
+        report = {
+            "confidence_report": {"metrics": {}},
+            "temporal_report": {"metrics": {}},
+            "drift_report": {"per_channel_metrics": {}, "n_drifted_channels": 0},
+            "collapse_signals": {
+                "dominance_warning": False,
+                "dominant_class": "hand_tapping",
+                "dominant_pct": 95.0,
+                "mean_confidence": 0.85,
+                "transition_rate": 5.0,
+            },
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.should_trigger is False
+        assert decision.cooldown_active is False
 
 
 class TestProxyModelValidator:

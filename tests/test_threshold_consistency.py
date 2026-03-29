@@ -7,7 +7,16 @@ drift/entropy must be exactly consistent).
 """
 
 import pytest
-from src.entity.config_entity import PostInferenceMonitoringConfig, TriggerEvaluationConfig
+import sys
+import types
+
+from src.components.post_inference_monitoring import PostInferenceMonitoring
+from src.entity.artifact_entity import ModelInferenceArtifact
+from src.entity.config_entity import (
+    PipelineConfig,
+    PostInferenceMonitoringConfig,
+    TriggerEvaluationConfig,
+)
 from src.trigger_policy import TriggerThresholds
 
 
@@ -117,3 +126,70 @@ def test_pipeline_and_api_share_same_monitoring_overrides(monkeypatch):
     assert api_cfg.drift_zscore_threshold == pytest.approx(
         pipeline_cfg.drift_zscore_threshold
     )
+
+
+def test_stage6_thresholds_pass_through_to_runtime_monitor(monkeypatch, tmp_path):
+    """Stage-6 wrapper must pass configured thresholds into PostInferenceMonitor."""
+    captured = {}
+
+    class _FakeMonitor:
+        def __init__(self, **kwargs):
+            captured["init_kwargs"] = kwargs
+
+        def run(self, **kwargs):
+            captured["run_kwargs"] = kwargs
+
+            class _Report:
+                overall_status = "PASS"
+                layer1_confidence = {"status": "PASS"}
+                layer2_temporal = {"status": "PASS"}
+                layer3_drift = {"status": "SKIPPED"}
+
+            return _Report()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "post_inference_monitoring",
+        types.SimpleNamespace(PostInferenceMonitor=_FakeMonitor),
+    )
+
+    predictions_csv = tmp_path / "predictions.csv"
+    predictions_csv.write_text(
+        "confidence,predicted_activity\n0.90,sitting\n",
+        encoding="utf-8",
+    )
+
+    inference_artifact = ModelInferenceArtifact(
+        predictions_csv_path=predictions_csv,
+        predictions_npy_path=tmp_path / "predictions.npy",
+        probabilities_npy_path=tmp_path / "probabilities.npy",
+        n_predictions=1,
+    )
+
+    cfg = PostInferenceMonitoringConfig(
+        predictions_csv=predictions_csv,
+        output_dir=tmp_path / "monitoring_output",
+        confidence_warn_threshold=0.71,
+        uncertain_window_threshold=0.44,
+        uncertain_pct_threshold=22.0,
+        transition_rate_threshold=37.0,
+        drift_zscore_threshold=1.9,
+        calibration_temperature=1.3,
+    )
+
+    stage = PostInferenceMonitoring(
+        pipeline_config=PipelineConfig(),
+        config=cfg,
+        inference_artifact=inference_artifact,
+    )
+
+    artifact = stage.initiate_post_inference_monitoring()
+    init_kwargs = captured["init_kwargs"]
+
+    assert init_kwargs["confidence_warn_threshold"] == pytest.approx(0.71)
+    assert init_kwargs["confidence_threshold"] == pytest.approx(0.44)
+    assert init_kwargs["uncertain_threshold_pct"] == pytest.approx(22.0)
+    assert init_kwargs["transition_rate_threshold"] == pytest.approx(37.0)
+    assert init_kwargs["drift_threshold"] == pytest.approx(1.9)
+    assert init_kwargs["calibration_temperature"] == pytest.approx(1.3)
+    assert artifact.overall_status == "PASS"

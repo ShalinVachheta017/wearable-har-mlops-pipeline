@@ -283,11 +283,8 @@ class TriggerPolicyEngine:
         # Aggregate signals using voting
         decision = self._aggregate_signals(signals, timestamp)
 
-        # Apply cooldown checks
-        decision = self._apply_cooldowns(decision)
-
-        # Update state
-        self._update_state(decision)
+        # Update state and apply final cooldown gate after any escalation.
+        decision = self._update_state(decision)
 
         # Log decision
         self.logger.info(f"\n{'─' * 60}")
@@ -675,8 +672,8 @@ class TriggerPolicyEngine:
 
         return decision
 
-    def _update_state(self, decision: TriggerDecision):
-        """Update persistent state after evaluation."""
+    def _update_state(self, decision: TriggerDecision) -> TriggerDecision:
+        """Update persistent state after evaluation and return the final decision."""
         # Update warning counters
         if decision.alert_level == AlertLevel.WARNING:
             self.state["warning_count"] += 1
@@ -693,6 +690,9 @@ class TriggerPolicyEngine:
             decision.reason = (
                 f"Triggered by {self.state['consecutive_warnings']} consecutive warnings"
             )
+
+        # Cooldown is the final gate and must win over prior escalation paths.
+        decision = self._apply_cooldowns(decision)
 
         # Update retrain timestamp if triggered
         if decision.should_trigger:
@@ -716,6 +716,8 @@ class TriggerPolicyEngine:
 
         # Save state
         self._save_state()
+
+        return decision
 
     def get_trigger_summary(self) -> Dict[str, Any]:
         """Get summary of trigger state for reporting."""
