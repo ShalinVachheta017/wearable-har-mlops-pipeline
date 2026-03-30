@@ -92,6 +92,7 @@ credentials/
 /data/samples_2005 dataset/
 /data/anxiety_dataset/
 /data/*.csv
+/data/
 
 # ============================================================================
 # Models (tracked by DVC, NOT git)
