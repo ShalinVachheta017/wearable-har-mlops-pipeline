@@ -26,8 +26,8 @@
 | 16 | Why EWC lambda=1000? | Prevents catastrophic forgetting in curriculum pseudo-labeling | src/entity/config_entity.py:330 | [REF_EWC_PAPER] — **P0: no lambda ablation** |
 | 17 | Why degradation_tolerance=0.005? | 0.5% accuracy slack absorbs training variance noise | src/entity/config_entity.py:253 | PROJECT_DECISION |
 | 18 | Why 50 Hz sampling? | Garmin SDK default; matches training data frequency | config/pipeline_config.yaml:50 | SENSOR_SPEC |
-| 19 | Why CI path filters? | Avoids CI runs on docs-only changes — saves compute | .github/workflows/ci-cd.yml:22 | [REF_GHA_WORKFLOWS] |
-| 20 | Why weekly model validation? | Catches silent model degradation between code changes | .github/workflows/ci-cd.yml:280 | PROJECT_DECISION |
+| 19 | Why CI branch-scoped triggers? | Focuses validation on active development branches and pull requests | .github/workflows/ci.yml | [REF_GHA_WORKFLOWS] |
+| 20 | Why release-tag-driven CD? | Separates routine CI checks from explicit release publishing and smoke validation | .github/workflows/cd.yml | PROJECT_DECISION |
 
 ### P0 Evidence Gaps (must resolve before defense)
 

@@ -357,7 +357,7 @@ Contains thesis-critical evidence:
 
 ### 17. `.github/` — CI/CD  **KEEP**
 
-Contains `workflows/ci-cd.yml` — weekly model-health check + test suite.
+Contains `workflows/ci.yml` and `workflows/cd.yml` — separated quality and release pipelines.
 
 **Action:** None.
 

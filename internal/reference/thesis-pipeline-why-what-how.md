@@ -98,7 +98,7 @@ Several systems span all stages but are not pipeline stages themselves:
 | **DVC** | Version-controls large data files outside Git | `.dvc/config`, `data/*.dvc` (local remote at `../.dvc_storage`) |
 | **MLflow** | Experiment tracking, parameter/metric logging, model registry | `src/mlflow_tracking.py`, `mlruns/`, `config/mlflow_config.yaml` |
 | **Docker** | Containerises inference and training environments | `docker/Dockerfile.inference`, `docker/Dockerfile.training`, `docker-compose.yml` |
-| **GitHub Actions CI/CD** | Lint, test, build, integration-test, model-validation | `.github/workflows/ci-cd.yml` (6 jobs, weekly cron) |
+| **GitHub Actions CI/CD** | CI quality gates plus CD release smoke validation | `.github/workflows/ci.yml` + `.github/workflows/cd.yml` |
 | **Prometheus + Alertmanager + Grafana** | Production observability stack | `config/prometheus.yml`, `config/alertmanager.yml`, `config/grafana/` |
 | **FastAPI** | REST API serving predictions with Prometheus metrics export | `src/api/app.py` (892 lines, 7 Prometheus counters/gauges/histograms) |
 
@@ -1052,10 +1052,10 @@ Threshold: `dominant_accel_threshold = 1.2` (`src/sensor_placement.py:72`).
 | Item | Description |
 |---|---|
 | **Why** | Manual testing does not scale. Every push must be validated automatically. |
-| **What** | 6-job pipeline in `.github/workflows/ci-cd.yml` (350 lines). |
-| **Jobs** | `lint` → `test` → `test-slow` → `build` → `integration-test` → `model-validation`. |
-| **Path filters** | Triggers on: `src/**`, `tests/**`, `docker/**`, `config/**`. No CI for docs-only changes. |
-| **Weekly cron** | `0 6 * * 1`: weekly model validation detects silent degradation between code changes. |
+| **What** | Split workflows: `.github/workflows/ci.yml` for quality checks and `.github/workflows/cd.yml` for tagged release delivery. |
+| **Jobs** | CI: `lint` → `unit-tests` → `docker-build-check`; CD: `build-and-push` → `smoke-test`. |
+| **Triggers** | CI runs on pushes to `main`/`develop` and pull requests to `main`; CD runs on `v*.*.*` tags or manual dispatch. |
+| **Release safety** | CD always runs post-push smoke validation against `/api/health`. |
 
 ### Prometheus + Alertmanager + Grafana
 

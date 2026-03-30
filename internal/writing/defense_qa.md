@@ -306,42 +306,44 @@
 
 ## 9. CI/CD — GitHub Actions
 
-### Q: "Why this CI/CD structure with 6 jobs?"
+### Q: "Why is CI/CD split into two workflows?"
 
-**A:** The 6-job structure implements a quality gate cascade:
+**A:** The repository now separates quality checks and release delivery:
+
+- **CI** in `.github/workflows/ci.yml` validates code on push/PR.
+- **CD** in `.github/workflows/cd.yml` runs on release tags or manual dispatch.
+
+This split improves clarity and reduces accidental release coupling.
+
+CI job chain:
 
 ```
-lint → test → test-slow → build → integration-test → model-validation
+lint -> unit-tests -> docker-build-check
 ```
 
-Each job depends on the previous (`needs:` keyword). This means:
+CD job chain:
 
-1. **lint** — Catches style issues in seconds (no compute waste on broken code)
-2. **test** — Fast unit tests (~30s)
-3. **test-slow** — Expensive tests (GPU, large data) only if fast tests pass
-4. **build** — Docker image build only if all tests pass
-5. **integration-test** — Full pipeline run in Docker only if images build
-6. **model-validation** — Post-deploy model quality check
+```
+build-and-push -> smoke-test
+```
 
 **Evidence:**
-- `.github/workflows/ci-cd.yml:1-350` — Full workflow definition
-- Line 22-27: Path filters (`src/**`, `tests/**`, `docker/**`, `config/**`)
-- Line 29: Weekly cron schedule (`0 6 * * 1`)
-- Line 280-325: Model validation job with `run_pipeline.py --stages monitoring`
+- `.github/workflows/ci.yml` — push/PR quality gates and build viability checks.
+- `.github/workflows/cd.yml` — tagged release build/push plus health smoke-test.
+- `.github/workflows/README.md` — workflow topology and maintenance guide.
 
-**Counter-argument ready:** "Why not use a matrix strategy for test parallelism?" → The test suite is small enough that sequential execution completes in <5 minutes. Matrix strategy adds complexity for minimal time savings at thesis scale.
+**Counter-argument ready:** "Why not keep one single combined workflow?" -> Separation reduces cognitive load, keeps release logic independent, and supports cleaner thesis explanation of CI vs CD responsibilities.
 
 ---
 
-### Q: "What triggers CI and why?"
+### Q: "What triggers CI and CD now?"
 
-**A:** Three triggers (`.github/workflows/ci-cd.yml:3-29`):
+**A:**
 
-1. **Push to main** — Every merge must be validated
-2. **Pull request to main** — Pre-merge validation
-3. **Weekly cron (Monday 6am)** — Catches dependency rot and model staleness even without code changes
+1. **CI triggers** (`.github/workflows/ci.yml`): push to `main` and `develop`, and pull requests to `main`.
+2. **CD triggers** (`.github/workflows/cd.yml`): tag pushes matching `v*.*.*`, and manual `workflow_dispatch`.
 
-Path filters ensure CI only runs when relevant files change (src/, tests/, docker/, config/). Documentation-only changes don't trigger CI.
+This means normal development runs CI, while releases run CD.
 
 ---
 

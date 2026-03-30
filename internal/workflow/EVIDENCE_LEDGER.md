@@ -106,7 +106,7 @@
 | EV-501 | Docker inference image | `docker/Dockerfile.inference` (65 L) | ⚠️ NEEDS_UPDATE | GAP-DOCKER-01: single-stage, should be multi-stage |
 | EV-502 | Docker training image | `docker/Dockerfile.training` (52 L) | ⚠️ NEEDS_UPDATE | GAP-DOCKER-01: single-stage |
 | EV-503 | Docker Compose | `docker-compose.yml` (223 L) | ✅ EXISTS | 7 services |
-| EV-504 | CI/CD workflow | `.github/workflows/ci-cd.yml` (350 L) | ✅ EXISTS | 6 jobs |
+| EV-504 | CI/CD workflows | `.github/workflows/ci.yml` + `.github/workflows/cd.yml` | ✅ EXISTS | CI (3 jobs) + CD (2 jobs) |
 | EV-505 | Prometheus config | `config/prometheus.yml` | ✅ EXISTS | 6 scrape jobs |
 | EV-506 | Alert rules | `config/alerts/har_alerts.yml` | ✅ EXISTS | 8 rules, 4 groups |
 | EV-507 | Alertmanager config | `config/alertmanager.yml` (111 L) | ✅ EXISTS | Inhibit rules |

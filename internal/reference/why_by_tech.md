@@ -54,7 +54,7 @@ python -m pytest tests/test_pipeline_integration.py -v
 - Tracks large binary files (sensor data, model weights) outside Git.
 - Config at .dvc/config: local remote at `../.dvc_storage`.
 - .dvcignore at project root.
-- CI/CD pulls DVC-tracked model artifacts: `.github/workflows/ci-cd.yml:301` (`dvc pull models/pretrained/ --no-run-cache`).
+- DVC synchronization is run manually/in dedicated data workflows, not in default `ci.yml`/`cd.yml` jobs.
 
 ### Why chosen
 - **Problem solved**: Git cannot efficiently store multi-GB sensor datasets and .keras model files. Git LFS requires per-file tracking and has no pipeline-stage integration.
@@ -67,7 +67,7 @@ python -m pytest tests/test_pipeline_integration.py -v
 |---|---|---|
 | DVC vs Git LFS tradeoff | OFFICIAL_DOC | [REF_DVC_USE_CASES] |
 | Local remote config | PROJECT_DECISION | .dvc/config |
-| CI/CD DVC pull | OFFICIAL_DOC | .github/workflows/ci-cd.yml:301 |
+| CI/CD workflow split | OFFICIAL_DOC | .github/workflows/ci.yml + .github/workflows/cd.yml |
 
 ### How to verify
 ```bash
@@ -115,31 +115,29 @@ python -c "import mlflow; mlflow.set_tracking_uri('http://localhost:5000'); prin
 ## 4. CI/CD (GitHub Actions)
 
 ### What it does in THIS repo
-- Workflow: `.github/workflows/ci-cd.yml` (350 lines).
-- **6 jobs**: lint → test → test-slow → build → integration-test → model-validation (+notify on failure).
-- **Lint job** (line 42): flake8 + black + isort.
-- **Test job** (line 74): pytest with `not slow and not integration and not gpu` markers, coverage report, codecov upload.
-- **Test-slow job** (line 113): TensorFlow-dependent tests, `continue-on-error: true` (non-blocking).
-- **Build job** (line 145): Docker build + push to GHCR with `docker/build-push-action@v5`, GHA cache (`cache-from: type=gha`).
-- **Integration test** (line 224): Pull built image, run container, smoke-test `/api/health`, run `scripts/inference_smoke.py`.
-- **Model validation** (line 280): Scheduled weekly (`cron: '0 6 * * 1'`), DVC pull, pytest, drift check.
-- **Triggers**: push to main/develop, PR to main, manual dispatch, weekly schedule.
-- **Path filters** (line 22): Only triggers on src/, tests/, docker/, config/, requirements.txt, workflows/ changes.
+- Workflow split:
+  - `.github/workflows/ci.yml` for quality checks.
+  - `.github/workflows/cd.yml` for release build/push and smoke validation.
+- **CI jobs**: `lint` -> `unit-tests` -> `docker-build-check`.
+- **CD jobs**: `build-and-push` -> `smoke-test`.
+- **Triggers**:
+  - CI: push to `main`/`develop`, PR to `main`.
+  - CD: tag push `v*.*.*` or manual dispatch.
+- **Release safety**: CD smoke-test validates `/api/health` after image publish.
 
 ### Why chosen
-- **Problem solved**: Manual testing and deployment is error-prone. CI gates prevent broken code from reaching main. Automated smoke tests catch inference regressions.
-- **Pipeline shape**: lint → test → build → integration-test is standard CI/CD. Slow TF tests are non-blocking to avoid flaky CI.
-- **Gating**: Build job requires test pass (`needs: test`). Integration test requires build pass and only runs on main.
-- **Weekly model validation**: Catches silent model degradation between code changes.
+- **Problem solved**: Manual testing and release delivery are error-prone. CI gates prevent broken code from reaching `main`; CD verifies released images are runnable.
+- **Pipeline shape**: fast, deterministic CI checks and explicit release-triggered CD reduce accidental coupling.
+- **Gating**: CI jobs are chained (`lint` -> `unit-tests` -> `docker-build-check`), and CD smoke-test depends on successful image publish.
+- **Operational clarity**: release logic is separated from day-to-day validation.
 - **WHY bucket**: Reliability | Maintainability
 
 ### Evidence
 | Claim | Evidence type | Artifact |
 |---|---|---|
 | GitHub Actions workflows | OFFICIAL_DOC | [REF_GHA_WORKFLOWS] |
-| GHA build cache | OFFICIAL_DOC | [REF_GHA_CACHE] |
 | Docker build-push-action | OFFICIAL_DOC | [REF_DOCKER_BUILD_PUSH] |
-| Codecov integration | OFFICIAL_DOC | [REF_CODECOV] |
+| CI/CD implementation split | PROJECT_DECISION | `.github/workflows/ci.yml`, `.github/workflows/cd.yml` |
 
 ### How to verify
 ```bash
@@ -148,7 +146,7 @@ flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
 black --check --diff src/
 isort --check-only --diff src/
 # Locally run unit tests
-pytest tests/ -m "not slow and not integration and not gpu" -v --cov=src
+pytest tests/ -m "not slow and not integration" -v
 ```
 
 ---
@@ -282,8 +280,8 @@ docker compose up -d grafana
 ### What it does in THIS repo
 - **20 test files** in tests/ covering stages 2, 3, 7, 8, 9, 10, 11, 12, 13, 14, plus threshold consistency, observability, and integration.
 - **Markers** (pytest.ini): `slow` (TF-dependent), `integration`, `gpu`.
-- **CI split**: Fast tests run in `test` job (markers: `not slow and not integration and not gpu`). Slow tests in `test-slow` job with `continue-on-error: true`.
-- **Coverage**: pytest-cov + codecov upload in CI (.github/workflows/ci-cd.yml:96–104).
+- **CI test scope**: `unit-tests` job runs `pytest tests/ -m "not slow and not integration"`.
+- **CI artifacting**: JUnit test results are uploaded from CI (`test-results.xml`).
 - **Key test files**:
   - tests/test_threshold_consistency.py — verifies threshold alignment across config_entity.py, trigger_policy.py, and monitoring config.
   - tests/test_trigger_policy.py — 14+ tests including state persistence, consecutive warning escalation, degraded metrics.
@@ -305,7 +303,7 @@ docker compose up -d grafana
 
 ### How to verify
 ```bash
-pytest tests/ -m "not slow and not integration and not gpu" -v --tb=short
+pytest tests/ -m "not slow and not integration" -v --tb=short
 pytest tests/test_threshold_consistency.py -v
 pytest tests/test_trigger_policy.py -v
 ```

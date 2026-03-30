@@ -1,8 +1,51 @@
 ﻿# Internal Index
 
-Date: 2026-03-27
-Scope: internal/ and root archive/ only
-Root archive state: not_present
+<!-- markdownlint-disable MD010 MD037 MD055 MD060 -->
+
+Date: 2026-03-30
+Scope: internal/
+
+## Current Active Navigation (Use This First)
+
+This file contains a historical migration ledger below.
+For daily thesis work, use the active pointers in this section first.
+
+### Core Entry Points
+
+- Reference hub: [internal/reference/README.md](internal/reference/README.md)
+- Canonical tech docs: [internal/reference/tech/README.md](internal/reference/tech/README.md)
+- Workflow operations hub: [internal/workflow/README.md](internal/workflow/README.md)
+- Chapter-wise paper map: [internal/workflow/literature/chapter_buckets.md](internal/workflow/literature/chapter_buckets.md)
+- Defense Q&A (active): [internal/writing/defense_qa.md](internal/writing/defense_qa.md)
+
+### Internal Information Flow
+
+```mermaid
+graph TD
+	START[Start here: internal/INDEX.md] --> REF[Reference docs]
+	START --> WF[Workflow docs]
+	START --> WR[Writing docs]
+
+	REF --> TECH[internal/reference/tech/*.md]
+	REF --> SUPP[Supplementary explainers]
+
+	WF --> EVID[Evidence ledger]
+	WF --> OPS[Execution and planning]
+	WF --> CIT[Reference catalog]
+
+	WR --> DQ[Defense Q&A]
+```
+
+### Documentation Upgrade Priorities
+
+| Area | Status | Action |
+| --- | --- | --- |
+| Tech docs in [internal/reference/tech](internal/reference/tech) | ✅ Green | Keep as canonical source for thesis text.
+| Workflow docs in [internal/workflow](internal/workflow) | 🟡 Upgrade ongoing | Use new workflow README and align old inventory references.
+| Writing docs in [internal/writing](internal/writing) | 🟡 Upgrade ongoing | Keep defense Q&A synced with actual repo files.
+| Archive-ledger section below | ✅ Preserved | Keep for traceability; do not use as first navigation layer.
+
+## Legacy Migration Ledger (Historical)
 
 | old path | new path | short summary | decision |
 |---|---|---|---|
@@ -533,44 +576,44 @@ Root archive state: not_present
 | internal/README.md | internal/reference/README.md | Internal reference document moved under reference. | moved |
 | internal/snapshots/repo_structure/repo_structure_snapshot.txt | internal/reference/repo_structure_snapshot.txt | Reference material normalized to simple reference folder. | moved |
 | internal/tech_explanations/deployment/cheat_sheets/1697955590966.pdf | internal/reference/1697955590966.pdf | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/cheat_sheets/ci-cd-cheatsheet.pdf | internal/reference/ci-cd-cheatsheet.pdf | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/cheat_sheets/docker_cheatsheet.pdf | internal/reference/docker_cheatsheet.pdf | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/cheat_sheets/DVC_cheatsheet.pdf | internal/reference/DVC_cheatsheet.pdf | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/cicd_explained.md | internal/reference/cicd_explained.md | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_assets/docker.pdf | internal/reference/docker.pdf | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_assets/Docker_Build_Run_Share.pdf | internal/reference/Docker_Build_Run_Share.pdf | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_assets/DOCKER_EXPLAINED.pdf | internal/reference/DOCKER_EXPLAINED.pdf | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_explained.md | internal/reference/docker_explained.md | Reference material normalized to simple reference folder. | moved |
+| internal/tech_explanations/deployment/cheat_sheets/ci-cd-cheatsheet.pdf | internal/reference/tech/assets/ci_cd/ci-cd-cheatsheet.pdf | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/cheat_sheets/docker_cheatsheet.pdf | internal/reference/tech/assets/docker/docker_cheatsheet.pdf | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/cheat_sheets/DVC_cheatsheet.pdf | internal/reference/tech/assets/dvc/DVC_cheatsheet.pdf | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/cicd_explained.md | internal/reference/tech/ci_cd.md | Reference material promoted to canonical tech doc set. | moved |
+| internal/tech_explanations/deployment/docker_assets/docker.pdf | internal/reference/tech/assets/docker/docker.pdf | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_assets/Docker_Build_Run_Share.pdf | internal/reference/tech/assets/docker/Docker_Build_Run_Share.pdf | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_assets/DOCKER_EXPLAINED.pdf | internal/reference/tech/assets/docker/DOCKER_EXPLAINED.pdf | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_explained.md | internal/reference/tech/docker.md | Reference material promoted to canonical tech doc set. | moved |
 | internal/tech_explanations/deployment/docker_visuals/cheat sheet for thesis.png | internal/reference/cheat sheet for thesis.png | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_visuals/D01.jpg | internal/reference/D01.jpg | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_visuals/D02.jpg | internal/reference/D02.jpg | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_visuals/D03.jpg | internal/reference/D03.jpg | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_visuals/Dcoker detailed.png | internal/reference/Dcoker detailed.png | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_visuals/docker.docx | internal/reference/docker.docx | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_visuals/docker_0.png | internal/reference/docker_0.png | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_visuals/docker_1.png | internal/reference/docker_1.png | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/docker_visuals/docker_2.png | internal/reference/docker_2.png | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/deployment/fastapi_explained.md | internal/reference/fastapi_explained.md | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/mlops/dvc_explained.md | internal/reference/dvc_explained.md | Reference material normalized to simple reference folder. | moved |
+| internal/tech_explanations/deployment/docker_visuals/D01.jpg | internal/reference/tech/assets/docker/D01.jpg | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_visuals/D02.jpg | internal/reference/tech/assets/docker/D02.jpg | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_visuals/D03.jpg | internal/reference/tech/assets/docker/D03.jpg | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_visuals/Dcoker detailed.png | internal/reference/tech/assets/docker/Dcoker detailed.png | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_visuals/docker.docx | internal/reference/tech/assets/docker/docker.docx | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_visuals/docker_0.png | internal/reference/tech/assets/docker/docker_0.png | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_visuals/docker_1.png | internal/reference/tech/assets/docker/docker_1.png | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/docker_visuals/docker_2.png | internal/reference/tech/assets/docker/docker_2.png | Reference material normalized under canonical tech assets. | moved |
+| internal/tech_explanations/deployment/fastapi_explained.md | internal/reference/tech/fastapi.md | Reference material promoted to canonical tech doc set. | moved |
+| internal/tech_explanations/mlops/dvc_explained.md | internal/reference/tech/dvc.md | Reference material promoted to canonical tech doc set. | moved |
 | internal/tech_explanations/mlops/experiment_tracking_explained.md | internal/reference/experiment_tracking_explained.md | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/mlops/mlflow_explained.md | internal/reference/mlflow_explained.md | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/mlops/model_registry_explained.md | internal/reference/model_registry_explained.md | Reference material normalized to simple reference folder. | moved |
+| internal/tech_explanations/mlops/mlflow_explained.md | internal/reference/tech/mlflow.md | Reference material promoted to canonical tech doc set. | moved |
+| internal/tech_explanations/mlops/model_registry_explained.md | internal/reference/tech/model_registry.md | Reference material promoted to canonical tech doc set. | moved |
 | internal/tech_explanations/mlops/tech_overview.md | internal/reference/tech_overview.md | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/monitoring/grafana_explained.md | internal/reference/grafana_explained.md | Reference material normalized to simple reference folder. | moved |
+| internal/tech_explanations/monitoring/grafana_explained.md | internal/reference/tech/grafana.md | Reference material promoted to canonical tech doc set. | moved |
 | internal/tech_explanations/monitoring/monitoring_explained.md | internal/reference/monitoring_explained.md | Reference material normalized to simple reference folder. | moved |
-| internal/tech_explanations/monitoring/prometheus_explained.md | internal/reference/prometheus_explained.md | Reference material normalized to simple reference folder. | moved |
+| internal/tech_explanations/monitoring/prometheus_explained.md | internal/reference/tech/prometheus.md | Reference material promoted to canonical tech doc set. | moved |
 | internal/workflow/audits/april_15_completion_audit_and_execution_plan.md | internal/workflow/april_15_completion_audit_and_execution_plan.md | Workflow material normalized to simple workflow folder. | moved |
 | internal/workflow/audits/repo_inventory.md | internal/workflow/repo_inventory.md | Workflow material normalized to simple workflow folder. | moved |
 | internal/workflow/planning/you_should_know_before_master_file/DECISION_REGISTER.csv | internal/workflow/DECISION_REGISTER.csv | Workflow material normalized to simple workflow folder. | moved |
-| internal/workflow/planning/you_should_know_before_master_file/DEFENSE_QA.md | internal/workflow/DEFENSE_QA.md | Workflow material normalized to simple workflow folder. | moved |
+| internal/workflow/planning/you_should_know_before_master_file/DEFENSE_QA.md | internal/writing/defense_qa.md | Workflow material normalized to active writing defense file. | moved |
 | internal/workflow/planning/you_should_know_before_master_file/EVIDENCE_LEDGER.md | internal/workflow/EVIDENCE_LEDGER.md | Workflow material normalized to simple workflow folder. | moved |
 | internal/workflow/planning/you_should_know_before_master_file/REFERENCES.md | internal/workflow/REFERENCES.md | Workflow material normalized to simple workflow folder. | moved |
 | internal/workflow/planning/you_should_know_before_master_file/thesis-pipeline-why-what-how.md | internal/reference/thesis-pipeline-why-what-how.md | Why/what/how context moved to reference. | moved |
-| internal/workflow/planning/you_should_know_before_master_file/WHY_BOOK.md | internal/reference/WHY_BOOK_2.md | Why/what/how context moved to reference. | moved |
-| internal/workflow/planning/you_should_know_before_master_file/WHY_BY_FILE.md | internal/reference/WHY_BY_FILE_2.md | Why/what/how context moved to reference. | moved |
-| internal/workflow/planning/you_should_know_before_master_file/WHY_BY_STAGE.md | internal/reference/WHY_BY_STAGE.md | Why/what/how context moved to reference. | moved |
-| internal/workflow/planning/you_should_know_before_master_file/WHY_BY_TECH.md | internal/reference/WHY_BY_TECH_2.md | Why/what/how context moved to reference. | moved |
-| internal/workflow/planning/you_should_know_before_master_file/WHY_INVENTORY.md | internal/reference/WHY_INVENTORY.md | Why/what/how context moved to reference. | moved |
+| internal/workflow/planning/you_should_know_before_master_file/WHY_BOOK.md | internal/reference/why_book.md | Why/what/how context moved to reference. | moved |
+| internal/workflow/planning/you_should_know_before_master_file/WHY_BY_FILE.md | internal/reference/why_by_file.md | Why/what/how context moved to reference. | moved |
+| internal/workflow/planning/you_should_know_before_master_file/WHY_BY_STAGE.md | internal/reference/why_by_stage.md | Why/what/how context moved to reference. | moved |
+| internal/workflow/planning/you_should_know_before_master_file/WHY_BY_TECH.md | internal/reference/why_by_tech.md | Why/what/how context moved to reference. | moved |
+| internal/workflow/planning/you_should_know_before_master_file/WHY_INVENTORY.md | internal/reference/why_inventory.md | Why/what/how context moved to reference. | moved |
 | internal/writing_support/chapter_support/thesis_execution_plan_mar_jun_2026.md | internal/writing/thesis_execution_plan_mar_jun_2026.md | Writing support normalized to writing folder. | moved |
 | internal/writing_support/defense/defense_qa.md | internal/writing/defense_qa.md | Writing support normalized to writing folder. | moved |
 | internal/writing_support/evidence_notes/copilot_mega_prompt.md | internal/writing/copilot_mega_prompt.md | Writing support normalized to writing folder. | moved |

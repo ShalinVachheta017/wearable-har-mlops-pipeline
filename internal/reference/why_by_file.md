@@ -60,7 +60,7 @@
 | 51 | docker/Dockerfile.inference | Inference container image | Reproducibility | CI build job |
 | 52 | docker/Dockerfile.training | Training container image | Reproducibility | NONE |
 | 53 | docker-compose.yml | Service orchestration (7 services) | Reproducibility | CI integration-test |
-| 54 | .github/workflows/ci-cd.yml | CI/CD pipeline (6 jobs) | Reliability | N/A (is the test) |
+| 54 | .github/workflows/ci.yml + .github/workflows/cd.yml | CI/CD pipelines (3 CI jobs + 2 CD jobs) | Reliability | N/A (is the test) |
 | 55 | .dvc/config | DVC remote storage config | Reproducibility | dvc status |
 
 ---
@@ -89,7 +89,7 @@
 | CLI override precedence | OFFICIAL_DOC [REF_12FACTOR_CONFIG] |
 | GPU memory growth | OFFICIAL_DOC [REF_TF_GPU_WSL] |
 
-**Referenced from**: Docker CMD (`docker/Dockerfile.training`), CI model-validation job (`.github/workflows/ci-cd.yml:315`).
+**Referenced from**: Docker CMD (`docker/Dockerfile.training`), CI/CD workflows (`.github/workflows/ci.yml`, `.github/workflows/cd.yml`).
 
 **How to verify**: `python run_pipeline.py --help` | `python run_pipeline.py --stages inference evaluation`
 
@@ -492,24 +492,24 @@
 
 ---
 
-### Card 20: .github/workflows/ci-cd.yml (350 lines)
+### Card 20: .github/workflows/ci.yml + .github/workflows/cd.yml
 
-**Purpose**: GitHub Actions CI/CD with lint, test, build, integration-test, and scheduled model validation.
+**Purpose**: GitHub Actions CI/CD split into quality validation (CI) and release delivery (CD).
 
-**Why this file exists**: Prevents broken code from reaching main branch. Automates Docker image builds, smoke tests against the live container, and weekly model health checks.
+**Why these files exist**: Prevent broken code from reaching `main`, then publish and smoke-validate release images with explicit tag/manual control.
 
 **Key design decisions**:
-- Path filters (line 22): Only triggers on src/, tests/, docker/, config/ changes — avoids CI runs for docs-only changes.
-- Test-slow `continue-on-error: true` (line 118): TF install flakiness should not block PRs.
-- Docker build cache (`cache-from: type=gha`) (line 210): GitHub Actions cache reduces build time.
-- Weekly model validation (line 280): Scheduled cron job (`0 6 * * 1`) runs `dvc pull` + pytest + drift check.
-- Integration test pulls and runs the just-built Docker image (line 224): End-to-end smoke test.
+- CI job chain: `lint` -> `unit-tests` -> `docker-build-check`.
+- CD job chain: `build-and-push` -> `smoke-test`.
+- CI triggers on pushes to `main`/`develop` and PRs to `main`.
+- CD triggers on semantic-version tags (`v*.*.*`) or manual dispatch.
+- CD smoke-test verifies `/api/health` after publishing the image.
 
 **Evidence type**: OFFICIAL_DOC [REF_GHA_WORKFLOWS], [REF_DOCKER_BUILD_PUSH].
 
 **Referenced from**: N/A (triggered by GitHub).
 
-**How to verify**: Push to develop branch and observe CI run in GitHub Actions tab.
+**How to verify**: Push to `develop` and observe CI run; push a `v*.*.*` tag and observe CD publish + smoke-test.
 
 ---
 
@@ -528,6 +528,6 @@
 
 **Evidence type**: OFFICIAL_DOC [REF_DOCKER_COMPOSE].
 
-**Referenced from**: CI integration-test job (.github/workflows/ci-cd.yml:252).
+**Referenced from**: CD smoke-test job (.github/workflows/cd.yml).
 
 **How to verify**: `docker compose config` | `docker compose up -d` | `docker compose ps`

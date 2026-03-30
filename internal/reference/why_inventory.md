@@ -39,7 +39,7 @@
 | **DVC** | `.dvc/config`, `data/*.dvc` | Reproducibility | ✅ |
 | **MLflow** | `src/mlflow_tracking.py` (643 L), `config/mlflow_config.yaml` | Reproducibility + Governance | ✅ |
 | **Docker** | `docker/Dockerfile.inference` (65 L), `docker/Dockerfile.training` (52 L), `docker-compose.yml` (223 L) | Reproducibility + Reliability | ✅ |
-| **CI/CD (GitHub Actions)** | `.github/workflows/ci-cd.yml` (350 L) | Maintainability + Reliability | ✅ |
+| **CI/CD (GitHub Actions)** | `.github/workflows/ci.yml` + `.github/workflows/cd.yml` | Maintainability + Reliability | ✅ |
 | **FastAPI** | `src/api/app.py` (892 L) | Scalability/Cost | ✅ |
 | **Prometheus** | `config/prometheus.yml`, `config/alerts/har_alerts.yml` | Observability | ✅ |
 | **Alertmanager** | `config/alertmanager.yml` (111 L) | Observability | ✅ |

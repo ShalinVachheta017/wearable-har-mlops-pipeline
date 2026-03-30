@@ -1,0 +1,64 @@
+{
+  "created_utc": "2026-03-30T12:46:03Z",
+  "source_csv": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\all_users_data_labeled.csv",
+  "output_csv": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\codex_synth\\synthetic_all_users_labeled_v1.csv",
+  "generation_method": "per-user per-activity diagonal-ar1 with covariance-matched innovations",
+  "scale_factor": 1.0,
+  "seed": 20260330,
+  "row_counts": {
+    "reference_rows": 385326,
+    "synthetic_rows": 385326
+  },
+  "user_counts": {
+    "reference_users": 6,
+    "synthetic_users": 6
+  },
+  "activity_counts_reference": {
+    "ear_rubbing": 34768,
+    "forehead_rubbing": 35219,
+    "hair_pulling": 35461,
+    "hand_scratching": 34975,
+    "hand_tapping": 33366,
+    "knuckles_cracking": 34863,
+    "nail_biting": 38924,
+    "nape_rubbing": 32849,
+    "sitting": 34949,
+    "smoking": 36093,
+    "standing": 33859
+  },
+  "activity_counts_synthetic": {
+    "ear_rubbing": 34768,
+    "forehead_rubbing": 35219,
+    "hair_pulling": 35461,
+    "hand_scratching": 34975,
+    "hand_tapping": 33366,
+    "knuckles_cracking": 34863,
+    "nail_biting": 38924,
+    "nape_rubbing": 32849,
+    "sitting": 34949,
+    "smoking": 36093,
+    "standing": 33859
+  },
+  "synthetic_user_map": {
+    "1": 101,
+    "2": 102,
+    "3": 103,
+    "4": 104,
+    "5": 105,
+    "6": 106
+  },
+  "sensor_columns": [
+    "Ax_w",
+    "Ay_w",
+    "Az_w",
+    "Gx_w",
+    "Gy_w",
+    "Gz_w"
+  ],
+  "notes": [
+    "Original datasets were used as reference only.",
+    "All generated artifacts are isolated under data/codex_synth.",
+    "Synthetic user ids are offset from real ids.",
+    "Counts are matched exactly when scale_factor=1.0."
+  ]
+}
