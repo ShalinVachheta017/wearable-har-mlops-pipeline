@@ -1,0 +1,9 @@
+transform,mean_quantile_error,preserves_ordering,distortion,inference_safe,notes
+quantile_based_alignment,0.004757783147037049,yes,high,no,Matches marginals but can warp dynamics and temporal structure.
+per_feature_linear_calibration,0.2613268369131138,yes,low,conditional,Simple affine correction per feature; monitor drift over time.
+explicit_unit_conversion_0.00981,0.44922368791904854,yes,low,yes,Physics-based conversion from milliG to m/s^2 equivalent.
+signed_log_transform,1.3388396168370262,yes,high,no,Strong nonlinear compression; generally needs retraining.
+divide_by_estimated_scale,1.9015802817123035,yes,low,conditional,Data-driven scale per feature; requires stable recalibration governance.
+raw_baseline,37.20117552308875,yes,none,no,Reference baseline before any alignment.
+zscore_using_training_stats,37.20117552308875,yes,moderate,conditional,Safe only if identical normalization exists in training and serving.
+robust_scaling_using_training_stats,37.20117552308875,yes,moderate,conditional,Improves outlier resistance; still requires train/inference parity.

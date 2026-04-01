@@ -1,0 +1,559 @@
+{
+  "rows": {
+    "grid": 385326,
+    "label_anxiety_wrist": 709582,
+    "synthetic": 385326,
+    "codex_synthetic": 385326,
+    "production_raw": 20701900
+  },
+  "production_pairing_metadata": {
+    "paired_sessions": "26",
+    "loaded_sessions": "25",
+    "skipped_sessions": "1",
+    "unpaired_accel": "0",
+    "unpaired_gyro": "0",
+    "skipped_session_examples": "2025-08-13-04-18-52: Could not detect accelerometer axes in columns: ['Unnamed: 0']"
+  },
+  "feature_statistics": {
+    "grid": {
+      "Ax": {
+        "mean": 3.2185799853877635,
+        "std": 6.568340538223167,
+        "median": 6.381298421630859,
+        "median_abs": 8.00632067047119,
+        "q01": -9.868917480468747,
+        "q99": 9.740626762390136,
+        "skew": -0.8182100863910432,
+        "max_abs": 31.954008098144527
+      },
+      "Ay": {
+        "mean": 1.2820835645532682,
+        "std": 4.351469875708306,
+        "median": 2.2093062739562987,
+        "median_abs": 3.2633826608276366,
+        "q01": -9.213005306854246,
+        "q99": 9.620928476257324,
+        "skew": -0.45568574550359314,
+        "max_abs": 41.8577024597168
+      },
+      "Az": {
+        "mean": -3.5289485580602276,
+        "std": 3.2361689464561736,
+        "median": -2.954120375061035,
+        "median_abs": 3.031478607788085,
+        "q01": -9.944571132888795,
+        "q99": 3.297397776031494,
+        "skew": -0.2584326568946632,
+        "max_abs": 45.23043422790527
+      },
+      "Gx": {
+        "mean": 0.5993119609628061,
+        "std": 49.930270784056646,
+        "median": 0.672039121389389,
+        "median_abs": 6.822533130645752,
+        "q01": -170.60735511779785,
+        "q99": 168.1825466156006,
+        "skew": -0.3789830116077048,
+        "max_abs": 835.1721496582031
+      },
+      "Gy": {
+        "mean": 0.22520524164191602,
+        "std": 14.811729270912698,
+        "median": 0.2350118607282638,
+        "median_abs": 2.8823081329464912,
+        "q01": -47.28600072860718,
+        "q99": 49.51889705657959,
+        "skew": -0.16517893932392286,
+        "max_abs": 302.4221649169922
+      },
+      "Gz": {
+        "mean": 0.0886675181312073,
+        "std": 14.166785138266743,
+        "median": 0.0600950196385383,
+        "median_abs": 2.9449299573898315,
+        "q01": -43.248651504516594,
+        "q99": 43.93508052825928,
+        "skew": -0.12397833053889043,
+        "max_abs": 242.40753936767572
+      }
+    },
+    "label_anxiety_wrist": {
+      "Ax": {
+        "mean": 0.2267673670615743,
+        "std": 0.5803151844594759,
+        "median": 0.22,
+        "median_abs": 0.51,
+        "q01": -0.99,
+        "q99": 1.0,
+        "skew": -0.5149400731455959,
+        "max_abs": 2.0
+      },
+      "Ay": {
+        "mean": 0.058068710617959596,
+        "std": 0.4988843549204066,
+        "median": 0.0,
+        "median_abs": 0.33,
+        "q01": -0.98,
+        "q99": 1.02,
+        "skew": 0.036624406178507554,
+        "max_abs": 2.0
+      },
+      "Az": {
+        "mean": -0.4574193671603339,
+        "std": 0.38925717229135304,
+        "median": -0.44,
+        "median_abs": 0.45,
+        "q01": -1.08,
+        "q99": 0.47,
+        "skew": 0.16635795984636845,
+        "max_abs": 2.0
+      },
+      "Gx": {
+        "mean": -0.910414453799241,
+        "std": 48.46220643167779,
+        "median": -0.73,
+        "median_abs": 9.7,
+        "q01": -155.12,
+        "q99": 156.77,
+        "skew": -0.026245606377932558,
+        "max_abs": 786.16
+      },
+      "Gy": {
+        "mean": 1.7283473238966913,
+        "std": 23.68563647849741,
+        "median": 1.71,
+        "median_abs": 5.55,
+        "q01": -79.27,
+        "q99": 73.66,
+        "skew": -0.6617961470251457,
+        "max_abs": 439.27
+      },
+      "Gz": {
+        "mean": 0.0775688420668013,
+        "std": 20.974970417424327,
+        "median": 0.06,
+        "median_abs": 4.33,
+        "q01": -65.0,
+        "q99": 65.85,
+        "skew": 0.22933723447504978,
+        "max_abs": 572.01
+      }
+    },
+    "synthetic": {
+      "Ax": {
+        "mean": 3.248715780908864,
+        "std": 3.5492112432319725,
+        "median": 4.147266837457914,
+        "median_abs": 4.480861880037329,
+        "q01": -7.057471897578244,
+        "q99": 8.857673860199485,
+        "skew": -1.063946042060453,
+        "max_abs": 13.170318257689486
+      },
+      "Ay": {
+        "mean": 1.243272357984925,
+        "std": 1.9145614864287785,
+        "median": 1.5045708145406995,
+        "median_abs": 1.7773043080309856,
+        "q01": -4.057534343422894,
+        "q99": 5.484117148215139,
+        "skew": -0.5263111511942264,
+        "max_abs": 9.256608812488558
+      },
+      "Az": {
+        "mean": -3.522221884701181,
+        "std": 2.2608045043689518,
+        "median": -2.664415998162461,
+        "median_abs": 2.664415998162461,
+        "q01": -9.300096464674729,
+        "q99": -0.3563747254182686,
+        "skew": -1.0549720497187374,
+        "max_abs": 10.058672481322708
+      },
+      "Gx": {
+        "mean": 0.5007949694418445,
+        "std": 11.883414204471062,
+        "median": 0.5716296307388231,
+        "median_abs": 5.481540338893282,
+        "q01": -32.317404082910585,
+        "q99": 33.26181860208298,
+        "skew": 0.009122241417886355,
+        "max_abs": 71.54243035977616
+      },
+      "Gy": {
+        "mean": 0.32968649905557584,
+        "std": 3.5348525988598145,
+        "median": 0.28926471387022057,
+        "median_abs": 1.8851487520175878,
+        "q01": -9.178530790558685,
+        "q99": 10.122802013421602,
+        "skew": 0.08394034810097176,
+        "max_abs": 24.84615188172624
+      },
+      "Gz": {
+        "mean": 0.10365440356987071,
+        "std": 3.349317235344652,
+        "median": 0.1104490214657909,
+        "median_abs": 1.9556984688785533,
+        "q01": -8.57748620795211,
+        "q99": 8.556497632846023,
+        "skew": -0.04127412339016664,
+        "max_abs": 20.0301083221664
+      }
+    },
+    "codex_synthetic": {
+      "Ax": {
+        "mean": 3.2116359434293416,
+        "std": 6.558804824419362,
+        "median": 6.23169425,
+        "median_abs": 7.8105104999999995,
+        "q01": -9.95565925,
+        "q99": 10.58527475,
+        "skew": -0.8118012331259153,
+        "max_abs": 18.36413
+      },
+      "Ay": {
+        "mean": 1.2820530308427736,
+        "std": 4.348452081645503,
+        "median": 2.1786820000000002,
+        "median_abs": 3.2983437999999996,
+        "q01": -9.29344275,
+        "q99": 9.68625925,
+        "skew": -0.456431617411583,
+        "max_abs": 17.433174
+      },
+      "Az": {
+        "mean": -3.5304841925435286,
+        "std": 3.2303031769690453,
+        "median": -3.04376575,
+        "median_abs": 3.15025355,
+        "q01": -10.5243845,
+        "q99": 3.4923296500000003,
+        "skew": -0.2918958053920879,
+        "max_abs": 18.614498
+      },
+      "Gx": {
+        "mean": 0.6048728431611471,
+        "std": 49.88725948252762,
+        "median": 0.7228671,
+        "median_abs": 15.708427,
+        "q01": -153.88756999999998,
+        "q99": 153.9714975,
+        "skew": -0.08660333723955121,
+        "max_abs": 603.0225
+      },
+      "Gy": {
+        "mean": 0.22598137073851926,
+        "std": 14.803077713533547,
+        "median": 0.24922796,
+        "median_abs": 5.8592675,
+        "q01": -43.7467685,
+        "q99": 44.14013,
+        "skew": -0.014212872371698188,
+        "max_abs": 123.53245
+      },
+      "Gz": {
+        "mean": 0.08633439095397011,
+        "std": 14.132878552707925,
+        "median": 0.05191175,
+        "median_abs": 6.0595535,
+        "q01": -41.05259,
+        "q99": 41.21374125,
+        "skew": -0.011528173562815672,
+        "max_abs": 115.41079
+      }
+    },
+    "production_raw": {
+      "Ax": {
+        "mean": 13.145572115150337,
+        "std": 492.79929100172654,
+        "median": -5.327937602996826,
+        "median_abs": 201.00747680664065,
+        "q01": -1146.468994140625,
+        "q99": 1008.912109375,
+        "skew": -0.2596686914877751,
+        "max_abs": 7943.9111328125
+      },
+      "Ay": {
+        "mean": 338.79280761550746,
+        "std": 418.33507301525054,
+        "median": 294.5938415527344,
+        "median_abs": 346.63201904296875,
+        "q01": -429.1221008300781,
+        "q99": 1135.8773193359375,
+        "skew": 0.21553951011955155,
+        "max_abs": 7913.9443359375
+      },
+      "Az": {
+        "mean": -168.31195682891857,
+        "std": 689.3427163517915,
+        "median": -236.07688903808597,
+        "median_abs": 610.6456298828125,
+        "q01": -1006.8999633789062,
+        "q99": 1006.8999633789062,
+        "skew": 0.3538978786580125,
+        "max_abs": 8078.3642578125
+      },
+      "Gx": {
+        "mean": 0.5973182654918661,
+        "std": 46.19522105950458,
+        "median": 0.6183609366416931,
+        "median_abs": 1.1546080112457275,
+        "q01": -154.15602142333984,
+        "q99": 147.60178207397558,
+        "skew": -0.46000888729874123,
+        "max_abs": 1147.1165771484375
+      },
+      "Gy": {
+        "mean": 0.21130092987106006,
+        "std": 26.466150520737784,
+        "median": 0.2490592002868652,
+        "median_abs": 0.6406896710395813,
+        "q01": -88.22309692382814,
+        "q99": 87.41488922119186,
+        "skew": 0.12381764193455178,
+        "max_abs": 1146.5489501953125
+      },
+      "Gz": {
+        "mean": 0.021831571437296696,
+        "std": 32.83112112467947,
+        "median": 0.0387240052223205,
+        "median_abs": 0.5326950550079346,
+        "q01": -116.56759056091309,
+        "q99": 119.25281608581558,
+        "skew": -0.07438985742177323,
+        "max_abs": 981.7684936523438
+      }
+    }
+  },
+  "mismatch_diagnosis": {
+    "unit_inconsistency": true,
+    "multiplicative_scaling": true,
+    "additive_offset": false,
+    "feature_drift": false,
+    "skew_outliers": true,
+    "genuine_domain_shift": false,
+    "median_abs_scale_prod_vs_grid": {
+      "Ax": 25.106098675623596,
+      "Ay": 106.21862495550543,
+      "Az": 201.43491301986606,
+      "Gx": 0.1692345041008558,
+      "Gy": 0.22228354543146683,
+      "Gz": 0.1808854752182937
+    },
+    "linear_slopes_prod_to_grid": {
+      "Ax": 0.012972464185431446,
+      "Ay": 0.009406845313199921,
+      "Az": 0.004165295923433215,
+      "Gx": 1.4069596883947522,
+      "Gy": 0.7246091049734049,
+      "Gz": 0.7299799175164221
+    },
+    "linear_intercepts_prod_to_grid": {
+      "Ax": 3.1752082354666067,
+      "Ay": -1.8762786444488049,
+      "Az": -2.7888592723422843,
+      "Gx": -0.4612944386331655,
+      "Gy": 0.020794519692136765,
+      "Gz": 0.08253935062903063
+    },
+    "mean_quantile_error_raw": 37.20117552308875,
+    "mean_quantile_error_linear_calibration": 0.2613268369131138,
+    "raw_outlier_rate_vs_grid": {
+      "Ax": 0.9873219849385805,
+      "Ay": 0.9553760282872586,
+      "Az": 0.9935922789695631,
+      "Gx": 0.008103072664827866,
+      "Gy": 0.036967089977248464,
+      "Gz": 0.0583371574589772
+    }
+  },
+  "transform_scores": [
+    {
+      "transform": "quantile_based_alignment",
+      "mean_quantile_error": 0.004757783147037049,
+      "preserves_ordering": "yes",
+      "distortion": "high",
+      "inference_safe": "no",
+      "notes": "Matches marginals but can warp dynamics and temporal structure."
+    },
+    {
+      "transform": "per_feature_linear_calibration",
+      "mean_quantile_error": 0.2613268369131138,
+      "preserves_ordering": "yes",
+      "distortion": "low",
+      "inference_safe": "conditional",
+      "notes": "Simple affine correction per feature; monitor drift over time."
+    },
+    {
+      "transform": "explicit_unit_conversion_0.00981",
+      "mean_quantile_error": 0.44922368791904854,
+      "preserves_ordering": "yes",
+      "distortion": "low",
+      "inference_safe": "yes",
+      "notes": "Physics-based conversion from milliG to m/s^2 equivalent."
+    },
+    {
+      "transform": "signed_log_transform",
+      "mean_quantile_error": 1.3388396168370262,
+      "preserves_ordering": "yes",
+      "distortion": "high",
+      "inference_safe": "no",
+      "notes": "Strong nonlinear compression; generally needs retraining."
+    },
+    {
+      "transform": "divide_by_estimated_scale",
+      "mean_quantile_error": 1.9015802817123035,
+      "preserves_ordering": "yes",
+      "distortion": "low",
+      "inference_safe": "conditional",
+      "notes": "Data-driven scale per feature; requires stable recalibration governance."
+    },
+    {
+      "transform": "raw_baseline",
+      "mean_quantile_error": 37.20117552308875,
+      "preserves_ordering": "yes",
+      "distortion": "none",
+      "inference_safe": "no",
+      "notes": "Reference baseline before any alignment."
+    },
+    {
+      "transform": "zscore_using_training_stats",
+      "mean_quantile_error": 37.20117552308875,
+      "preserves_ordering": "yes",
+      "distortion": "moderate",
+      "inference_safe": "conditional",
+      "notes": "Safe only if identical normalization exists in training and serving."
+    },
+    {
+      "transform": "robust_scaling_using_training_stats",
+      "mean_quantile_error": 37.20117552308875,
+      "preserves_ordering": "yes",
+      "distortion": "moderate",
+      "inference_safe": "conditional",
+      "notes": "Improves outlier resistance; still requires train/inference parity."
+    }
+  ],
+  "transform_details": {
+    "explicit_unit_conversion_0.00981": {
+      "ordering_score": 1.0,
+      "distortion_index": 0.0
+    },
+    "divide_by_estimated_scale": {
+      "ordering_score": 1.0,
+      "distortion_index": 0.0,
+      "scale_Ax": 25.106098675623596,
+      "scale_Ay": 106.21862495550543,
+      "scale_Az": 201.43491301986606,
+      "scale_Gx": 0.1692345041008558,
+      "scale_Gy": 0.22228354543146683,
+      "scale_Gz": 0.1808854752182937
+    },
+    "zscore_using_training_stats": {
+      "ordering_score": 1.0,
+      "distortion_index": 0.0
+    },
+    "robust_scaling_using_training_stats": {
+      "ordering_score": 1.0,
+      "distortion_index": 0.0
+    },
+    "signed_log_transform": {
+      "ordering_score": 1.0,
+      "distortion_index": 0.32159728091693474
+    },
+    "quantile_based_alignment": {
+      "ordering_score": 0.9999999986827511,
+      "distortion_index": 0.10843054270002606
+    },
+    "per_feature_linear_calibration": {
+      "ordering_score": 1.0,
+      "distortion_index": 0.0,
+      "slope_Ax": 0.012972464185431446,
+      "intercept_Ax": 3.1752082354666067,
+      "slope_Ay": 0.009406845313199921,
+      "intercept_Ay": -1.8762786444488049,
+      "slope_Az": 0.004165295923433215,
+      "intercept_Az": -2.7888592723422843,
+      "slope_Gx": 1.4069596883947522,
+      "intercept_Gx": -0.4612944386331655,
+      "slope_Gy": 0.7246091049734049,
+      "intercept_Gy": 0.020794519692136765,
+      "slope_Gz": 0.7299799175164221,
+      "intercept_Gz": 0.08253935062903063
+    },
+    "quantile_error_raw": {
+      "Ax": 28.80251645340798,
+      "Ay": 65.78614480412233,
+      "Az": 127.34043120687339,
+      "Gx": 0.4866014386411559,
+      "Gy": 0.3845992935750728,
+      "Gz": 0.4067599419125849
+    },
+    "quantile_error_unit_conversion": {
+      "Ax": 0.35503831592738977,
+      "Ay": 0.37355193100375916,
+      "Az": 0.688791206454329,
+      "Gx": 0.4866014386411559,
+      "Gy": 0.3845992935750728,
+      "Gz": 0.4067599419125849
+    },
+    "quantile_error_divide_by_scale": {
+      "Ax": 0.9157323372367203,
+      "Ay": 0.3511854346503301,
+      "Az": 0.5785885279755498,
+      "Gx": 2.567037449504386,
+      "Gy": 3.130521049226556,
+      "Gz": 3.86641689168028
+    },
+    "quantile_error_zscore": {
+      "Ax": 28.80251645340798,
+      "Ay": 65.78614480412233,
+      "Az": 127.34043120687342,
+      "Gx": 0.4866014386411558,
+      "Gy": 0.38459929357507283,
+      "Gz": 0.4067599419125849
+    },
+    "quantile_error_robust": {
+      "Ax": 28.802516453407975,
+      "Ay": 65.78614480412233,
+      "Az": 127.3404312068734,
+      "Gx": 0.48660143864115585,
+      "Gy": 0.3845992935750729,
+      "Gz": 0.4067599419125849
+    },
+    "quantile_error_signed_log": {
+      "Ax": 1.1475431988151454,
+      "Ay": 1.4108552107364773,
+      "Az": 4.9085530126355135,
+      "Gx": 0.20398036337806155,
+      "Gy": 0.17807633091274777,
+      "Gz": 0.18402958454421117
+    },
+    "quantile_error_quantile_alignment": {
+      "Ax": 0.0079016257794501,
+      "Ay": 0.01322693456041816,
+      "Az": 0.007418125585584679,
+      "Gx": 9.184286633139519e-09,
+      "Gy": 2.4425471928089665e-09,
+      "Gz": 1.3299355274544205e-09
+    },
+    "quantile_error_linear_calibration": {
+      "Ax": 0.243830370842421,
+      "Ay": 0.2024786622339973,
+      "Az": 0.15668369131558801,
+      "Gx": 0.32365581614238553,
+      "Gy": 0.2985427512959242,
+      "Gz": 0.342769729648367
+    }
+  },
+  "recommendation": {
+    "best_transform_by_quantile_error": "quantile_based_alignment",
+    "best_transform_mean_quantile_error": 0.004757783147037049,
+    "production_ready_recommendation": "Use explicit milliG->m/s^2 conversion for acceleration as mandatory first step, then optionally apply a lightweight per-feature linear calibration monitored by drift checks. Avoid nonlinear warping (log/quantile alignment) for live inference unless you retrain with the same transform."
+  },
+  "generated_charts": [
+    "data_fit_chart_scale.png",
+    "data_fit_chart_quantiles.png",
+    "data_fit_chart_transform_scores.png"
+  ]
+}

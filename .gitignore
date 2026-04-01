@@ -189,3 +189,7 @@ INTERNAL_SUMMARY_*.md
 
 # Generated diagram exports (keep source markdown tracked)
 docs/images/pipeline/generated/
+
+# Local workspace and notes
+.claude/
+qna_30 march to ask google scholor.txt

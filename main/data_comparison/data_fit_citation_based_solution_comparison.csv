@@ -1,0 +1,5 @@
+method,scope,mean_wasserstein_iqr_norm,mean_ks_stat,mean_out_of_grid_rate,pattern_preservation,risk
+CORAL_covariance_alignment,inference,0.1565192525653011,0.11055285714285716,0.040418571428571436,medium-high,can alter feature geometry if unstable
+robust_affine_calibration_median_iqr,inference,0.6955124931902404,0.1072161904761905,0.08253380952380952,high,needs periodic parameter refresh
+feature_emulation_domain_randomization,training_augmentation,0.6985490293922209,0.11920277777777773,0.04176111111111111,medium,needs retraining and validation
+baseline_same_unit_no_extra_alignment,inference,0.9489186254033962,0.189262380952381,0.07546000000000001,high,residual mismatch remains
