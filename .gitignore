@@ -226,6 +226,8 @@ artifacts/
 outputs/
 reports/inference_parity_all_*/
 evidence/inference_parity_all_*/
+evidence/final_runtime_freeze_2026_05_05/
+evidence/
 
 # MLflow local runs
 mlruns/
