@@ -1055,7 +1055,7 @@ def figure_preprocessing_flow() -> None:
         "Validation",
         "Unit conversion",
         "Sync/resample\n50 Hz",
-        "Normalization",
+        "Norm state\nnone",
         "Windowing",
         "Model input",
     ]
@@ -1205,7 +1205,7 @@ def write_figure_snippets() -> None:
         (
             "ch4_preprocessing_flow",
             "fig:ch4_preprocessing_flow",
-            "Baseline preprocessing flow from raw accelerometer and gyroscope recordings to model-ready windows. Gravity removal and calibration are marked as optional but disabled in the defended baseline, which preserves train--serve consistency and keeps adaptation experiments outside the default claim.",
+            "Baseline preprocessing flow from raw accelerometer and gyroscope recordings to model-ready windows. External scaling, gravity removal, and calibration are marked as optional but disabled in the defended baseline, which preserves train--serve consistency and keeps adaptation experiments outside the default claim.",
         ),
         (
             "ch4_windowing_diagram",
@@ -1311,7 +1311,7 @@ The labeled Garmin development corpus contributes {labeled_rows:,} raw rows. The
 
 \input{{tables/ch4_channel_statistics.tex}}
 
-The channel summaries show the scale of the train--serve consistency problem. In the labeled Garmin corpus, the accelerometer means are not centered at zero before normalization, for example $A_x={ax_mean:.2f}$ and $A_z={az_mean:.2f}$ in m\,s$^{{-2}}$. This is expected because gravity remains present in the baseline signal. The production replay group shows a different but comparable physical scale after unit harmonization, including $A_z={replay_az_mean:.2f}$ in m\,s$^{{-2}}$. These differences are not automatically errors; they are descriptive evidence that inference-time preprocessing must preserve the same unit conversion, resampling, normalization, and windowing assumptions used by the model.
+The channel summaries show the scale of the train--serve consistency problem. In the labeled Garmin corpus, the accelerometer means are not centered at zero in raw physical units, for example $A_x={ax_mean:.2f}$ and $A_z={az_mean:.2f}$ in m\,s$^{{-2}}$. This is expected because gravity remains present in the baseline signal. The production replay group shows a different but comparable physical scale after unit harmonization, including $A_z={replay_az_mean:.2f}$ in m\,s$^{{-2}}$. These differences are not automatically errors; they are descriptive evidence that inference-time preprocessing must preserve the same unit conversion, resampling, normalization state, and windowing assumptions used by the model.
 
 \begin{{figure}}[htbp]
 \centering
@@ -1358,15 +1358,15 @@ The fourth challenge is wrist placement. Wrist-worn sensors are practical but se
 \section{{Preprocessing Methodology}}
 \label{{sec:ch4_generated_preprocessing}}
 
-Preprocessing converts raw sensor files into the exact representation expected by the baseline model. The baseline path consists of input validation, unit standardization, synchronization and resampling, normalization, and windowing. Each step has a distinct role, and each can introduce risk if it differs between training and inference.
+Preprocessing converts raw sensor files into the exact representation expected by the baseline model. The baseline path consists of input validation, unit standardization, synchronization and resampling, explicit normalization-state control, and windowing. Each step has a distinct role, and each can introduce risk if it differs between training and inference.
 
 Input validation checks that required channels are present, timestamps are usable, missingness remains within the configured tolerance, and sensor values remain within plausible physical bounds. This step prevents structurally invalid sessions from entering inference and contaminating monitoring summaries.
 
-Unit standardization handles the accelerometer scale mismatch between Garmin raw replay files and model-ready training values. Production accelerometer values are converted from milliG to m\,s$^{{-2}}$ before normalization, while gyroscope values are retained in degrees per second. The risk is straightforward: if this conversion is skipped or applied twice, the model receives a systematically shifted input distribution.
+Unit standardization handles the accelerometer scale mismatch between Garmin raw replay files and model-ready training values. Production accelerometer values are converted from milliG to m\,s$^{{-2}}$ before windowing, while gyroscope values are retained in degrees per second. The risk is straightforward: if this conversion is skipped or applied twice, the model receives a systematically shifted input distribution.
 
 Synchronization and resampling align accelerometer and gyroscope streams to a fixed 50~Hz representation. This is necessary because the model input tensor has a fixed temporal meaning: 200 samples correspond to four seconds. Resampling changes raw timestamps into a regular grid, but it must be performed consistently so that training and inference windows represent the same physical duration.
 
-Normalization uses the configured z-score scaler. The thesis-safe implementation fits scaler parameters only on training data and then reuses the saved parameters for validation, test, and inference transformations. This avoids leakage and preserves train--serve parity. Gravity removal and calibration exist as optional experimental controls, but they are disabled in the defended baseline because the retained model and scaler were built with gravity present. Enabling those transformations by default would create a different input distribution and weaken the evidence chain.
+The defended final production path disables external normalization and preserves raw physical IMU units after accelerometer unit conversion. Scaler artifacts remain available for training, leakage checks, and explicitly labeled A/B diagnostics, but they are not a final production inference dependency. Gravity removal and calibration exist as optional experimental controls, but they are disabled in the defended baseline because enabling those transformations by default would create a different input distribution and weaken the evidence chain.
 
 \section{{Windowing and Input Representation}}
 \label{{sec:ch4_generated_windowing}}
@@ -1393,12 +1393,12 @@ The training configuration in \texttt{{src/train.py}} uses Adam with an initial 
 
 The current canonical training path creates windows per user and uses five-fold grouped cross-validation with user IDs as groups. This is stronger than ordinary window-level splitting because it prevents the same participant from appearing in both training and validation folds within a fold. The final-model path uses an explicit user holdout: users 1--4 for scaler fitting and model fitting, user 5 for validation, and user 6 for test evaluation when all six users are available. The scaler is fitted only on the training users or training folds before being applied to validation and test data.
 
-The baseline assumptions are therefore fixed: 50~Hz sampling, 200-sample windows, 100-sample step, six sensor channels in the documented order, z-score normalization using saved training-only scaler parameters, and an eleven-class softmax output. The thesis does not claim that these are globally optimal hyperparameters. They are the controlled baseline assumptions that make the later MLOps experiments reproducible.
+The baseline assumptions are therefore fixed: 50~Hz sampling, 200-sample windows, 100-sample step, six sensor channels in the documented order, raw physical production input units with no external StandardScaler, and an eleven-class softmax output. The thesis does not claim that these are globally optimal hyperparameters. They are the controlled baseline assumptions that make the later MLOps experiments reproducible.
 
 \section{{Baseline Scope and Adaptation Boundary}}
 \label{{sec:ch4_generated_scope}}
 
-The defended baseline includes the fixed preprocessing path, the windowing configuration, the 1D-CNN + BiLSTM classifier, saved scaler artifacts, and governed inference through the offline pipeline. Optional adaptation mechanisms are outside the default claim. Gravity removal and calibration are available for ablation, but they are disabled in the baseline. AdaBN, TENT, pseudo-labeling, and uncertainty-based adaptation are treated as experimental or future-work mechanisms rather than as default inference behavior \cite{{li2016adabn,wang2021tent,gal2016dropout,guo2017calibration}}.
+The defended baseline includes the fixed preprocessing path, the windowing configuration, the 1D-CNN + BiLSTM classifier, raw physical production inference, and governed execution through the offline pipeline. Optional adaptation mechanisms are outside the default claim. Gravity removal, calibration, and external scaling are available for ablation, but they are disabled in the baseline. AdaBN, TENT, pseudo-labeling, and uncertainty-based adaptation are treated as experimental or future-work mechanisms rather than as default inference behavior \cite{{li2016adabn,wang2021tent,gal2016dropout,guo2017calibration}}.
 
 This boundary protects the thesis argument. If adaptation were enabled automatically, later improvements or failures could not be attributed cleanly to the offline-first MLOps pipeline, monitoring logic, or retraining governance. Keeping adaptation conditional allows Chapter~6 and Chapter~7 to discuss trigger policies and candidate retraining without implying that unlabeled target data automatically produce a better model.
 
@@ -1407,7 +1407,7 @@ This boundary protects the thesis argument. If adaptation were enabled automatic
 
 Reproducibility is enforced through configuration-driven execution, saved artifacts, and explicit provenance checks. The preprocessing configuration is stored in \texttt{{config/pipeline\_config.yaml}}, while model constants and paths are defined in \texttt{{src/config.py}}. Training hyperparameters and the model architecture are defined in \texttt{{src/train.py}}, and the model metadata are recorded in \texttt{{models/pretrained/model\_info.json}}.
 
-Scaler reproducibility is especially important. The canonical scaler file records that it was fitted on training users only, and runtime code asserts this provenance before use. This prevents leakage from validation or test users into normalization parameters. MLflow and DVC-related artifacts support experiment and data traceability where available, but the core thesis claim does not depend on an external service being online \cite{{kuprieiev2023dvc,zaharia2018mlflow,kreuzberger2023mlops,amershi2019mlops,paleyes2022challenges}}.
+Input-contract reproducibility is especially important. The final production path records that no external scaler is applied, while scaler files remain provenance-checked for training and A/B diagnostics. This prevents leakage from validation or test users into normalization parameters when scaler experiments are run. MLflow and DVC-related artifacts support experiment and data traceability where available, but the core thesis claim does not depend on an external service being online \cite{{kuprieiev2023dvc,zaharia2018mlflow,kreuzberger2023mlops,amershi2019mlops,paleyes2022challenges}}.
 
 The operational consistency requirement is train--serve parity. The same channel order, unit convention, sampling rate, normalization state, and window shape must be reproduced during offline inference. If any of these assumptions changes, monitoring may still produce numbers, but those numbers would describe behavior under a different input contract. Chapter~5 therefore operationalizes the assumptions from this chapter as pipeline stages rather than leaving them as notebook-only logic.
 
@@ -1416,7 +1416,7 @@ The operational consistency requirement is train--serve parity. The same channel
 
 This chapter establishes the data and model foundation for the offline-first MLOps pipeline. It separates the labeled Garmin development corpus, production-style replay sessions, synthetic stress-test datasets, and pending self-recorded validation data by the claims each can support. The statistical comparison provides descriptive evidence about channel scale, spread, and dataset shift, while preserving the boundary that unlabeled replay sessions and synthetic data do not prove accuracy.
 
-The preprocessing path validates inputs, harmonizes units, resamples to 50~Hz, normalizes with saved training-only scaler parameters, and constructs four-second overlapping windows. The resulting input tensor has shape $(200,6)$ and feeds a fixed 1D-CNN + BiLSTM baseline with an eleven-class softmax output. The baseline is intentionally stable: optional gravity removal, calibration, and adaptation methods remain outside the default defended path.
+The preprocessing path validates inputs, harmonizes units, resamples to 50~Hz, preserves the explicit no-normalization runtime state, and constructs four-second overlapping windows. The resulting input tensor has shape $(200,6)$ and feeds a fixed 1D-CNN + BiLSTM baseline with an eleven-class softmax output. The baseline is intentionally stable: optional gravity removal, calibration, external scaling, and adaptation methods remain outside the default defended path.
 
 The chapter therefore links the architecture of Chapter~3 to the implementation of Chapter~5. Chapter~5 can treat preprocessing, model input shape, artifacts, and train--serve consistency as defined contracts rather than as unresolved modeling choices.
 """

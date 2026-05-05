@@ -6,7 +6,7 @@ Primary goals:
 
 - reproducible end-to-end pipeline execution
 - explicit stage-by-stage workflow for thesis defense
-- monitoring and trigger-based retraining decisions
+- monitoring and review-gated trigger decisions
 - artifact and evidence tracking for research reproducibility
 
 ## Project Workflow Summary
@@ -39,7 +39,7 @@ flowchart LR
     F --> G[6. Monitoring]
     G --> H[7. Trigger]
 
-    H --> I{should_retrain?}
+    H --> I{Review + labels + QA approved?}
     I -- Yes --> J[8. Retraining]
     J --> K[9. Registration]
     K --> L[10. Baseline Update]
@@ -94,7 +94,7 @@ har-pipeline
 Expected core files include:
 
 - [models/pretrained/fine_tuned_model_1dcnnbilstm.keras](models/pretrained/fine_tuned_model_1dcnnbilstm.keras)
-- [models/normalized_baseline.json](models/normalized_baseline.json)
+- [models/raw_physical_baseline.json](models/raw_physical_baseline.json)
 - one accel/gyro pair in [data/raw](data/raw)
 
 If DVC-tracked assets are missing:
@@ -120,6 +120,29 @@ Hard rule for this repository:
 - If the candidate is equal or worse, keep the current default model.
 
 Canonical policy document: [docs/MODEL_PROMOTION_POLICY.md](docs/MODEL_PROMOTION_POLICY.md)
+
+### Defended Inference Contract
+
+The final production inference contract uses raw physical IMU units:
+
+- accelerometer: converted from milli-g to m/s^2 when needed
+- gyroscope: retained in deg/s
+- sampling rate: 50 Hz
+- window size: 200 samples
+- stride: 100 samples
+- model input shape: `(N, 200, 6)`
+- model output shape: 11 classes
+- normalization: disabled
+- external StandardScaler: not applied during final production inference
+- gravity removal and calibration: disabled
+
+The current Stage 6 runtime baseline is
+[models/raw_physical_baseline.json](models/raw_physical_baseline.json). The
+older normalized baseline remains useful for legacy/A-B diagnostics, but it is
+not the default production drift reference.
+
+Detailed notes: [docs/INFERENCE_PARITY_FIX.md](docs/INFERENCE_PARITY_FIX.md)
+and [docs/MONITORING_AND_TRIGGER_POLICY.md](docs/MONITORING_AND_TRIGGER_POLICY.md).
 
 ### Monitoring Evidence Scope
 
@@ -163,7 +186,10 @@ Enable retraining path (trigger-gated stages 8-10):
 python run_pipeline.py --retrain --adapt adabn
 ```
 
-Note: retraining stages execute only when Stage 7 decides `should_retrain=true`.
+Note: retraining/register/baseline-update stages execute only after Stage 7
+governance and the required review, label, and QA conditions are satisfied.
+Unlabeled production drift, collapse, or low confidence opens review work; it
+does not justify immediate automatic retraining.
 
 Run advanced calibration stage:
 

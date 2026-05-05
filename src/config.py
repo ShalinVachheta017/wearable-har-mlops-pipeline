@@ -53,8 +53,10 @@ PRETRAINED_MODEL = MODELS_PRETRAINED / "fine_tuned_model_1dcnnbilstm.keras"
 # has been validated on labeled data and explicitly selected.
 DEFAULT_MODEL_PATH = PRETRAINED_MODEL
 MODEL_INFO_JSON = MODELS_PRETRAINED / "model_info.json"
-# Canonical, train-users-only scaler (fit on users 1-4). Every runtime path
-# (batch pipeline, API, notebooks) must load from this single file.
+# Canonical, train-users-only scaler (fit on users 1-4). This artifact remains
+# available for training, A/B diagnostics, and legacy transformed baselines.
+# The defended production inference contract uses raw physical units and does
+# not apply an external scaler in the batch pipeline or API upload path.
 SCALER_CANONICAL = DATA_PREPARED / "scaler_train_only.json"
 # Backward-compatible alias used by older modules.
 SCALER_CONFIG = SCALER_CANONICAL

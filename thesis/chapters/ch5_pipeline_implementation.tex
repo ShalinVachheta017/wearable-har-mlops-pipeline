@@ -1,3 +1,91 @@
 \chapter{MLOps Pipeline Implementation}
+\label{chap:implementation}
 
-This chapter explains repository implementation details and engineering decisions.
+This chapter explains implementation details and engineering decisions for the active runtime path.
+
+\section{Single Entrypoint and Stage Orchestration}
+
+The implemented system uses \path{run_pipeline.py} as the single command-line entrypoint. It constructs typed configuration objects, applies YAML overrides, and invokes the stage orchestrator in \path{src/pipeline/production_pipeline.py}. Centralizing the entrypoint reflects a recurring MLOps architecture recommendation: stage boundaries and their execution order should be inspectable from one place rather than spread across ad hoc scripts, so that lifecycle decisions remain traceable to a single definition of the operational path \cite{amershi2019mlops,kreuzberger2023mlops}.
+
+By default, execution covers stages 1--7. Retraining stages (8--10) and the optional calibration stage (11) are explicitly enabled by runtime flags. Keeping mutation stages behind explicit flags is consistent with the distinction between observation and state-changing operations that MLOps tooling surveys identify as an essential property of reproducible pipeline tooling \cite{hewage2022mlops}.
+
+\section{Component Wiring for Stages 1--7}
+
+The base operational path is implemented via dedicated stage components:
+
+\begin{itemize}
+	\item stage 1: \texttt{src/components/data\_ingestion.py}
+	\item stage 2: \texttt{src/components/data\_validation.py}
+	\item stage 3: \texttt{src/components/data\_transformation.py}
+	\item stage 4: \texttt{src/components/model\_inference.py}
+	\item stage 5: \texttt{src/components/model\_evaluation.py}
+	\item stage 6: \texttt{src/components/post\_inference\_monitoring.py}
+	\item stage 7: \texttt{src/components/trigger\_evaluation.py}
+\end{itemize}
+
+The runtime dependency map is explicitly documented so chapter claims remain tied to concrete source files.
+
+The May~2 audit pass simplified the Stage~4 and Stage~5 ownership model without changing the operational contract. Stage~4 inference logic is concentrated in \path{src/components/model_inference.py}; the remaining \path{src/run_inference.py} file is only a thin CLI wrapper. Stage~5 evaluation logic is concentrated in \path{src/components/model_evaluation.py}, so distribution analysis, unlabeled-mode handling, and dominance warnings are no longer delegated to a second evaluator script. This keeps the stage map defensible: each runtime stage has one component file as the source of truth, while command-line wrappers remain outside the core pipeline contract.
+
+\section{Configuration Layering Strategy}
+
+Implementation behavior is controlled by three layers:
+
+\begin{itemize}
+	\item stage and preprocessing defaults in code/dataclasses,
+	\item project-level YAML defaults in \path{config/pipeline_config.yaml},
+	\item runtime override values in \path{config/pipeline_overrides.yaml}.
+\end{itemize}
+
+This layering supports reproducibility while still allowing controlled threshold tuning. Externalizing behavior-shaping parameters in versioned configuration files rather than embedding them in code is a well-documented prerequisite for end-to-end replicability: once preprocessing, threshold, and orchestration choices are captured in declarative files, a later rerun can be matched against the original experiment without reverse-engineering the runtime state from logs \cite{gardner2018enabling,bahaidarah2021reusable}.
+
+The same principle applies to downstream use: in health-adjacent contexts, reproducibility requires that the configuration surface be explicit enough for an external reviewer to reconstruct the run without assumptions about implicit defaults \cite{ghosh2025reproducible}. In this thesis, the files \path{config/pipeline_config.yaml} and \path{config/pipeline_overrides.yaml} carry the complete set of knobs that change pipeline behavior, so that the configuration layer is itself part of the thesis evidence rather than an undocumented dependency.
+
+\section{Reproducible Operational Command Path}
+
+The thesis baseline run path follows \texttt{REPRODUCE.md}. A representative command is:
+
+\begin{verbatim}
+python run_pipeline.py \
+	--stages ingestion validation transformation \
+	inference evaluation monitoring \
+	trigger \
+	--accel-file data/raw/2025-08-19-08-58-40_accelerometer.csv \
+	--gyro-file data/raw/2025-08-19-08-58-40_gyroscope.csv
+\end{verbatim}
+
+This explicit command style is used to ensure the exact stages and inputs are visible in logs and in thesis evidence.
+
+\section{Tracking and Artifact Persistence}
+
+Implementation outputs are persisted in run-scoped artifact directories and pipeline result logs. Experiment metadata is tracked through MLflow configuration under \path{config/mlflow_config.yaml} \cite{zaharia2018mlflow}. Together, these outputs provide the evidence backbone used by Chapters 6 and 7.
+
+\section{Batch Ingestion Design and Rationale}
+\label{sec:batch_ingestion}
+
+Data ingestion in this thesis system is implemented as bounded session-level batch processing rather than continuous streaming. Each run consumes fixed input files and produces a run-scoped artifact set. In the thesis context, this is a deliberate architecture choice: governance decisions are made at session granularity and require replayable inputs. For the present system, batch ingestion is therefore not merely a pragmatic convenience but a design choice grounded in four interdependent constraints specific to offline wearable HAR.
+
+The first constraint is imposed by the data source. Garmin Venu 3 sessions are exported as complete CSV files through the Garmin Connect platform; there is no supported API for real-time stream access to raw accelerometer and gyroscope readings during a session. Each file represents a bounded recording interval, and the ingestion stage is therefore designed to accept exactly one accelerometer file and one gyroscope file per run. Attempting to superimpose a streaming architecture on a source that produces discrete, session-bounded exports would introduce artificial complexity without any corresponding benefit.
+
+The second constraint arises from the statistical requirements of the monitoring layer. Governance decisions at Stage 6 depend on signals computed over an entire session worth of windowed predictions: the mean confidence score, the dominant class share, the temporal transition rate, and a baseline-relative drift summary. None of these can be computed meaningfully from a single window in isolation. The calibrated MMD branch evaluated later in the thesis is also inherently batch-level; evaluating one window at a time would either defer the metric to a later aggregation step or produce unstable single-sample estimates with limited shift interpretability \cite{dhekane2024transfer,chakma2023imuda}. Batch ingestion resolves this structural tension by guaranteeing that the monitoring stage operates on a complete, fixed-size population of windows.
+
+The third constraint concerns labeling and offline annotation. In the training and evaluation workflow, activity labels are provided by pre-annotated session files using the same schema as Table~\ref{tab:activity_classes}. Annotation is inherently a batch-level operation: a human annotator or automated labeling tool processes a completed recording, not a live stream. Requiring the ingestion stage to handle streaming inputs would therefore create an asymmetry between the training data path and the inference data path that could introduce subtle preprocessing mismatches \cite{munappy2019data}.
+
+The fourth constraint is reproducibility. A batch is a fixed, versioned artifact. Once a session file has been ingested and registered in the artifact directory under a unique run identifier, it can be replayed exactly at any future time with identical inputs. This property is central to the thesis's reproducibility claim, as detailed in Section~\ref{sec:reproducibility}, and is well documented as a prerequisite for end-to-end verifiable research software \cite{gardner2018enabling,bahaidarah2021reusable}. A streaming ingestion design would make exact replay considerably harder, because the boundaries of what constitutes a single ``run'' would become ambiguous. The choice of batch ingestion is therefore not a limitation of the offline-first architecture described in Chapter~\ref{chap:architecture}; it is a direct implementation of that architecture's reproducibility and governance requirements.
+
+\section{MLOps Maturity Level Assessment}
+\label{sec:mlops_maturity}
+
+MLOps maturity frameworks provide a structured vocabulary for describing the extent to which a machine learning system is operationalized, automated, and governed. Kreuzberger et al.\ identify a three-level maturity model that has become widely referenced in the MLOps literature \cite{kreuzberger2023mlops}. Hewage and Meedeniya extend this view through a survey of available tooling, noting that maturity level selection should reflect the operational context of the system rather than a generic aspiration toward maximum automation \cite{hewage2022mlops}. Against this background, it is possible to locate the present thesis precisely within the maturity spectrum and to justify why the level implemented is the appropriate one.
+
+Level 0 represents the baseline condition of most published wearable HAR research: models are trained offline, evaluated once on a held-out test set, and the resulting accuracy metric is reported in the paper. There is no deployment lifecycle, no artifact lineage, no monitoring of post-deployment behavior, and no mechanism for updating the model when conditions change. Amershi et al.\ document the broader consequences of this pattern in production ML systems, arguing that operational failures frequently emerge at the interfaces between lifecycle stages precisely because those interfaces are left informal and undocumented at Level 0 \cite{amershi2019mlops}. Paleyes et al.\ survey a range of deployed ML case studies and find that the absence of structured deployment practices is a leading source of reliability gaps in real-world systems \cite{paleyes2022challenges}. The present thesis treats Level 0 as the baseline against which its contribution is measured, not as an acceptable operational target.
+
+Level 1 introduces an automated, stage-based pipeline with experiment tracking, artifact lineage, and governed deployment decisions. The present implementation satisfies Level 1 across all its defining characteristics. The single command-line entrypoint \path{run_pipeline.py} encapsulates the complete operational path, ensuring that stage execution order, configuration values, and input files are specified explicitly at runtime rather than encoded in notebook cells or shell scripts. MLflow \cite{zaharia2018mlflow} provides per-run experiment tracking, linking each run identifier to the configuration values, input files, and output artifacts that produced it. DVC is used in the project workspace for dataset and model artifact versioning so the data and model state linked to a run can be traced across commits. The governed retraining gate at Stage 7 ensures that model updates are conditional on explicit trigger conditions rather than on the routine availability of new data. Repository automation supports this level through continuous-integration checks and an optional release-image smoke workflow; it does not constitute production continuous deployment. Together, these characteristics establish Level 1 maturity as defined by the MLOps literature.
+
+Level 2 extends Level 1 with fully automated continuous training loops, CI/CD pipelines that retrain and redeploy models without operator intervention, and infrastructure for real-time or near-real-time feedback between monitoring telemetry and model updates. Level 2 is intentionally out of scope for the present thesis, and this exclusion is a deliberate governance decision rather than a technical limitation. In health-adjacent settings, automated retraining without access to ground-truth labels at inference time poses a safety risk that is not adequately addressed by unsupervised monitoring signals alone \cite{khattak2023mlhops}. The negative result documented in Section~7.7 of this thesis provides direct empirical evidence for this concern: a plausible intervention combining unit-fix and abstain-review routing changed the distribution of prediction labels but left mean confidence unchanged at 0.8578, demonstrating that observable routing changes cannot be conflated with genuine improvements in prediction quality. Automating retraining on the basis of such signals would produce a system that mutates its own model in response to governance artifacts, not in response to verified learning signals. Sculley et al.\ identify premature automation as a primary source of hidden technical debt in ML systems, noting that automation pipelines that are triggered without adequate validation introduce new failure modes faster than they eliminate manual effort \cite{sculley2015debt}. Level 1 MLOps, with its explicit governance gate, is therefore the appropriate maturity target for an offline, single-machine, label-scarce wearable HAR system in which the cost of a false retraining decision materially exceeds the cost of a missed one.
+
+\section{Chapter Summary}
+
+This chapter mapped the architecture claims from Chapter~\ref{chap:architecture} to concrete implementation anchors. The operational path is explicit: stages 1--7 run by default, while stages 8--10 and stage 11 are guarded behind runtime flags so that state-mutating actions remain deliberate.
+
+Configuration layering, run-scoped artifact persistence, and session-bounded batch ingestion together provide the reproducibility substrate for later evidence. This implementation substrate is what enables Chapters~\ref{chap:monitoring} and~\ref{chap:experiments} to interpret monitoring and retraining behavior as auditable system outcomes rather than as isolated script effects.

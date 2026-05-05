@@ -12,7 +12,7 @@ Endpoints:
     POST /predict/batch   - Batch prediction
 
 Usage:
-    uvicorn api.main:app --host 0.0.0.0 --port 8000
+    
 
 Author: MLOps Pipeline
 Date: December 11, 2025
@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 MODEL_PATH = os.environ.get(
     "MODEL_PATH",
     "models/pretrained/fine_tuned_model_1dcnnbilstm.keras",
+    "D:\study apply\ML Ops\MasterArbeit_MLops\models\pretrained\fine_tuned_model_1dcnnbilstm.keras"
 )
 CONFIG_PATH = os.environ.get(
     "CONFIG_PATH",

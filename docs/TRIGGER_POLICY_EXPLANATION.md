@@ -11,8 +11,8 @@ The trigger policy converts Stage 6 monitoring outputs (plus Stage 5 collapse si
 - none
 - monitor
 - review
-- queue_retrain
-- trigger
+- queue_retrain (review/label queue, not immediate mutation)
+- trigger (candidate generation only after governance gates)
 
 The result is written into TriggerEvaluationArtifact and persisted in artifacts/*/trigger/trigger_decision.json.
 
@@ -32,12 +32,12 @@ The result is written into TriggerEvaluationArtifact and persisted in artifacts/
 
 5. Signals are aggregated by voting (NO_AUTO_RETRAIN policy):
 - Any CRITICAL signal -> REVIEW_REQUIRED (action=review, should_trigger=false, auto_retrain=false)
-- 2+ WARNING signals -> RETRAIN_CANDIDATE_QUEUED (action=queue_retrain, should_trigger=false, label_required=true)
+- 2+ WARNING signals -> REVIEW_LABEL_QUEUE (action=queue_retrain, should_trigger=false, label_required=true)
 - 1 WARNING signal -> monitor (should_trigger=false)
 - Otherwise -> HEALTHY (none)
 
 Unlabeled production data must NOT trigger automatic retraining regardless of signal severity.
-A label/QA gate is required before retraining is queued.
+A label/QA gate is required before any retraining candidate is generated.
 
 6. Consecutive-warning escalation promotes to REVIEW_REQUIRED (not automatic trigger).
    should_trigger remains false; label_required and qa_required are set true.
@@ -48,14 +48,16 @@ A label/QA gate is required before retraining is queued.
 
 ## Threshold Sources
 
-Stage 6 monitoring thresholds are defined in PostInferenceMonitoringConfig and passed at runtime into scripts/post_inference_monitoring.py by src/components/post_inference_monitoring.py.
+Stage 6 monitoring thresholds are defined in `PostInferenceMonitoringConfig` and passed at runtime into `src/monitoring/post_inference_monitor.py` by `src/components/post_inference_monitoring.py`.
 
 Default Stage 6 thresholds:
 - confidence_warn_threshold: 0.70
 - uncertain_window_threshold: 0.50
-- uncertain_pct_threshold: 30.0
-- transition_rate_threshold: 50.0
-- drift_zscore_threshold: 2.0
+- uncertain_pct_threshold: 20.0
+- transition_rate_threshold: 35.0
+- drift_zscore_threshold: 1.8
+- dominant_class_warn_threshold: 85.0
+- dominant_class_critical_threshold: 95.0
 
 Stage 7 trigger thresholds are defined in TriggerEvaluationConfig and passed to TriggerPolicyEngine via TriggerThresholds in src/components/trigger_evaluation.py.
 
@@ -71,6 +73,7 @@ Default Stage 7 thresholds:
 Notes:
 - Stage 6 and Stage 7 are intentionally tiered (monitoring warning is earlier; trigger is stricter governance).
 - Runtime values can be overridden with config/pipeline_overrides.yaml or HAR_PIPELINE_OVERRIDES.
+- Stage 6 drift uses the raw physical monitoring baseline for the final production contract and skips or routes review when a baseline is missing or feature-space mismatched.
 
 Prometheus/Grafana alerting is not part of the defended current implementation. The defended monitoring evidence comes from offline-first pipeline artifacts, trigger reports, logs, MLflow/DVC evidence, and saved run outputs.
 
@@ -81,7 +84,9 @@ Collapse guard is intentionally conservative for unlabeled production data.
 review is returned when any collapse condition holds, including:
 - dominance_warning=true from upstream signals, or
 - dominant_pct >= 95, or
-- dominant_pct >= 90 with transition_rate == 0 and high confidence.
+- dominant_pct >= 90 with transition_rate == 0 and high confidence, or
+- Stage 4 `collapse_level == "CRITICAL_COLLAPSE"`, or
+- Stage 6 `low_motion_collapse_risk == true`.
 
 When collapse guard matches:
 - should_retrain=false
@@ -93,8 +98,8 @@ When collapse guard matches:
 Cooldown exists to prevent rapid retraining loops.
 
 Behavior:
-- If a decision would trigger retraining and a recent retrain is still within cooldown_hours,
-  the final decision is rewritten to queue_retrain with cooldown_active=true.
+- If a decision would create a candidate and a recent retrain is still within cooldown_hours,
+  the final decision is rewritten to queue_retrain/review queue with cooldown_active=true.
 - The final decision is persisted together with cooldown status.
 
 After the P0 fix, cooldown is enforced after escalation logic so it cannot be overridden later in the same evaluation cycle.
@@ -109,7 +114,6 @@ After the P0 fix, cooldown is enforced after escalation logic so it cannot be ov
 ## Key Files
 
 - src/components/post_inference_monitoring.py
-- scripts/post_inference_monitoring.py
 - src/components/trigger_evaluation.py
 - src/trigger_policy.py
 - src/entity/config_entity.py

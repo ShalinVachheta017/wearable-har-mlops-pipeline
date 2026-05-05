@@ -1388,7 +1388,7 @@ Generated from workspace scan. Total documented files: 65
 - `HARModelBuilder.get_callbacks` (function) - Get training callbacks.
 - `HARTrainer` (class) - Main training pipeline for HAR model.
 - `HARTrainer.__init__` (function) - Function implementing processing or utility logic.
-- `HARTrainer.run_cross_validation` (function) - Run 5-fold stratified cross-validation.
+- `HARTrainer.run_cross_validation` (function) - Run 5-fold grouped cross-validation using user IDs as groups.
 - `HARTrainer.train_final_model` (function) - Train final model on all data.
 - `HARTrainer._save_training_artifacts` (function) - Save all training artifacts.
 - `HARTrainer.train` (function) - Full training pipeline.

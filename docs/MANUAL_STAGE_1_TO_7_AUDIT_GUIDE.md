@@ -7,7 +7,7 @@ Do not start with retraining. First prove whether the data reaching the model is
 ## Core Contracts To Keep In Mind
 
 - Sensor channel order must be: `Ax, Ay, Az, Gx, Gy, Gz`
-- Accelerometer should be in `m/s^2` by the time scaling/model input is prepared.
+- Accelerometer should be in `m/s^2` by the time model input is prepared.
 - Gyroscope should stay in `deg/s` unless a training artifact proves otherwise.
 - Sampling rate should be `50 Hz`.
 - Window size should be `200` samples.
@@ -307,7 +307,7 @@ This is the most important stage for the `hand_tapping` collapse audit.
 
 - `src/components/data_transformation.py`
 - `src/preprocess_data.py`
-- `src/utils/scaler.py`
+- `src/utils/scaler.py` (training/A-B/legacy diagnostics only)
 
 ### 3. Connected Config, Entity, Artifact Files
 
@@ -345,7 +345,7 @@ Concrete Stage 3 connections:
 - Fused CSV from Stage 1:
   - `data/processed/fused_<dataset_name>_50Hz.csv`
   - Example: `data/processed/fused_2025_03_23_15_23_10_50Hz.csv`
-- Canonical scaler JSON:
+- Optional training/A-B scaler JSON:
   - `data/prepared/scaler_train_only.json`
 - Optional direct override:
   - `DataTransformationConfig.input_csv`
@@ -392,10 +392,11 @@ Before normalization:
 - Accelerometer: `m/s^2`
 - Gyroscope: `deg/s`
 
-After normalization:
+Final production model input:
 
-- By default, z-score scaled values using the train-only scaler.
-- Still verify `normalization_variant` inside `data/prepared/scaler_train_only.json`; that JSON decides the actual runtime variant.
+- Raw physical units after accelerometer unit conversion.
+- No external StandardScaler is applied in final production inference.
+- The train-only scaler remains available for training, A/B diagnostics, and legacy transformed-baseline checks.
 
 Gyroscope should not be converted to radians unless the model was trained that way.
 
@@ -404,7 +405,7 @@ Important audit point:
 - Stage 3 unit detection converts accelerometer only.
 - Gyroscope channels should remain in `deg/s`.
 - If `enable_gravity_removal` or `enable_calibration` is enabled, the code also runs accelerometer unit detection before those operations.
-- `DataTransformationConfig.normalization_variant` is logged, but the actual scaler variant is read from `data/prepared/scaler_train_only.json`.
+- `DataTransformationConfig.normalization_variant` is logged for A/B runs, but the final production contract keeps `enable_normalization=False` and `normalization_variant="none"`.
 
 ### 8. What The Stage Does Internally
 
@@ -415,7 +416,7 @@ Important audit point:
 - Does not convert gyroscope units by default.
 - Optionally removes gravity.
 - Optionally applies domain calibration.
-- Optionally applies StandardScaler/Z-score normalization.
+- Optionally applies StandardScaler/Z-score normalization only when an A/B or legacy diagnostic run explicitly enables it.
 - Encodes activity labels if labeled data is present.
 - Creates windows of 200 samples.
 - Uses 50% overlap, step size 100 samples.
@@ -426,7 +427,8 @@ Current default settings to verify tomorrow:
 - `enable_unit_conversion=True`
 - `enable_gravity_removal=False`
 - `enable_calibration=False`
-- `enable_normalization=True`
+- `enable_normalization=False`
+- `normalization_variant="none"`
 - `window_size=200`
 - `overlap=0.5`
 - `sensors=["Ax", "Ay", "Az", "Gx", "Gy", "Gz"]`
@@ -439,10 +441,10 @@ Current default settings to verify tomorrow:
 - Gravity removal is enabled but model was trained with gravity included.
 - Gravity removal is disabled but model was trained with gravity removed.
 - Calibration shifts production data away from the training distribution.
-- Wrong scaler is loaded.
-- Scaler was fit on all users instead of train-only users.
-- Normalization is applied twice.
-- Normalization is skipped when model expects scaled input.
+- A scaler is loaded during final production inference even though the defended runtime contract is raw physical units.
+- A legacy normalized baseline is compared against raw physical production windows.
+- Normalization is applied accidentally or twice during an A/B run.
+- Normalization is skipped during an explicit A/B run that was intended to test scaled input.
 - Channel order changes.
 - Window size is not 200.
 - Overlap is not 50%.
@@ -457,7 +459,7 @@ Current default settings to verify tomorrow:
 
 - Model predicts mostly `hand_tapping`.
 - Mean confidence is high but accuracy is low.
-- `production_X.npy` channel means/stds look raw when expected scaled.
+- `production_X.npy` channel means/stds look scaled even though final production inference should be raw physical.
 - `production_X.npy` channel means/stds look scaled twice.
 - One or more channels are all zero or constant.
 - NaN or inf exists in prepared windows.
@@ -472,10 +474,9 @@ Current default settings to verify tomorrow:
 - Check `enable_gravity_removal`.
 - Check `enable_calibration`.
 - Check `enable_normalization`.
-- Open `data/prepared/scaler_train_only.json`.
-- Confirm scaler has six means and six scales.
-- Confirm scaler sensor order matches `Ax, Ay, Az, Gx, Gy, Gz`.
-- Confirm scaler was fit on intended training users only.
+- Confirm `enable_normalization` is false for final production runs.
+- Open `data/prepared/scaler_train_only.json` only when auditing training or an explicit A/B run.
+- Confirm any A/B scaler has six means/scales, sensor order `Ax, Ay, Az, Gx, Gy, Gz`, and train-only provenance.
 - Load `production_X.npy` and print shape.
 - Load `production_y.npy`, if present, and print shape.
 - Flatten X to `(N * 200, 6)` and calculate min/max/mean/std per channel.
@@ -488,9 +489,9 @@ Current default settings to verify tomorrow:
 
 ### 12. Questions To Ask While Reading The Code
 
-- Which scaler file is actually loaded?
-- Does code use `scaler_train_only.json` or old `config.json`?
-- Does the model expect raw, unit-converted, or z-score scaled input?
+- Is any scaler file loaded during this final production run?
+- Does code accidentally apply `scaler_train_only.json` in a final production run?
+- Does the active run match the final raw physical contract or an explicitly marked A/B diagnostic?
 - Does the code know whether acceleration is `milliG` or `m/s^2`?
 - Does unit detection only touch accelerometer columns?
 - Is gyroscope left in `deg/s`?
@@ -505,7 +506,7 @@ Current default settings to verify tomorrow:
 ### 13. Evidence To Save Before Moving On
 
 - Transformation config values.
-- Scaler path and scaler statistics.
+- Normalization state; scaler path/statistics only for explicit A/B runs.
 - `production_X.npy` shape.
 - `production_y.npy` shape, if present.
 - Per-channel stats after transformation.
@@ -548,7 +549,7 @@ Stage 3 first checks:
 - Open `src/preprocess_data.py`.
 - Confirm `UnitDetector` touches only accelerometer columns.
 - Confirm `UnifiedPreprocessor.detect_data_format()` accepts standard production columns `Ax, Ay, Az, Gx, Gy, Gz`.
-- Confirm `UnifiedPreprocessor.normalize_data()` loads `data/prepared/scaler_train_only.json`.
+- Confirm `UnifiedPreprocessor.normalize_data()` is not called for final production inference.
 - Confirm `UnifiedPreprocessor.create_windows()` uses `window_size=200` and `step_size=100`.
 
 Do not begin Stage 4 until these are saved:
@@ -620,7 +621,7 @@ The model input must match the training input space exactly:
 - same unit conversion
 - same gravity setting
 - same calibration setting
-- same scaler
+- same normalization state
 - same channel order
 
 ### 8. What The Stage Does Internally
@@ -637,9 +638,8 @@ The model input must match the training input space exactly:
 ### 9. What Can Go Wrong
 
 - Wrong model file is loaded.
-- Model expects a different scaler.
-- Model expects raw input but receives scaled input.
-- Model expects scaled input but receives raw input.
+- Model expects raw physical input but receives scaled input.
+- An explicit A/B run is mistaken for final production evidence.
 - Model output class order differs from local mapping.
 - Probability columns are mislabeled.
 - Batch inference receives wrong shape.
@@ -880,7 +880,8 @@ Detect unhealthy model behavior after inference using confidence, temporal, and 
 - `src/entity/artifact_entity.py`
 - `config/pipeline_config.yaml`
 - `config/pipeline_overrides.yaml`, if used
-- `models/normalized_baseline.json`
+- `models/raw_physical_baseline.json`
+- `models/normalized_baseline.json`, only for legacy/A-B diagnostics
 - `models/drift_reference.json`
 
 ### 4. Input Files
@@ -1101,8 +1102,8 @@ Check these one by one:
 - Same gyroscope unit?
 - Same gravity-removal setting?
 - Same calibration setting?
-- Same scaler file?
-- Same scaler fitting users?
+- Same normalization state?
+- If an A/B scaler is used, same scaler file and fitting users?
 - Same window size?
 - Same overlap?
 - Same class mapping?
@@ -1260,8 +1261,8 @@ Check:
 - gyroscope unit handling
 - gravity removal
 - calibration
-- scaler path
-- scaler sensor order
+- normalization state
+- scaler path and sensor order only for explicit A/B runs
 - normalization on/off
 - window size 200
 - 50% overlap
@@ -1273,7 +1274,7 @@ Save:
 - `production_X.npy` shape
 - `production_y.npy` shape
 - per-channel stats after transformation
-- scaler file content summary
+- scaler file content summary only for explicit A/B runs
 - first few metadata entries
 
 ### 8. Inspect Stage 4

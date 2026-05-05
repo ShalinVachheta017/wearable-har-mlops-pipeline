@@ -1,0 +1,28 @@
+{
+  "last_retrain_timestamp": null,
+  "warning_count": 4,
+  "consecutive_warnings": 4,
+  "batches_since_retrain": 4,
+  "alert_history": [
+    {
+      "timestamp": "2026-05-05T12:40:24.667890",
+      "level": "WARNING",
+      "action": "queue_retrain"
+    },
+    {
+      "timestamp": "2026-05-05T12:40:24.668209",
+      "level": "WARNING",
+      "action": "queue_retrain"
+    },
+    {
+      "timestamp": "2026-05-05T12:40:24.668522",
+      "level": "WARNING",
+      "action": "review"
+    },
+    {
+      "timestamp": "2026-05-05T12:40:24.668927",
+      "level": "WARNING",
+      "action": "review"
+    }
+  ]
+}

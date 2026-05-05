@@ -27,6 +27,14 @@ Generated output:
 
 - main.pdf
 
+Chapter-process synchronization index:
+
+- CHAPTER_PROCESS_INDEX.md
+
+VS Code shortcuts quick guide:
+
+- LATEX_VSCODE_SHORTCUTS.md
+
 ## 2. Daily Writing Workflow
 
 1. Open main.tex so you keep the full document structure visible.
@@ -166,3 +174,23 @@ pdflatex main.tex
 bibtex main
 pdflatex main.tex
 pdflatex main.tex
+
+## 12. Latest Update (2026-04-19)
+
+Today's thesis writing wave produced two evidence documents at repository root:
+
+- THESIS_WRITING_AUDIT.md
+- THESIS_WRITING_POST_FIX_REPORT.md
+
+Current snapshot from latest local checks:
+
+- references.bib entries: 47
+- main.pdf pages (latest main.log): 107
+- updated chapter files in this wave: ch1, ch3, ch4, ch5, ch6, ch7, ch8
+
+Dashboard sync:
+
+- handbook dashboard source updated in `thesis/handbook-dashboard/src/App.jsx`
+- dashboard handbook guide updated in `thesis/handbook-dashboard/README.md`
+
+If you continue writing in the next session, start with Chapter 2 synthesis strengthening, then rerun a full build and citation pass.

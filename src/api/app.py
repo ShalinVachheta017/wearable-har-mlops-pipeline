@@ -31,7 +31,6 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from src.utils.label_mapping import get_activity_classes
-from src.utils.scaler import CANONICAL_SCALER_PATH, assert_scaler_integrity
 from src.config import (
     DEFAULT_MODEL_PATH as _DEFAULT_MODEL_PATH,
     OVERLAP as _OVERLAP,
@@ -89,9 +88,7 @@ logger = logging.getLogger("har_api")
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = _PROJECT_ROOT
 MODEL_PATH = Path(os.environ.get("MODEL_PATH", str(_DEFAULT_MODEL_PATH)))
-BASELINE_PATH = PROJECT_ROOT / "models" / "normalized_baseline.json"
-# Canonical train-only scaler only (single source of truth).
-SCALER_CONFIG_PATH = CANONICAL_SCALER_PATH
+BASELINE_PATH = PROJECT_ROOT / "models" / "raw_physical_baseline.json"
 WINDOW_SIZE = _WINDOW_SIZE
 OVERLAP = _OVERLAP
 STEP_SIZE = int(WINDOW_SIZE * (1 - OVERLAP))
@@ -151,7 +148,7 @@ def _load_model():
 
 
 def _load_baseline():
-    """Load the normalized baseline JSON (once)."""
+    """Load the raw physical-unit baseline JSON (once)."""
     global _baseline
     if _baseline is not None or not BASELINE_PATH.exists():
         return
@@ -268,40 +265,16 @@ def _maybe_convert_accel_units(df: pd.DataFrame, sensor_cols: List[str]) -> Tupl
     return out, False
 
 
-def _apply_training_scaler(values: np.ndarray) -> Tuple[np.ndarray, Dict]:
-    """Apply the retained model's training scaler if the scaler config exists."""
+def _preserve_raw_physical_units(values: np.ndarray) -> Tuple[np.ndarray, Dict]:
+    """Return raw physical-unit values; final production inference applies no external scaler."""
     info = {
         "normalization_applied": False,
         "normalization_variant": "none",
-        "scaler_config": str(SCALER_CONFIG_PATH),
+        "scaler_config": None,
+        "model_input_space": "raw_physical_units_ms2_dps",
+        "note": "API upload path preserves raw physical units after accelerometer unit conversion.",
     }
-    if not SCALER_CONFIG_PATH.exists():
-        raise FileNotFoundError(
-            f"Canonical scaler missing: {SCALER_CONFIG_PATH}. "
-            "Run scripts/refit_scaler_train_only.py."
-        )
-    assert_scaler_integrity(SCALER_CONFIG_PATH)
-
-    with open(SCALER_CONFIG_PATH, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-
-    variant = cfg.get("normalization_variant", "zscore")
-    info["normalization_variant"] = variant
-    if variant == "none":
-        return values.astype(np.float32), info
-    if variant != "zscore":
-        info["warning"] = f"API currently supports zscore scaler only; got {variant}."
-        return values.astype(np.float32), info
-
-    mean = np.asarray(cfg.get("scaler_mean", cfg.get("mean")), dtype=np.float32)
-    scale = np.asarray(cfg.get("scaler_scale", cfg.get("scale")), dtype=np.float32)
-    if mean.shape[0] != values.shape[1] or scale.shape[0] != values.shape[1]:
-        info["warning"] = "Scaler shape does not match uploaded sensor channels; skipped normalization."
-        return values.astype(np.float32), info
-
-    safe_scale = np.where(scale == 0, 1.0, scale)
-    info["normalization_applied"] = True
-    return ((values.astype(np.float32) - mean) / safe_scale).astype(np.float32), info
+    return values.astype(np.float32), info
 
 
 def _create_windows(values: np.ndarray) -> np.ndarray:
@@ -502,7 +475,7 @@ async def upload_csv(
 
     The API will:
     1. Auto-detect or fuse sensor columns
-    2. Apply production unit conversion and retained-model z-score scaling
+    2. Apply production unit conversion and preserve raw physical model input units
     3. Create sliding windows (200 samples, 50 % overlap)
     4. Run inference (1D-CNN-BiLSTM)
     5. Run 3-layer monitoring (confidence, temporal, drift)
@@ -568,10 +541,10 @@ async def upload_csv(
             f"for one window.",
         )
 
-    # --- Unit conversion + retained-model scaling ---
+    # --- Unit conversion + raw physical-unit inference contract ---
     df, unit_conversion_applied = _maybe_convert_accel_units(df, sensor_cols)
     raw_values = df[sensor_cols].values.astype(np.float32)
-    values, scaler_info = _apply_training_scaler(raw_values)
+    values, scaler_info = _preserve_raw_physical_units(raw_values)
     preprocessing_info = {
         "unit_conversion_applied": unit_conversion_applied,
         **scaler_info,
@@ -862,7 +835,7 @@ _DASHBOARD_HTML = r"""<!DOCTYPE html>
       <span class="pipe-arrow" style="opacity:0.3">&#8594;</span>
       <div class="stage-box gated" id="s10"><span class="snum">S10</span><span class="sname">Baseline</span><span class="sdot"></span></div>
     </div>
-    <p style="font-size:0.78rem;color:var(--muted);margin-top:6px;">S1-S3 run via full pipeline CLI &middot; this API call executes S4-S7 (so 4/4 requested stages is correct) &middot; S8-S10 are trigger-gated (use run_pipeline.py --retrain) &middot; S11 is optional via run_pipeline.py --advanced</p>
+    <p style="font-size:0.78rem;color:var(--muted);margin-top:6px;">S1-S3 run via full pipeline CLI &middot; this API call executes S4-S7 (so 4/4 requested stages is correct) &middot; S8-S10 require review, labels, and QA outside this request &middot; S11 is optional via run_pipeline.py --advanced</p>
   </div>
 
   <!-- Upload Card -->
@@ -1064,15 +1037,9 @@ function updateStages(d) {
   // S7 Trigger — infer from monitoring outcome
   const needsAction = m.overall_status !== 'HEALTHY';
   setStage('s7', needsAction ? 'warn' : 'pass');
-  // S8-S10 light up if trigger fired
-  if (needsAction) {
-    document.getElementById('arrowRetrain').style.opacity = '1';
-    ['s8','s9','s10'].forEach(id => {
-      const el = document.getElementById(id);
-      el.classList.remove('gated');
-      el.classList.add('warn');
-    });
-  }
+  // S8-S10 stay gated in the API. Review, labels, and QA are required outside this request.
+  document.getElementById('arrowRetrain').style.opacity = '0.3';
+  ['s8','s9','s10'].forEach(id => setStage(id, 'gated'));
 }
 
 function setStage(id, cls) {
@@ -1099,7 +1066,7 @@ function renderResults(d) {
     { label: 'Windows', value: d.windows_created },
     { label: 'Time', value: d.processing_time_ms.toFixed(0) + ' ms' },
     { label: 'Labels', value: d.has_labels ? d.label_column : 'none' },
-    { label: 'Scaler', value: d.preprocessing.normalization_applied ? d.preprocessing.normalization_variant : 'skipped' },
+    { label: 'Input', value: d.preprocessing.model_input_space || 'raw physical' },
     { label: 'Monitoring', value: d.monitoring.overall_status, color: d.monitoring.overall_status === 'HEALTHY' ? 'var(--green)' : d.monitoring.overall_status === 'CRITICAL' ? 'var(--red)' : 'var(--yellow)' },
   ];
   document.getElementById('summaryChips').innerHTML = chips.map(c =>
@@ -1118,7 +1085,7 @@ function renderResults(d) {
       detail: m.layer2_temporal.transitions + ' transitions' },
     { name: 'Drift', status: m.layer3_drift.status,
       value: m.layer3_drift.status === 'SKIPPED' ? 'N/A' : m.layer3_drift.max_drift.toFixed(4),
-      detail: m.layer3_drift.status === 'SKIPPED' ? 'No baseline' : 'max normalized drift' },
+      detail: m.layer3_drift.status === 'SKIPPED' ? 'No baseline' : 'max drift z-score' },
   ];
   document.getElementById('monitorLayers').innerHTML = layers.map(l => {
     const color = l.status === 'HEALTHY' ? 'var(--green)' : l.status === 'WARNING' ? 'var(--yellow)' : l.status === 'CRITICAL' ? 'var(--red)' : 'var(--muted)';

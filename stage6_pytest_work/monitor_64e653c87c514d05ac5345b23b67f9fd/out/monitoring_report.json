@@ -1,0 +1,56 @@
+{
+  "overall_status": "HEALTHY",
+  "layer1_confidence": {
+    "mean_confidence": 0.8499999999999998,
+    "std_confidence": 1.4662276897202246e-14,
+    "min_confidence": 0.85,
+    "max_confidence": 0.85,
+    "confidence_warn_threshold": 0.7,
+    "uncertain_pct_threshold": 20.0,
+    "uncertain_count": 0,
+    "uncertain_percentage": 0.0,
+    "entropy_source": "approximated_from_max_confidence",
+    "mean_entropy": 0.768096850755098,
+    "dominant_class": "ear_rubbing",
+    "dominant_pct": 70.0,
+    "dominant_class_warn_threshold": 85.0,
+    "dominant_class_critical_threshold": 95.0,
+    "dominance_warning": false,
+    "dominance_critical": false,
+    "status": "HEALTHY"
+  },
+  "layer2_temporal": {
+    "total_windows": 1000,
+    "transitions": 300,
+    "transition_rate": 30.03003003003003,
+    "transition_rate_threshold": 35.0,
+    "longest_sequences": {
+      "ear_rubbing": 700,
+      "forehead_rubbing": 1,
+      "hair_pulling": 1,
+      "hand_scratching": 1,
+      "hand_tapping": 1,
+      "knuckles_cracking": 1,
+      "nail_biting": 1,
+      "nape_rubbing": 1,
+      "sitting": 1,
+      "standing": 1,
+      "smoking": 1
+    },
+    "mean_dwell_time_seconds": 8.644518272425248,
+    "window_duration_seconds": 4.0,
+    "prediction_stride_seconds": 2.0,
+    "short_dwell_ratio": 0.9966777408637874,
+    "status": "HEALTHY"
+  },
+  "layer3_drift": {
+    "status": "SKIPPED",
+    "reason": "No baseline available"
+  },
+  "alerts": [],
+  "metadata": {
+    "total_predictions": 1000,
+    "predictions_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\stage6_pytest_work\\monitor_64e653c87c514d05ac5345b23b67f9fd\\predictions.csv",
+    "baseline_path": null
+  }
+}

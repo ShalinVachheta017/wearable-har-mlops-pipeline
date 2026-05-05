@@ -12,6 +12,7 @@ import pytest
 from pathlib import Path
 import tempfile
 import shutil
+import uuid
 
 
 # ============================================================================
@@ -268,9 +269,11 @@ def mock_model_config():
 # ============================================================================
 
 @pytest.fixture
-def temp_state_file(tmp_path):
+def temp_state_file():
     """Create a temporary state file for trigger policy."""
-    return tmp_path / "trigger_state.json"
+    state_dir = Path(__file__).parent.parent / "stage7_pytest_work" / uuid.uuid4().hex
+    state_dir.mkdir(parents=True, exist_ok=True)
+    return state_dir / "trigger_state.json"
 
 
 @pytest.fixture

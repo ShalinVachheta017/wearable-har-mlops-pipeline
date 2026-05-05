@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel>=0.41"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "har-mlops-pipeline"
@@ -68,9 +68,6 @@ dev = [
     "mypy>=1.8",
     "jupyterlab>=4.1",
     "python-dotenv>=1.0",
-]
-monitoring = [
-    "prometheus-client>=0.20",
 ]
 gpu = [
     "tensorflow[and-cuda]>=2.14",

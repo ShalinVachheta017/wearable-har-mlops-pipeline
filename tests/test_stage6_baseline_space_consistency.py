@@ -8,12 +8,20 @@ Covers:
 
 import json
 from pathlib import Path
+import uuid
 
 import numpy as np
 import pandas as pd
 
-from scripts.build_training_baseline import BaselineBuilder
-from scripts.post_inference_monitoring import PostInferenceMonitor
+from src.monitoring.baseline_builder import BaselineBuilder
+from src.monitoring.post_inference_monitor import PostInferenceMonitor
+
+
+def _test_tmp_path(prefix: str) -> Path:
+    parent = Path.cwd() / "stage6_pytest_work"
+    path = parent / f"{prefix}_{uuid.uuid4().hex}"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _write_training_csv(csv_path: Path) -> None:
@@ -33,7 +41,8 @@ def _write_training_csv(csv_path: Path) -> None:
     df.to_csv(csv_path, index=False)
 
 
-def test_normalized_baseline_saved_in_transformed_space(tmp_path):
+def test_normalized_baseline_saved_in_transformed_space():
+    tmp_path = _test_tmp_path("baseline_normalized")
     csv_path = tmp_path / "train.csv"
     cfg_path = tmp_path / "config.json"
     norm_path = tmp_path / "normalized_baseline.json"
@@ -45,6 +54,7 @@ def test_normalized_baseline_saved_in_transformed_space(tmp_path):
         "normalization_variant": "zscore",
         "scaler_mean": [10.0, -5.0, 3.0, 100.0, -50.0, 25.0],
         "scaler_scale": [2.0, 1.5, 0.8, 20.0, 10.0, 5.0],
+        "fit_users": [1, 2, 3, 4],
     }
     cfg_path.write_text(json.dumps(config), encoding="utf-8")
 
@@ -64,7 +74,8 @@ def test_normalized_baseline_saved_in_transformed_space(tmp_path):
     np.testing.assert_allclose(transformed_std, expected_std, rtol=1e-5, atol=1e-5)
 
 
-def test_monitor_rejects_baseline_without_transformed_feature_space(tmp_path):
+def test_monitor_rejects_baseline_without_transformed_feature_space():
+    tmp_path = _test_tmp_path("baseline_reject")
     production = np.random.RandomState(11).normal(0, 1, (8, 200, 6)).astype(np.float32)
     production_path = tmp_path / "production_X.npy"
     np.save(production_path, production)
@@ -84,7 +95,8 @@ def test_monitor_rejects_baseline_without_transformed_feature_space(tmp_path):
     assert "feature-space mismatch" in result["error"].lower()
 
 
-def test_monitor_accepts_transformed_space_baseline(tmp_path):
+def test_monitor_accepts_transformed_space_baseline():
+    tmp_path = _test_tmp_path("baseline_accept")
     production = np.random.RandomState(13).normal(0, 1, (10, 200, 6)).astype(np.float32)
     production_path = tmp_path / "production_X.npy"
     np.save(production_path, production)
@@ -100,5 +112,5 @@ def test_monitor_accepts_transformed_space_baseline(tmp_path):
     monitor = PostInferenceMonitor(drift_threshold=2.0)
     result = monitor._analyze_drift(production_path, baseline_path)
 
-    assert result["status"] == "PASS"
+    assert result["status"] == "HEALTHY"
     assert result["max_drift"] < 1e-4

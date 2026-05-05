@@ -25,12 +25,11 @@ class TestProductionPipelineInit:
         assert pipeline.retraining_config is not None
 
     def test_all_stages_list(self):
-        # Stages 1-10 + 11-14 (calibration, wasserstein_drift,
-        # curriculum_pseudo_labeling, sensor_placement)
-        assert len(ALL_STAGES) == 14
+        # Stages 1-10 + stage 11 (calibration)
+        assert len(ALL_STAGES) == 11
         assert ALL_STAGES[0] == "ingestion"
-        assert ALL_STAGES[9] == "baseline_update"   # still at index 9
-        assert ALL_STAGES[-1] == "sensor_placement"  # final advanced stage
+        assert ALL_STAGES[9] == "baseline_update"
+        assert ALL_STAGES[-1] == "calibration"
 
 
 class TestPipelineStageSelection:

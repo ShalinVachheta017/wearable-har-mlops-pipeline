@@ -1,13 +1,390 @@
 \chapter{Experiments and System Evaluation}
+\label{chap:experiments}
 
-This chapter reports model, monitoring, trigger, and runtime evaluation results.
+This chapter evaluates the thesis claims as bounded empirical questions rather than as a single benchmark exercise. The experiments serve different roles: some establish a labeled reference point, some test how monitoring signals behave under degraded conditions, some probe sensitivity to production-style preprocessing choices, and some evaluate whether governance decisions improve operational behavior. This distinction matters because a strong offline metric alone does not answer RQ1--RQ4, especially in wearable settings where transfer across activities, users, or collection conditions is known to be fragile \cite{dhekane2024transfer,sahu2025anxiety}.
 
-\section{Negative Result: Unit-Fix + Abstain Experiment (26 Sessions)}
+A second design choice is that claims are intentionally limited to what the stored artifacts can support. The chapter therefore distinguishes between evidence that supports a thesis claim, evidence that only suggests a trend, and negative results that show why certain interventions should not be interpreted as quality improvements. Reproducibility follows the artifact structure described in Chapter~\ref{chap:implementation}: the results below are backed by versioned run outputs, evaluation JSON files, and thesis summary tables rather than by ad hoc inspection alone \cite{amershi2019mlops,kreuzberger2023mlops}.
 
-We executed a controlled before/after comparison across 26 production sessions with three temporary changes enabled together: g-unit detection/conversion, stream-reuse guard, and low-motion/OOD abstain-review mode. The result was negative with respect to predictive improvement.
+\section{Evaluation Philosophy and Evidence Map}
 
-Mean confidence stayed unchanged between baseline and modified runs, while dominant-class percentage decreased mainly because many windows were re-routed to \texttt{REVIEW}. Therefore, the apparent reduction in class collapse did not reflect improved class discrimination.
+An MLOps-oriented thesis needs multiple experiment types because different risks appear at different lifecycle stages. Labeled reference evaluation is needed to show that the retained model is competent on known data. Production-style ablations are needed to expose train--serve sensitivity. Governance experiments are needed because monitoring and retraining quality cannot be inferred from classifier accuracy alone. Table~\ref{tab:chapter7_map} summarizes how the chapter is organized.
 
-Operationally, trigger outcomes became substantially stricter in the modified setting (many sessions shifting from \texttt{none} to \texttt{queue\_retrain}/\texttt{trigger}), and one session failed in both variants due to empty accelerometer input. This experiment is retained as a documented ablation and negative finding.
+\begin{table}[htbp]
+\centering
+\caption{Evidence map for Chapter~\ref{chap:experiments}.}
+\label{tab:chapter7_map}
+{\setlength{\tabcolsep}{3pt}
+\scriptsize
+\begin{tabular}{p{2.0cm}p{2.6cm}p{2.4cm}p{1.8cm}p{1.5cm}p{2.2cm}}
+\hline
+Experiment & Question answered & Data / setup & Main metric & Supports & Main limitation \\
+\hline
+Labeled baseline reference & Does the retained model perform strongly on a matched labeled reference set? & Retrained model on 3{,}852 labeled windows & Accuracy, macro F1 & RQ1--RQ3 context & Matched labeled data, not deployment proof \\
+Uncertainty under realism change & Do confidence and uncertainty signals move when input realism degrades? & Same model and evaluation path on actual labeled, Synth Codex, and Synth Other sets & Mean confidence, uncertain rate, transition rate & RQ1 & Not a full calibration study; synthetic shift is only one stress type \\
+Preprocessing ablation & How strongly do gravity removal and calibration change production-style behavior? & 25 session pairs replayed under configurations A/B/C/D & Dominant-class share, class diversity & RQ2 & Unlabeled production-style proxy evaluation \\
+Trigger-policy comparison & Which retraining-trigger rule gives the strongest governance trade-off? & Replay evaluation over 16 episodes with voting and cooldown variants & Precision, FAR, episode recall & RQ3 & Thresholds are only tested on one replay set \\
+Calibrated MMD branch audit & Does a stronger drift signal improve governance decisions? & Same retained model and input datasets, current monitor versus MMD branch and staged policies & Drift warnings, risk alerts, queue/retrain recall & RQ1, RQ3 & Four replay datasets; branch evidence, not defended runtime \\
+Same-input old vs.\ new model & Is collapse on a fixed session driven mainly by the data or by model choice? & Same unlabeled raw pair, old model, new model, old-model control rerun & Top-class share, uncertainty, class coverage & RQ4 & No labels, so no accuracy ranking \\
+Unit-fix plus abstain intervention & Does the intervention bundle improve behavior or only alter routing? & 26-session before/after comparison; 25 successful paired runs & Mean confidence, dominant share, review share & RQ1, RQ3 & Compound intervention on unlabeled sessions \\
+\hline
+\end{tabular}
+}
+\end{table}
 
-Primary evidence files are stored at \texttt{thesis/tables/before\_vs\_after\_26datasets.csv} and \texttt{thesis/chapters/before\_vs\_after\_26datasets.md}.
+The remaining sections follow this evidence map. Each experiment is presented with purpose, setup, method, metrics, results, interpretation, and limitation so that the claimed contribution can be traced back to a concrete and bounded empirical question.
+
+\section{Baseline Reference on Labeled Data}
+
+\textbf{Purpose.} This experiment establishes the labeled reference point for the retained deployment model. The question is not whether the thesis achieves a novel benchmark, but whether later production-style failure modes should be interpreted relative to a competent baseline.
+
+\textbf{Data and setup.} The retained model is the retrained 1D-CNN + BiLSTM artifact \texttt{har\_model\_20260327\_223917.keras}. Its stored training report recorded 92.2\% final accuracy and 92.2\% macro F1 under the configured offline training procedure. For the thesis-facing reference evaluation, the same model was then run end-to-end through the pipeline evaluation stage on a labeled set containing 3{,}852 windows across all eleven classes.
+
+\textbf{Method.} The pipeline was executed without changing the retained model or evaluation logic. Predictions were generated for the labeled reference set, and the resulting JSON artifact was used to compute standard classification metrics together with confidence and temporal summary statistics.
+
+\textbf{Metrics.} Accuracy and macro F1 quantify recognition quality on the labeled reference set. Mean confidence and uncertain-rate quantify how decisive the model is under matched conditions. Dominant-class share and transition rate provide a simple check against pathological collapse or temporal instability.
+
+\textbf{Results.} The labeled end-to-end reference evaluation reached 98.9\% accuracy and 98.9\% macro F1. Mean confidence was 98.6\%, the uncertain rate was 0.18\%, the dominant predicted class occupied only 10.0\% of windows, and the transition rate was 0.032 (Table~\ref{tab:labeled_baseline_reference}).
+
+\begin{table}[htbp]
+\centering
+\caption{Labeled reference performance of the retained deployment model.}
+\label{tab:labeled_baseline_reference}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
+\hline
+Windows & Accuracy (\%) & Macro F1 (\%) & Mean confidence (\%) & Uncertain rate (\%) & Dominant share (\%) & Transition rate \\
+\hline
+3{,}852 & 98.9 & 98.9 & 98.6 & 0.18 & 10.0 & 0.032 \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\textbf{Interpretation.} This reference point shows that the retained model is strong when train and serve conditions remain aligned. The nearly flat class distribution also indicates that the model can represent all eleven classes without immediate collapse on matched labeled data. This matters for the rest of the chapter because later anomalies should be interpreted as operational sensitivity under changed conditions, not as evidence that the retained model is universally weak.
+
+\textbf{Limitation.} This evaluation is window-level and distribution-matched. It supports internal competence on a labeled reference set, but it does not establish subject-independent deployment performance, clinical validity, or robustness across unseen collection conditions.
+
+\section{Uncertainty Under Dataset Realism Change}
+
+\textbf{Purpose.} This experiment asks whether the monitoring-oriented signals used in the pipeline move in a meaningful direction when input realism degrades. The question is operational: can confidence and uncertainty summaries provide useful evidence when labels are absent or only partially available?
+
+\textbf{Data and setup.} The same retained model and the same evaluation path were applied to three datasets: an actual labeled reference set, Synth Codex, and Synth Other. Each dataset contains 3{,}852 windows, which keeps the comparison controlled at the evaluation level.
+
+\textbf{Method.} No model retraining or threshold retuning was performed between runs. For each dataset, the pipeline produced a classification report together with confidence, uncertainty, and temporal summaries. The comparison therefore isolates dataset realism as the main manipulated factor.
+
+\textbf{Metrics.} Accuracy and macro F1 remain useful where labels exist, but the central monitoring metrics here are mean confidence, uncertain rate, and transition rate. These matter because they remain observable even when production labels are unavailable. A full calibration study would additionally require dedicated metrics such as ECE; that is not the aim of this comparison.
+
+\textbf{Results.} The actual labeled set produced 98.9\% accuracy, 98.9\% macro F1, 98.6\% mean confidence, 0.18\% uncertain windows, and a transition rate of 0.032. Under the same evaluation path, Synth Codex dropped to 70.4\% accuracy and 71.1\% macro F1, with 86.8\% mean confidence, 6.5\% uncertain windows, and a transition rate of 0.285. Synth Other behaved similarly, with 69.7\% accuracy, 70.5\% macro F1, 86.7\% mean confidence, 5.9\% uncertain windows, and a transition rate of 0.287. Figure~\ref{fig:actual_vs_synthetic} and Table~\ref{tab:actual_vs_synth} summarize the comparison.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.93\textwidth]{fig_09_actual_vs_synthetic.png}
+\caption{Comparison of actual labeled data with two synthetic datasets across performance, confidence, uncertainty, and temporal instability. Lower realism is associated with weaker recognition behavior and a less stable confidence profile.}
+\label{fig:actual_vs_synthetic}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Behavior of the retained model under actual and synthetic inputs using the same evaluation path.}
+\label{tab:actual_vs_synth}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccc}
+\hline
+Dataset & Accuracy (\%) & Macro F1 (\%) & Mean confidence (\%) & Uncertain rate (\%) & Transition rate \\
+\hline
+Actual labeled & 98.9 & 98.9 & 98.6 & 0.18 & 0.032 \\
+Synth Codex & 70.4 & 71.1 & 86.8 & 6.5 & 0.285 \\
+Synth Other & 69.7 & 70.5 & 86.7 & 5.9 & 0.287 \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\textbf{Interpretation.} The comparison supports the narrower claim that confidence-based and uncertainty-based monitoring signals respond directionally to realism degradation. Relative to the actual labeled reference, both synthetic datasets show a drop of roughly 12 percentage points in mean confidence, a rise from almost no uncertain windows to about 6\%, and nearly an order-of-magnitude increase in temporal switching. This matters for RQ1 because it indicates that the pipeline can surface problematic behavior even when a production session is unlabeled. It should not be interpreted as proof that synthetic data is uniformly poor; rather, it shows that the monitoring layer is sensitive to the realism of what it receives \cite{gal2016dropout,guo2017calibration}.
+
+\textbf{Limitation.} This is not a full calibration study, and it does not establish universal out-of-distribution detection. The comparison only shows directional movement of confidence, uncertainty, and temporal instability under the tested synthetic conditions.
+
+\section{Preprocessing Sensitivity Under Replay}
+
+\textbf{Purpose.} This experiment asks how strongly production-style inference behavior depends on preprocessing consistency. The targeted question for RQ2 is whether seemingly reasonable preprocessing changes improve behavior automatically, or whether they can instead worsen collapse.
+
+\textbf{Data and setup.} The ablation was run on 25 production-style session pairs under four preprocessing configurations: A = baseline, B = calibration only, C = gravity removal only, and D = gravity removal plus calibration. The same retained model and the same downstream evaluation path were used for every run, yielding 100 total evaluations.
+
+\textbf{Method.} Only the preprocessing configuration was changed. Each session pair was replayed under configurations A--D, and the resulting prediction distributions were aggregated across sessions. This isolates the effect of gravity removal and calibration choices from model choice and from downstream monitoring logic.
+
+\textbf{Metrics.} Mean unique classes predicted measures behavioral diversity and acts as a coarse proxy against single-class collapse. Mean hand-tapping share measures how strongly the output distribution is dominated by the class that was historically problematic in production-style runs.
+
+\textbf{Results.} The four configurations separate clearly. On mean unique classes, the configurations score A = 7.08, B = 7.88, C = 5.32, and D = 9.72. On mean hand-tapping share, they score A = 78.37\%, B = 73.22\%, C = 96.72\%, and D = 50.14\%. Configuration D therefore achieves the broadest class diversity, while Configuration C is the clearest warning case: gravity removal alone worsened collapse instead of improving it (Figure~\ref{fig:ablation_config_comparison}, Table~\ref{tab:ablation_summary}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{fig_07_ablation_config_comparison.png}
+\caption{Comparison of the four preprocessing configurations used in the ablation study. Configuration D achieves the strongest class diversity, while Configuration C shows that gravity removal alone worsened collapse in this setup.}
+\label{fig:ablation_config_comparison}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Preprocessing ablation summary across configurations A--D.}
+\label{tab:ablation_summary}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{0.88\textwidth}{!}{%
+\begin{tabular}{lcc}
+\hline
+Configuration & Mean unique classes & Mean hand-tapping share (\%) \\
+\hline
+A (baseline) & 7.08 & 78.37 \\
+B (calibration only) & 7.88 & 73.22 \\
+C (gravity removal only) & 5.32 & 96.72 \\
+D (gravity + calibration) & 9.72 & 50.14 \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\textbf{Interpretation.} The ablation supports the claim that preprocessing consistency is not a cosmetic detail in this pipeline. An apparently plausible signal-cleaning step, gravity removal, became actively harmful when applied without the compensating configuration that kept the evaluation path behaviorally stable. This matters for the thesis because train--serve parity is one of the main operational risks in wearable HAR systems, and the result shows that the risk is empirically visible rather than merely theoretical \cite{dhekane2024transfer,wang2024enhancing}.
+
+\textbf{Limitation.} The evidence is based on unlabeled production-style sessions and distributional output summaries rather than on ground-truth activity labels. It therefore supports sensitivity of pipeline behavior, not a universal claim that gravity removal is generally harmful in wearable HAR.
+
+\section{Governance and Model-Mutation Evidence}
+
+Once the baseline and monitoring context are established, the remaining experiments evaluate governance choices more directly: how alerts should be aggregated, how much collapse can be attributed to model choice, and whether a plausible intervention bundle improved model quality or merely changed routing behavior.
+
+\subsection{Trigger-Policy Evaluation}
+
+\textbf{Purpose.} This experiment asks which retraining-trigger policy provides the most defensible governance trade-off. The question is central to RQ3 because the thesis claims that controlled retraining should be gated by explicit policy rather than by the first alert signal that fires.
+
+\textbf{Data and setup.} The policy comparison uses a stored replay evaluation over 16 episodes. The evaluated variants are \texttt{single\_signal}, \texttt{two\_of\_three}, and three cooldown variants layered on top of the two-of-three voting rule.
+
+\textbf{Method.} The monitored evidence stream was held fixed while the trigger aggregation policy was varied. The artifact reports precision, episode recall, trade-off F1, and false alarm rate for each rule, which makes the comparison about governance logic rather than about classifier retraining.
+
+\textbf{Metrics.} Precision measures how often alerts correspond to true episodes. Episode recall measures how many of the 16 episodes are still detected. Trade-off F1 summarizes the balance between responsiveness and reliability, while false alarm rate captures the operational cost of noisy triggering.
+
+\textbf{Results.} The \texttt{two\_of\_three} policy provides the strongest overall balance among the tested rules. It records precision 0.9878, episode recall 1.0, trade-off F1 0.9939, and false alarm rate 0.0069. By contrast, \texttt{single\_signal} is materially noisier, with precision 0.8406, trade-off F1 0.9134, and false alarm rate 0.1389. Cooldown variants reduce trigger volume further, but the 24-hour cooldown also misses two of the 16 episodes and drops recall to 0.875 (Table~\ref{tab:trigger_policy}, Figure~\ref{fig:trigger_policy_comparison}).
+
+\begin{table}[htbp]
+\centering
+\caption{Trigger-policy comparison on the replay evaluation set. Higher precision and trade-off F1, and lower false alarm rate, are better.}
+\label{tab:trigger_policy}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
+\hline
+Policy & Precision & Episode recall & Trade-off F1 & False alarm rate \\
+\hline
+single\_signal & 0.8406 & 1.0 & 0.9134 & 0.1389 \\
+two\_of\_three & 0.9878 & 1.0 & 0.9939 & 0.0069 \\
+two\_of\_three + cooldown 6h & 0.9524 & 1.0 & 0.9756 & 0.0069 \\
+two\_of\_three + cooldown 12h & 0.9167 & 1.0 & 0.9565 & 0.0069 \\
+two\_of\_three + cooldown 24h & 1.0000 & 0.875 & 0.9333 & 0.0000 \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{fig_08_trigger_policy_comparison.png}
+\caption{Trigger-policy comparison across precision, trade-off F1, false alarm rate, and episode recall. The \texttt{two\_of\_three} policy provides the strongest balance among the tested alternatives.}
+\label{fig:trigger_policy_comparison}
+\end{figure}
+
+\textbf{Interpretation.} This experiment supports the thesis claim that governance quality depends on how multiple monitoring signals are aggregated, not only on whether those signals exist. In the tested replay, a two-of-three voting rule preserves full episode recall while sharply reducing false alarms relative to single-signal triggering. That makes retraining governance materially safer because fewer unnecessary mutations are proposed while the relevant episodes are still detected \cite{hewage2022mlops,khattak2023mlhops}.
+
+\textbf{Limitation.} The policy comparison is bounded to one replay dataset and one family of thresholds. It identifies the best rule among the tested variants, but it does not establish a universally optimal trigger policy for all wearable HAR deployments.
+
+\subsection{Calibrated MMD Drift-Audit and Staged Governance Test}
+\label{sec:mmd_branch_evaluation}
+
+\textbf{Purpose.} This experiment asks whether a stronger distribution-level drift signal improves governance quality, not merely drift visibility. The methodological distinction is important: the defended runtime keeps a raw physical production input contract, while MMD is evaluated as a batch-level drift-audit signal. The question is therefore not ``scaler versus MMD'', but whether calibrated MMD should replace or augment the defended runtime drift monitor in the governance path.
+
+\textbf{Data and setup.} The comparison reuses the same retained model and the same four replay datasets used in the branch-comparison artifacts: one healthy labeled reference set, two degraded labeled synthetic/replay sets, and one degraded unlabeled synthetic/replay set. No new data were invented for this experiment.
+
+\textbf{Method.} The experiment was run in three rounds. First, the current lightweight z-score mean-shift drift monitor was compared with an MMD branch while all other conditions were held fixed. Second, MMD thresholds were calibrated from healthy reference comparisons by repeatedly splitting the reference-window artifact and computing reference-vs-reference MMD over per-window summary features. Third, a staged MMD policy was evaluated with healthy, warning, and critical MMD bands. The staged policies allowed MMD to create warning-level alerts, but did not allow MMD alone to queue retraining.
+
+\textbf{Metrics.} Drift-warning count measures visibility of distribution shift. Risk alerts measure non-mutating governance surfacing. Queue/retrain count and recall measure whether the policy actually improves final mutation decisions. Precision, recall, and false alarm rate are reported where the replay labels define healthy versus problematic datasets.
+
+\textbf{Results.} The calibration used 500 reference-vs-reference comparisons with 384 windows per side. The empirical warning threshold was 0.00276403 (95th percentile), and the critical candidate threshold was 0.00322704 (99th percentile). These thresholds are dataset-specific and should not be interpreted as universal MMD values.
+
+The branch comparison showed that MMD was more sensitive than the current drift monitor on degraded replay sets. The current policy produced 0 drift warnings out of 4 datasets, 0 risk alerts, and 0 queue/retrain decisions. With MMD active in trigger evaluation, drift warnings increased to 3 of 4 datasets and risk alerts increased to 3, with risk precision 1.0 and risk recall 1.0. Queue/retrain decisions remained 0.
+
+The final staged-policy redesign confirmed the same governance boundary (Table~\ref{tab:mmd_staged_policy}). The current baseline had risk recall 0.0 and queue recall 0.0. The conservative MMD staged policy marked the three degraded datasets as MMD-critical but produced risk recall 0.0 and queue recall 0.0 because no behavior-risk signal agreed with MMD under the configured thresholds. The hybrid staged policy produced 3 risk alerts, risk recall 1.0, and false alarm rate 0.0, but queue recall still remained 0.0 because retraining was not permitted on MMD alone.
+
+\begin{table}[htbp]
+\centering
+\caption{Final staged MMD policy comparison. MMD improves non-mutating alert visibility but not queue/retrain decisions under the tested policies.}
+\label{tab:mmd_staged_policy}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
+\hline
+Policy & Drift warnings & MMD critical & Risk alerts & Risk recall & Queue/retrain & Queue recall \\
+\hline
+Current baseline & 0 & 0 & 0 & 0.0 & 0 & 0.0 \\
+MMD staged conservative & 3 & 3 & 0 & 0.0 & 0 & 0.0 \\
+MMD staged hybrid & 3 & 3 & 3 & 1.0 & 0 & 0.0 \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\textbf{Interpretation.} The result supports a mature distinction between monitoring strength and governance quality. MMD clearly improves drift visibility under the tested conditions and can support calibrated warning-level surfacing of degraded batches. However, this does not translate into improved queue/retrain decisions once the policy correctly prevents model mutation from being triggered by MMD alone. The defended runtime therefore remains the lightweight multi-signal governance path, while MMD is retained as a calibrated experimental/offline audit and future alerting direction.
+
+\textbf{Limitation.} The comparison is bounded to four replay datasets, one retained model, one reference artifact, and one per-window summary-feature representation. It does not establish universal MMD thresholds, subject-independent robustness, or production-readiness of MMD as a runtime retraining trigger.
+
+\subsection{Same-Input Old Versus New Model Comparison}
+
+\textbf{Purpose.} This experiment tests RQ4 directly by asking whether the severe collapse observed on a problematic production-style session is primarily attributable to the input data itself or to the active model.
+
+\textbf{Data and setup.} The comparison uses one unlabeled raw accelerometer/gyroscope pair containing 3{,}162 windows. Three runs are compared: the historical old-model reference, the new retained retrained model, and a controlled rerun of the old model on the same input pair.
+
+\textbf{Method.} The input session was held constant while the active model was varied. The old-model rerun acts as a control to verify that any previously observed collapse pattern was reproducible and not an artifact of a single historical log.
+
+\textbf{Metrics.} Mean confidence and uncertain rate quantify decisiveness. Top-class share measures collapse severity. The number of predicted classes measures how broadly the model uses the class space on the fixed input session.
+
+\textbf{Results.} The old-model reference produced mean confidence 0.876, uncertain rate 4.4\%, top-class share 85.6\%, and predictions spanning only 9 of the 11 classes. The new retrained model produced mean confidence 0.7897, uncertain rate 15.0\%, top-class share 29.0\%, and predictions spanning all 11 classes. The controlled old-model rerun reproduced the original collapse pattern almost exactly, with 0.8762 mean confidence, 4.40\% uncertain windows, 85.64\% top-class share, and 9 predicted classes (Table~\ref{tab:old_vs_new_model}, Figure~\ref{fig:old_vs_new_model_comparison}).
+
+\begin{table}[htbp]
+\centering
+\caption{Same-input comparison between the historical model and the retrained model on one unlabeled raw session.}
+\label{tab:old_vs_new_model}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
+\hline
+Run & Mean confidence & Uncertain rate (\%) & Top class share (\%) & Predicted classes \\
+\hline
+Old model reference & 0.8760 & 4.40 & 85.60 & 9 \\
+New retrained model & 0.7897 & 15.02 & 28.97 & 11 \\
+Old model control rerun & 0.8762 & 4.40 & 85.64 & 9 \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.93\textwidth]{fig_10_old_vs_new_model_comparison.png}
+\caption{Same-input comparison between the historical pretrained model and the retrained model. The old model is more overconfident and strongly collapsed, whereas the retrained model is less overconfident and behaviorally broader.}
+\label{fig:old_vs_new_model_comparison}
+\end{figure}
+
+\textbf{Interpretation.} This is one of the clearest results in the chapter. Because the old-model rerun reproduces the same high-confidence collapse on the same raw input pair, the input data alone is not an adequate explanation. The result supports the narrower claim that model choice was a major driver of collapse on this session. It does \emph{not} show that the retrained model is universally better on all production data, but it does show that collapse severity on a fixed session can change materially when the active model changes.
+
+\textbf{Limitation.} The session is unlabeled, so this experiment cannot rank true accuracy between the two models. It supports causal attribution of behavior change to model choice on a fixed input, not a global generalization claim.
+
+\subsection{Systematic 25-Session Comparison: Pseudo-Labeled Versus Raw Retrained Model}
+\label{sec:pseudolabel_vs_raw}
+
+\textbf{Purpose.} The single-session comparison in the previous subsection isolated model choice as a driver of collapse on one fixed input. This subsection asks whether that finding holds systematically across all 25 collected production sessions, and whether the observed difference in collapse severity can be explained by the training strategy used for each model.
+
+\textbf{Background: pseudo-label fine-tuning and its bias risk.} The historical model was produced by fine-tuning the mentor-provided 1D-CNN-BiLSTM baseline on unlabeled production sessions using a pseudo-labeling strategy: the model's own high-confidence predictions on unlabeled data were treated as ground-truth labels for a subsequent fine-tuning pass. Pseudo-labeling is a well-studied semi-supervised technique that can improve generalisation when the base model is well-calibrated and the unlabeled data is representative \cite{lee2013pseudolabel}. However, it carries a known failure mode: if the base model already exhibits a prediction bias on the target domain, pseudo-labeling reinforces that bias rather than correcting it, because the generated labels are drawn from the model's own distribution rather than from true ground truth \cite{arazo2020pseudolabel}. In the present case, the production sessions were dominated by wrist-worn hand-tapping motion, and the base model already predicted hand-tapping with high confidence on such inputs. The pseudo-label fine-tuning pass therefore exposed the model predominantly to hand-tapping-labelled windows, amplifying the existing bias into a structural collapse pattern.
+
+\textbf{Data and setup.} All 25 production sessions from the raw-backup collection were processed through stages 1--3 of the standard pipeline to obtain windowed representations. Both models were then run on the same windowed input for each session without any re-preprocessing or threshold change, yielding 50 paired inference runs.
+
+\textbf{Metrics.} The same collapse metrics used in the single-session comparison are applied here: mean confidence, dominant-class share, and number of unique predicted classes. Dominant-class share and class count provide a distributional view across sessions without requiring ground-truth labels.
+
+\textbf{Results.} The aggregate comparison is summarised in Table~\ref{tab:pseudolabel_vs_raw_summary} and Figure~\ref{fig:model_compare_dashboard}. The pseudo-labeled fine-tuned model predicted hand-tapping as the dominant class in 24 of 25 sessions, with a mean dominant-class share of 82.4\% and a mean of 7.1 unique predicted classes. The raw retrained model predicted all 11 classes in 22 of 25 sessions, with a mean dominant-class share of 37.2\% and a mean of 10.5 unique predicted classes. Mean confidence was higher for the fine-tuned model (0.866) than for the raw retrained model (0.791), reflecting the overconfidence that arises when pseudo-label fine-tuning narrows the effective prediction distribution.
+
+One exception is notable in each direction. In session \texttt{2025-07-19}, the fine-tuned model predicted ear-rubbing rather than hand-tapping as dominant (84.6\%), suggesting that this session contained unusual wrist-motion patterns that even the biased model could not assign to hand-tapping. On the raw retrained side, session \texttt{2025-08-11} showed a smoking-dominant collapse at 97.9\% with only 4 predicted classes, indicating that even a well-generalising raw model can collapse on specific session characteristics. Both of these outliers reinforce the thesis case for runtime monitoring rather than assumption-based trust in any fixed model.
+
+\begin{table}[htbp]
+\centering
+\caption{Aggregate comparison of pseudo-labeled fine-tuned model versus raw retrained model across 25 production sessions.}
+\label{tab:pseudolabel_vs_raw_summary}
+{\setlength{\tabcolsep}{5pt}
+\small
+\begin{tabular}{lcc}
+\hline
+Metric & Fine-tuned (pseudo-labeled) & Raw retrained \\
+\hline
+Mean confidence & 0.866 & 0.791 \\
+Mean dominant-class share (\%) & 82.4 & 37.2 \\
+Mean unique predicted classes & 7.1 & 10.5 \\
+Sessions with hand-tapping dominant & 24/25 & 1/25 \\
+Sessions with all 11 classes predicted & 1/25 & 22/25 \\
+Sessions with dominant share $\geq$ 95\% & 4 & 2 \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.97\textwidth]{model_compare_E_dashboard.png}
+\caption{Six-panel dashboard comparing the pseudo-labeled fine-tuned model and the raw retrained model across 25 production sessions. Top row: confidence scatter, dominant-class share sorted by fine-tuned collapse severity, class-diversity histogram. Bottom row: per-session confidence delta, dominant-activity frequency, and dominant-share heatmap. The heatmap in the bottom right shows the fine-tuned model as persistently red (collapsed) while the raw model is predominantly green (diverse).}
+\label{fig:model_compare_dashboard}
+\end{figure}
+
+\textbf{Interpretation.} This result extends the single-session finding to a systematic cross-session pattern. The pseudo-label fine-tuning process reinforced the hand-tapping dominance already present in the base model's production-facing predictions, producing a model that is more confident on average but far less diverse in its class use. The raw retrained model, trained exclusively on labeled data that covers all 11 activity classes, maintains full class diversity across almost all sessions. This provides direct empirical evidence for the thesis claim that model governance must include both the training strategy and the deployment history as auditable components of the lifecycle, not only model accuracy metrics \cite{amershi2019mlops,kreuzberger2023mlops}. It also directly motivates the collapse guard in Stage~7: a model that collapses with high confidence is not detectable through confidence thresholds alone, which is why dominant-class share was introduced as a complementary monitoring signal.
+
+\textbf{Limitation.} All sessions are unlabeled, so neither model can be ranked by true accuracy on this data. The comparison measures behavioral diversity, not correctness. A model predicting 11 classes per session is not necessarily more accurate than one predicting fewer; it is, however, operationally more defensible as a monitoring subject, because its outputs are not structurally predetermined.
+
+\subsection{Negative Result: Unit-Fix Plus Abstain Intervention}
+
+\textbf{Purpose.} This experiment tests whether an apparently sensible intervention bundle genuinely improved model behavior. The bundle combined g-unit detection and conversion, stream-reuse guarding, and low-motion/out-of-distribution abstain-to-review behavior.
+
+\textbf{Data and setup.} A before/after comparison was run on 26 production sessions. Twenty-five sessions succeeded in both variants; one failed in both due to a corrupted accelerometer file, so the paired aggregate comparison is based on 25 successful sessions.
+
+\textbf{Method.} The baseline pipeline and the modified pipeline were run on the same session set. The modified variant enabled the full intervention bundle, and the resulting thesis summary table was used to compare confidence, dominance, review routing, and run success.
+
+\textbf{Metrics.} Mean confidence is the key quality proxy. Mean dominant-class share measures collapse severity, review share measures abstain routing, and successful-run counts verify that the intervention did not degrade execution reliability.
+
+\textbf{Results.} Mean confidence was unchanged at 0.8578 before and after the intervention. Mean dominant-class share decreased from 81.17\% to 67.34\%, but mean review share after the intervention reached 66.09\%. Both variants succeeded on 25 of 26 sessions, and the number of sessions with dominant-class share at or above 95\% remained three in both variants. Figures~\ref{fig:neg_result_dominant} and \ref{fig:neg_result_review} illustrate the change in routing behavior, and Table~\ref{tab:negative_result_summary} summarizes the paired comparison.
+
+\begin{table}[htbp]
+\centering
+\caption{Summary of the 26-session unit-fix plus abstain comparison.}
+\label{tab:negative_result_summary}
+\begin{tabular}{lcc}
+\hline
+Measure & Baseline & Modified bundle \\
+\hline
+Successful runs & 25/26 & 25/26 \\
+Mean confidence & 0.8578 & 0.8578 \\
+Mean dominant share (\%) & 81.17 & 67.34 \\
+Mean review share (\%) & 0.00 & 66.09 \\
+Sessions with dominant share $\geq$ 95\% & 3 & 3 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{chart_04_26sessions_dominant_before_vs_after.png}
+\caption{Dominant-class share across 26 production sessions, before and after the unit-fix plus abstain intervention. The apparent drop in dominance is driven mainly by routing windows into \texttt{REVIEW} rather than by improved class discrimination.}
+\label{fig:neg_result_dominant}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{chart_05_26sessions_review_before_vs_after.png}
+\caption{Review-routing share across the same sessions, before and after the intervention. The increase in \texttt{REVIEW} volume, paired with unchanged mean confidence, explains the apparent drop in dominant-class share.}
+\label{fig:neg_result_review}
+\end{figure}
+
+\textbf{Interpretation.} This negative result is academically valuable because it separates safer routing behavior from genuine predictive improvement. The intervention bundle made the system route many more windows into \texttt{REVIEW}, which reduced apparent dominance, but it did not improve mean confidence at all. The result therefore supports a more disciplined governance interpretation: reduced single-class dominance should not be treated as evidence of better classification unless the supporting quality signal also improves.
+
+\textbf{Limitation.} The comparison is unlabeled and the intervention is compound, so the result cannot identify which sub-change caused each observed effect. It supports the conclusion that the bundle did not improve the chosen quality proxy, not a fine-grained causal analysis of each modification.
+
+\section{Chapter Synthesis}
+
+\textbf{Strongly supported findings.} Four conclusions are strongly supported by the experiments. First, preprocessing consistency materially affects downstream behavior: gravity removal alone worsened collapse, while the gravity-plus-calibration combination broadened class use, and the final production contract is kept raw and explicitly governed to avoid unsupported scaler changes at inference. Second, governance policy design changes the operational safety profile of the pipeline: the \texttt{two\_of\_three} trigger rule sharply reduced false alarms without sacrificing episode recall on the tested replay. Third, calibrated MMD branch experiments show that stronger drift visibility can be achieved without changing the retained model, but that this visibility should be evaluated separately from mutation decisions. Fourth, collapse on a fixed production-style session can be driven primarily by model choice rather than by the input alone, as shown by the same-input old-versus-new comparison.
+
+\textbf{Partially supported findings.} The actual-versus-synthetic comparison suggests that uncertainty and temporal-instability signals can act as useful proxy monitors when labels are absent. Under degraded realism, confidence drops, uncertain-window rates rise, and temporal switching increases. MMD strengthens this proxy-monitoring evidence by surfacing 3 of 4 degraded/reference replay comparisons as warning-level drift cases while the current drift monitor surfaces none, but the staged-policy tests show that this does not by itself justify retraining. This supports the thesis monitoring story directionally, but it does not establish universal calibration or out-of-distribution detection performance.
+
+\textbf{What this chapter does not establish.} The evaluation does not prove subject-independent deployment quality, universal robustness across unseen domains, globally optimal retraining thresholds, or universal MMD cutoffs. It also does not justify interpreting all routing changes as model-quality gains, as shown by the negative result, and it does not justify promoting MMD into the defended runtime mutation path. The supported thesis claim is narrower and more defensible: under the tested datasets and replay conditions, the pipeline is reproducible, operationally monitorable, and governable in a way that makes degradation and retraining decisions more explicit than a benchmark-only wearable HAR workflow.

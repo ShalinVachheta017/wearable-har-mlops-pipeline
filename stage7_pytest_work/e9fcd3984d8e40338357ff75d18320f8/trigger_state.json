@@ -1,0 +1,13 @@
+{
+  "last_retrain_timestamp": "2026-05-03T19:07:02.305235",
+  "warning_count": 1,
+  "consecutive_warnings": 3,
+  "batches_since_retrain": 1,
+  "alert_history": [
+    {
+      "timestamp": "2026-05-03T19:07:02.305235",
+      "level": "WARNING",
+      "action": "queue_retrain"
+    }
+  ]
+}

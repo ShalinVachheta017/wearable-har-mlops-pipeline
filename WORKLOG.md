@@ -24,6 +24,41 @@ From 2026-04-16 onward, each day should start with a compact scan block before d
 
 Detailed bug narratives, full file lists, and deep forensics stay below the quick block as evidence.
 
+## 2026-05-05 - Final Runtime Contract and Governance Freeze
+
+### Today in 5 lines
+
+- Final defended production inference contract is raw physical IMU units: accelerometer milli-g converted to m/s^2, gyroscope retained in deg/s.
+- Sampling is fixed at 50 Hz, windows are 200 samples, stride is 100 samples, model input is `(N, 200, 6)`, and output is 11 classes.
+- Normalization, external StandardScaler use, gravity removal, and calibration are disabled for final production inference.
+- Stage 6 uses the raw physical monitoring baseline and avoids fake CRITICAL drift when a raw baseline is missing or a baseline feature-space mismatch is detected.
+- Stage 7 is review-gate governance: unlabeled drift, collapse, and low confidence require review/QA/labels before any model mutation.
+
+### Governance Hardening Summary
+
+This freeze supersedes the 2026-05-04 normalization-enable plan. The final runtime contract keeps production inference in raw physical units and treats `scaler_train_only.json` as training/A-B/legacy diagnostic evidence, not as a production inference dependency. Stage 6 now separates raw physical drift monitoring from normalized legacy baselines and fails safely with review-oriented outcomes instead of creating fake drift alarms from feature-space mismatch. Stage 7 keeps `auto_retrain=false` for unlabeled production data, separates controlled single-activity dominance from uncontrolled production collapse, and routes collapse, drift, and low confidence to review, QA, and label requirements rather than immediate retraining. MLflow finalization during inference no longer registers new model versions; model registration remains a conditional Stage 9 action after review, labels, QA, and promotion evidence.
+
+### Verification State
+
+Post-governance-hardening final evidence (2026-05-05):
+
+- **pytest**: `369/369` passed (includes 3 governance-updated tests: `test_degraded_metrics_trigger`, `test_consecutive_warnings_escalate`, `test_cooldown_wins_over_consecutive_warning_escalation` — all updated to assert `auto_retrain=False` / `REVIEW` action instead of former `TRIGGER_RETRAIN`).
+- **git diff --check**: clean (CRLF advisory only, no content issues).
+- **MLflow model registration**: zero new versions created in any of today's inference runs (confirmed: no "register" / "Created version" lines in run logs).
+- **Session `2025-08-19-08-58-40`** (ear rubbing): `ear_rubbing` 53.5%, mean confidence 74.4%, drift HEALTHY (max z-score 0.676 vs raw physical baseline), `should_retrain=false`, `auto_retrain=false`.
+- **Session `2025-03-23-15-23-10`** (controlled hand tapping): `hand_tapping` 100.0%, `dominance_context=CONTROLLED_OR_LOW_MOTION_DOMINANCE`, `collapse_level_tag=EXPECTED_SINGLE_ACTIVITY_DOMINANCE`, `alert_level=WARNING`, `should_retrain=false`, `auto_retrain=false`.
+- Re-run the final freeze checklist after the documentation/API wording cleanup and before final PDF submission.
+
+### Writing Impact
+
+- Chapter 4 should describe production inference as raw physical units after unit conversion, with no external scaler in final production inference.
+- Chapter 6 should describe Stage 6 drift as raw physical baseline comparison with feature-space mismatch guards.
+- Chapter 6/7 should describe Stage 7 as review-gate governance, not automatic retraining from unlabeled production drift.
+- Stage 8-10 should be framed as conditional mutation stages only after review, labels, QA, and promotion criteria.
+- Stage 11 calibration/UQ should remain optional/future work unless a result is directly evidenced.
+
+---
+
 ## 2026-05-04 - Root Cause Confirmed: Normalization Mismatch + Live Data Recording Day
 
 ### Today in 5 lines
@@ -490,8 +525,9 @@ Subscores:
 
 **C1 — Normalization toggle contradiction (High)**
 `config/pipeline_config.yaml` sets `enable_normalization: false`.
-`SUBMISSION_READINESS_SUMMARY.md` says "Z-score normalization remains the defended
-preprocessing baseline." These contradict each other. Must pick one and update both.
+Older readiness notes treated z-score normalization as the defended preprocessing
+baseline. The 2026-05-05 freeze resolves this in favor of raw physical production
+inference with no external scaler.
 
 **C2 — Retraining never proven end-to-end (High)**
 Stages 8, 9, 10 are all implemented but `FIX_BEFORE_SUBMISSION_WEAK_LINKS.md`

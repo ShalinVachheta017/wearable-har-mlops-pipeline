@@ -1,16 +1,120 @@
-\documentclass[12pt,a4paper]{report}
+\documentclass[12pt,a4paper,twoside]{report}
 
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[
+  paper=a4paper,
+  twoside,
+  width=160mm,
+  top=25mm,
+  bottom=25mm,
+  bindingoffset=6mm
+]{geometry}
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
-
-\title{Offline MLOps Pipeline for Human Activity Recognition}
-\author{Shalin Vachheta}
-\date{\today}
+\usepackage[hidelinks,pdfpagelabels]{hyperref}
+\graphicspath{{figures/thesis_journey/}{figures/thesis_body/}}
 
 \begin{document}
 
-\maketitle
+% Front matter page numbering (Roman numerals)
+\pagenumbering{Roman}
+\setcounter{page}{1}
+
+%% ---------- TITLE PAGE ----------
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\LARGE\bfseries An Offline-First MLOps Pipeline with Governance\\[0.4em]
+for Wearable Human Activity Recognition\par}
+\vspace{1.5cm}
+{\large Master's Thesis\\[0.3em]
+submitted in partial fulfilment of the requirements for the degree of\\[0.3em]
+\textbf{Master of Science in Mechatronics}\par}
+\vspace{1.5cm}
+{\large submitted by\\[0.3em]
+\textbf{Shalin Vachheta}\\[0.2em]
+Matriculation Number: 1701359\par}
+\vspace{1.5cm}
+{\large Faculty of Engineering\\[0.2em]
+Chair of Embedded Systems\\[0.2em]
+University of Siegen\par}
+\vspace{1.5cm}
+\begin{tabular}{ll}
+  First Supervisor:  & Prof. Dr.-Ing. Roman Obermaisser \\
+  Second Examiner:   & M.Sc. Ugonna Oleh \\
+\end{tabular}
+\vspace{1.5cm}
+
+{\large Siegen, 19 April 2026\par}
+\end{titlepage}
+
+%% ---------- ABSTRACT ----------
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+This thesis develops an offline-first, auditable, and reproducible MLOps pipeline for wearable Human Activity Recognition (HAR) of anxiety-related behaviors. The central challenge addressed is that a strong offline classifier does not constitute a reliable deployed system: when a model leaves the training environment, distribution shift, preprocessing inconsistency, and the absence of ground-truth labels at inference time can cause undetected degradation. Existing wearable HAR research focuses predominantly on improving offline accuracy, while the engineering problem of sustaining trustworthy behavior over time receives less systematic attention.
+
+The thesis contribution is a governed operational framework around a 1D-CNN + BiLSTM HAR baseline trained on wrist-worn IMU data from six participants across eleven activity classes. The pipeline is structured as seven core operational stages covering ingestion, validation, preprocessing, inference, evaluation, post-inference monitoring, and trigger evaluation, plus three conditional mutation stages covering retraining, model registration, and baseline update. The mutation path is explicitly gated by governance conditions rather than triggered automatically.
+
+Four empirical findings are reported. First, preprocessing ablations show that apparently reasonable preprocessing changes can worsen model behavior, while the defended production path preserves a raw-physical-unit inference contract for the retained model. Second, trigger-policy design materially affects governance quality: a two-of-three voting policy achieves precision 0.99 and false alarm rate 0.007, against 0.84 and 0.14 for single-signal triggering. Third, synthetic-versus-actual and calibrated MMD branch experiments demonstrate that distribution-sensitive monitoring can surface degraded batches more clearly than the lightweight runtime drift monitor; however, the MMD variants improved non-mutating alert visibility rather than final queue/retrain decisions. Fourth, a same-input controlled comparison between a historical and retrained model isolates model choice as the primary driver of prediction collapse on a given session. A preserved negative result on 26 production sessions shows that a unit-fix plus abstain intervention changed routing behavior without improving mean confidence, distinguishing governance effects from genuine quality improvements.
+
+The thesis makes no claim of clinical validity or unrestricted automated deployment. Its contribution is a defensible engineering argument that a wearable HAR lifecycle can be architected so that monitoring and retraining are integrated yet operationally separated, reproducible from a single repository entry point, and governed by explicit policies rather than implicit automation.
+
+\textbf{Keywords:} wearable HAR, MLOps, offline-first pipeline, distribution shift, retraining governance, train--serve consistency, trigger policy
+
+%% ---------- DECLARATION OF AUTHORSHIP ----------
+\chapter*{Eidesstattliche Erkl\"arung\\(Declaration of Authorship)}
+\addcontentsline{toc}{chapter}{Eidesstattliche Erkl\"arung}
+
+Ich erkl\"are hiermit an Eides statt, dass ich die vorliegende Masterarbeit selbstst\"andig und ohne Benutzung anderer als der angegebenen Hilfsmittel angefertigt habe. Die aus fremden Quellen direkt oder indirekt \"ubernommenen Gedanken sind als solche kenntlich gemacht. Die Arbeit wurde bisher in gleicher oder \"ahnlicher Form keiner anderen Pr\"ufungsbeh\"orde vorgelegt und auch noch nicht ver\"offentlicht.
+
+\bigskip
+\noindent
+\textit{I hereby declare, to the best of my knowledge and belief, that this thesis is my own work. All sources used have been cited and attributed. This work has not been submitted to any other examination authority in the same or similar form, nor has it been published.}
+
+\vspace{2.5cm}
+\noindent
+\begin{tabular}{p{5cm}p{6cm}}
+  Siegen, 19 April 2026 \quad & \hrulefill \\
+                        & Shalin Vachheta \\
+\end{tabular}
+
+%% ---------- TABLE OF CONTENTS ----------
 \tableofcontents
+\addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
+\addcontentsline{toc}{chapter}{List of Tables}
+\listoftables
+
+%% ---------- LIST OF ABBREVIATIONS ----------
+\chapter*{List of Abbreviations}
+\addcontentsline{toc}{chapter}{List of Abbreviations}
+\begin{description}
+  \item[HAR] Human Activity Recognition
+  \item[IMU] Inertial Measurement Unit
+  \item[MLOps] Machine Learning Operations
+  \item[CNN] Convolutional Neural Network
+  \item[LSTM] Long Short-Term Memory
+  \item[BiLSTM] Bidirectional Long Short-Term Memory
+  \item[AdaBN] Adaptive Batch Normalisation
+  \item[TENT] Test-time Entropy Minimisation (Wang et al., ICLR 2021)
+  \item[EWC] Elastic Weight Consolidation
+  \item[FAR] False Alarm Rate
+  \item[ECE] Expected Calibration Error
+  \item[MMD] Maximum Mean Discrepancy
+  \item[DVC] Data Version Control
+  \item[CI/CD] Continuous Integration / Continuous Delivery; in this thesis, CI plus release-image smoke validation rather than production rollout
+  \item[YAML] YAML Ain't Markup Language (recursive acronym)
+  \item[RQ] Research Question
+  \item[OOD] Out-of-Distribution
+\end{description}
+
+%% ---------- CHAPTERS ----------
+% Main matter page numbering (Arabic numerals)
+\clearpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
 
 \include{chapters/ch1_introduction}
 \include{chapters/ch2_background_related_work}
@@ -20,6 +124,10 @@
 \include{chapters/ch6_monitoring_drift_retraining}
 \include{chapters/ch7_experiments_evaluation}
 \include{chapters/ch8_discussion_conclusion}
+
+\appendix
+\include{chapters/appendix_a_math}
+\include{chapters/appendix_b_tech}
 
 \bibliographystyle{plain}
 \bibliography{references}

@@ -6,6 +6,42 @@
 
 ---
 
+## 0. Defended Runtime Model (locked 2026-04-26)
+
+### Q: "Which model is your defended runtime model?"
+
+**A:** The defended runtime model is `models/pretrained/fine_tuned_model_1dcnnbilstm.keras` — a 1D-CNN-BiLSTM architecture (Ordóñez and Roggen, 2016) with 11 activity classes, 200×6 input windows, and 499 131 parameters. The model was provided by my supervisor; it was pretrained on a research-grade IMU dataset and fine-tuned on the project's wearable IMU dataset. Inference loads the corresponding scaler from `data/prepared/config.json`.
+
+**Evidence:**
+
+- `src/api/app.py` — runtime default points to this `.keras` file.
+- `models/pretrained/model_info.json` — architecture metadata (200×6 input, 11 classes, 499 131 parameters).
+- `docs/THESIS_CONSISTENCY_NOTES.md` §5 — canonical sentence and locked decision.
+- `EVIDENCE_LEDGER.md` EV-009 — marked **DEFENDED RUNTIME MODEL**.
+
+### Q: "If you have a retraining pipeline, why is the defended model still the pretrained one?"
+
+**A:** Retraining is implemented as a **governance mechanism**, not an automatic deployment loop. The retraining stage produces candidate artifacts (eighteen `.keras` files exist under `models/retrained/`, including supervised retraining, AdaBN configs A–D, TENT, and a pseudo-label experiment), but promotion to defended status is gated by `is_better=True` on a labeled holdout. The production data stream is **unlabeled**, so no candidate has yet satisfied the gate. The model registry confirms this: `models/registry/model_registry.json` reports `current_version: null`. This is the intended behavior — the governance design protects the deployed baseline from unjustified replacement, following the principle articulated in Sculley et al. (2015), *Hidden Technical Debt in Machine Learning Systems*.
+
+**Evidence:**
+
+- `models/retrained/` — 18 candidate artifacts, including `pseudo_label_model.keras`, `adabn_adapted_model_configA-D_*.keras`, `adabn_tent_adapted_model.keras`, `retrained_model.keras`, `har_model_*.keras`.
+- `models/registry/model_registry.json` — `current_version: null`, `status: "archived"`.
+- `models/retrained/training_report_20260327_223917.json` — example candidate with val_accuracy 0.922 (comparable to baseline; not promoted because no labeled production confirmation exists).
+- `src/components/model_retraining.py` — implements `--adapt {adabn, tent, pseudo_label, none}` modes.
+
+### Q: "Are stages 12, 13, and 14 part of the defended pipeline?"
+
+**A:** No. The defended pipeline is the eleven-stage pipeline defined in `src/pipeline/production_pipeline.py:53-65` (`ALL_STAGES`). Stage 12 (Wasserstein drift), Stage 13 (curriculum + advanced pseudo-labeling), and Stage 14 (sensor placement information gain) appear in early planning documents and have stand-alone test files, but they are **not** wired into `ALL_STAGES` and are documented as **future work**, not as defended pipeline stages. Note: candidate-mode pseudo-labeling exists separately as a Stage 8 retraining mode (`--adapt pseudo_label`), governed by Stage 9 promotion — that is distinct from "Stage 13 curriculum pseudo-labeling," which is the unimplemented future-work item.
+
+**Evidence:**
+
+- `src/pipeline/production_pipeline.py:53-65` — `ALL_STAGES` lists eleven stages only.
+- `EVIDENCE_LEDGER.md` EV-415, EV-416, EV-417 — annotated as **FUTURE-WORK**.
+- `docs/THESIS_CONSISTENCY_NOTES.md` §5.4 — pipeline scope clarification.
+
+---
+
 ## Table of Contents
 
 1. [Pipeline Architecture](#1-pipeline-architecture)
@@ -32,16 +68,16 @@
 
 ## 1. Pipeline Architecture
 
-### Q: "Why 14 stages instead of a single training script?"
+### Q: "Why 11 stages instead of a single training script?"
 
-**A:** The pipeline decomposes the ML lifecycle into 14 independent, auditable stages defined at `src/pipeline/production_pipeline.py:54-68`. Each stage has a single responsibility: ingestion, preprocessing, windowing, splitting, training, evaluation, monitoring, trigger, retraining, registration, baseline update, calibration, curriculum pseudo-labeling, and sensor placement.
+**A:** The defended pipeline decomposes the ML lifecycle into 11 independent, auditable stages defined by `ALL_STAGES` in `src/pipeline/production_pipeline.py`. Each stage has a single responsibility: ingestion, validation, transformation/windowing, inference, evaluation, monitoring, trigger evaluation, retraining, registration, baseline update, and calibration. Earlier planning notes mentioned Stages 12-14, but those are not wired into `ALL_STAGES` and are treated as future work.
 
 **Evidence:**
 - Google MLOps Level 2 maturity model requires separable, rerunnable pipeline stages (`[REF_GOOGLE_MLOPS]`)
-- Each stage can be run independently: `python run_pipeline.py --stages monitoring,trigger` (`run_pipeline.py:156-180`)
-- Stages 1-7 are default; 8-10 are retrain-dependent; 11-14 are advanced (`production_pipeline.py:67-68`)
+- Each stage can be run independently: `python run_pipeline.py --stages monitoring trigger`
+- Stages 1-7 are the default inference/evidence path; stages 8-10 are retrain-dependent; stage 11 is optional advanced calibration.
 
-**Why this matters:** A monolithic script provides no partial re-execution, no stage-level failure isolation, and no audit trail. With 14 stages, if windowing parameters change, only stages 3-7 need re-running — the ingested data is preserved.
+**Why this matters:** A monolithic script provides no partial re-execution, no stage-level failure isolation, and no audit trail. With 11 stages, if windowing parameters change, only the affected downstream stages need re-running; the ingested data is preserved.
 
 **Risks if different:** Monolithic = no partial re-run, debugging requires full pipeline execution, CI can't test stages independently.
 
@@ -291,16 +327,17 @@
 2. **inference** (port 8000) — FastAPI prediction API, Prometheus `/metrics` endpoint
 3. **training** — Ephemeral container for training runs
 4. **preprocessing** — Ephemeral container for data preprocessing
-5. **prometheus** (port 9090) — Scrapes inference:8000/metrics every 10s
-6. **alertmanager** (port 9093) — Receives alerts from Prometheus, routes to webhook
-7. **grafana** (port 3000) — Dashboards reading from Prometheus datasource
+5. **prometheus** (port 9090) — *(historical/future-work; config exists but not part of the defended current implementation)*
+6. **alertmanager** (port 9093) — *(historical/future-work; config exists but not part of the defended current implementation)*
+7. **grafana** (port 3000) — *(historical/future-work; config exists but not part of the defended current implementation)*
 
-**Evidence:**
-- `docker-compose.yml:1-223` — Full service definitions
-- `config/prometheus.yml:37` — scrape target `inference:8000`
-- `config/grafana/datasources/prometheus.yml` — Prometheus datasource at `http://prometheus:9090`
+> **Scope note (2026-04-26):** Prometheus, Alertmanager, and Grafana config files exist in the repository but are **not part of the defended current thesis implementation**. The defended monitoring evidence comes from offline-first pipeline artifacts, trigger reports, MLflow/DVC evidence, and saved run outputs. If asked, frame these three services as designed infrastructure for a production extension, not as active components of the defended pipeline.
 
-**Data flow:** Inference → (metrics) → Prometheus → (rules) → Alertmanager → (webhook) → retrain trigger. Grafana reads Prometheus for visualization.
+**Evidence (defended services only):**
+
+- `docker-compose.yml:1-223` — Full service definitions (mlflow, inference, training, preprocessing are the defended services)
+
+**Data flow (defended):** Inference API → offline monitoring artifacts → trigger policy → MLflow model registry.
 
 ---
 
@@ -351,21 +388,14 @@ This means normal development runs CI, while releases run CD.
 
 ### Q: "Why Prometheus + Grafana and not a simpler logging solution?"
 
-**A:** Prometheus provides **time-series metrics** with PromQL query language, purpose-built for monitoring. Application logs (logging module) capture events but lack aggregation, alerting rules, and dashboards.
+**A:** Prometheus and Grafana are present as historical/future-work infrastructure, not as active defended thesis evidence. The defended monitoring evidence comes from offline-first pipeline artifacts: confidence monitoring, temporal consistency checks, drift reports, trigger reports, MLflow/DVC lineage, and saved run outputs. If asked about Prometheus/Grafana, the correct defense answer is that the configuration exists but was intentionally scoped out of the current defended implementation.
 
 **Evidence:**
-- `src/api/app.py:80-90` — 7 Prometheus metrics defined:
-  - `har_predictions_total` (Counter)
-  - `har_prediction_latency_seconds` (Histogram)
-  - `har_confidence_score` (Histogram)
-  - `har_drift_score` (Gauge)
-  - `har_model_accuracy` (Gauge)
-  - `har_low_confidence_predictions_total` (Counter)
-  - `har_data_quality_errors_total` (Counter)
-- `config/prometheus.yml` — Scrape configuration
-- `config/alerts/har_alerts.yml:1-140` — 7 alert rules across 4 groups
+- `internal/workflow/EVIDENCE_LEDGER.md` EV-205, EV-208, EV-419, EV-505, EV-506, EV-507 are annotated as historical/future-work.
+- `docs/THESIS_CONSISTENCY_NOTES.md` section 6 records the defended monitoring scope.
+- `src/pipeline/production_pipeline.py` stage 6 and stage 7 remain the defended monitoring/trigger path.
 
-**Counter-argument ready:** "Prometheus is heavyweight for a thesis" → The entire monitoring stack runs in Docker Compose with file-based provisioning. No external infrastructure needed. `docker compose up` gives you full observability.
+**Counter-argument ready:** "Why not use the Prometheus/Grafana stack?" -> The thesis is defended on reproducible local artifacts and governance decisions. The Prometheus/Grafana files are useful production-extension scaffolding, but the submitted evidence must only claim what was actually exercised and verified.
 
 ---
 
@@ -392,25 +422,12 @@ These are computed on every prediction request, not in a batch job. The monitori
 
 ### Q: "How do Prometheus alerts work in this system?"
 
-**A:** Seven alert rules in 4 groups, defined in `config/alerts/har_alerts.yml:1-140`:
-
-| Group | Alert | Condition | Severity |
-|-------|-------|-----------|----------|
-| har_model_health | HighDriftScore | `har_drift_score > 2.0` for 5m | critical |
-| har_model_health | LowModelAccuracy | `har_model_accuracy < 0.65` for 10m | critical |
-| har_prediction_quality | HighLowConfidenceRate | low_conf_rate > 0.3 for 5m | warning |
-| har_prediction_quality | HighPredictionLatency | p95 latency > 1s for 5m | warning |
-| har_data_quality | HighDataQualityErrors | error_rate > 0.1 for 5m | warning |
-| har_service_health | NoPredictions | rate = 0 for 15m | critical |
-| har_service_health | MissingBaseline | avg(baseline_age_days) > 90 for 1h | info |
-
-**Alert inhibition** (`config/alertmanager.yml:67-82`):
-- `NoPredictions` (critical) suppresses `HighLowConfidenceRate` (warning) — if the service is down, low-confidence alerts are noise
-- `MissingBaseline` (info) suppresses `StaleBaselineWarning` — prevents duplicate alerts
+**A:** Alertmanager is not part of the defended current implementation. Alert rule files exist, but they are historical/future-work configuration. The defended system records trigger decisions and retraining decisions as local artifacts instead of claiming live Alertmanager operation.
 
 **Evidence:**
-- `config/alertmanager.yml:1-82` — Full Alertmanager config with routes, receivers, inhibition
-- `config/alerts/har_alerts.yml:1-140` — All 7 alert rules
+- `internal/workflow/EVIDENCE_LEDGER.md` EV-506 and EV-507 mark alert rules and Alertmanager as historical/future-work.
+- `internal/writing/defense_qa.md` Docker services section carries the same scope note.
+- Trigger decision artifacts and governance reports are the defended alerting-equivalent evidence.
 
 ---
 

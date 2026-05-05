@@ -103,27 +103,6 @@ services:
     networks:
       - har-network
 
-  # ==========================================================================
-  # Data Preprocessing Service (on-demand)
-  # ==========================================================================
-  preprocessing:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.training
-    container_name: har-preprocessing
-    volumes:
-      - ./data:/app/data
-      - ./config:/app/config
-      - ./src:/app/src
-      - ./logs:/app/logs
-    environment:
-      - PYTHONPATH=/app/src
-    command: python src/sensor_data_pipeline.py
-    profiles:
-      - preprocessing
-    networks:
-      - har-network
-
 
 # ==========================================================================
 # Networks

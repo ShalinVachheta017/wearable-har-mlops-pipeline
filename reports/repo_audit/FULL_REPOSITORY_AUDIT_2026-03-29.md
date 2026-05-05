@@ -106,12 +106,12 @@ Well-commented with `RECOMMENDED:` annotation and `WHY:` explanation on every to
 
 | | |
 |---|---|
-| **Purpose** | 5-fold stratified CV training with MLflow |
+| **Purpose** | 5-fold grouped CV training with MLflow |
 | **Lines** | ~500 |
 | **Severity** | Medium |
 
 **What is good:**
-- Full stratified k-fold, seed controlled (`cv_random_seed=42`)
+- Grouped k-fold with user IDs as groups, seed controlled where stochastic behavior is used
 - Architecture v1 matches deployed model exactly (Conv1D 16→32, BiLSTM 64→32, Dense 32, ~499K params)
 - Scaler config saved to `models/retrained/scaler_config.json` for inference reuse
 - MLflow tracking integrated throughout

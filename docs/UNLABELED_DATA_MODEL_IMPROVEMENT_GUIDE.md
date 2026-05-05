@@ -43,7 +43,7 @@ The defended runtime model can predict an activity class for every valid window.
 - source file or session id
 - start and end timestamp
 - model version
-- scaler version
+- input contract version (raw physical units for final production inference)
 - effective sampling rate
 - predicted class
 - top class probability
@@ -169,11 +169,11 @@ Important defaults:
 - entropy critical above `2.2`
 - drift warning above `2.0`
 - drift critical above `3.0`
-- 2 or more warning signals can queue retraining
-- 3 consecutive warnings can trigger retraining
+- 2 or more warning signals can queue review and labeling work
+- 3 consecutive warnings can escalate to review, not automatic retraining
 - 24-hour cooldown blocks rapid repeated retraining
 
-The collapse guard is especially important. Dominant-class collapse returns `REVIEW`, not blind retraining.
+The collapse guard is especially important. Dominant-class collapse returns `REVIEW`, not blind retraining. Unlabeled production drift, collapse, or low confidence must not mutate the model until labels, QA, and promotion criteria are available.
 
 ### Stage 8 Retraining and Adaptation
 
@@ -219,8 +219,8 @@ Use these states in reports and defense explanations:
 | `NONE` | System healthy | Confidence/drift/temporal signals normal |
 | `MONITOR` | One warning signal | Mild drift or mild confidence drop |
 | `REVIEW` | Suspicious but not safe to retrain | Dominant-class collapse, severe gyro-axis anomaly, preprocessing concern |
-| `QUEUE_RETRAIN` | Multiple warnings, not immediate deploy | 2 or more warning signals, cooldown active, or waiting for labels |
-| `TRIGGER_RETRAIN` | Candidate generation allowed | Critical drift/confidence/temporal evidence or repeated warnings |
+| `QUEUE_RETRAIN` | Review/label queue, not immediate deploy | 2 or more warning signals, cooldown active, or waiting for labels |
+| `TRIGGER_RETRAIN` | Candidate generation allowed only after governance gates | Critical evidence plus labels/QA/review approval |
 | `REGISTER_CANDIDATE` | Candidate stored for lineage | AdaBN/TENT/pseudo-label/supervised candidate created |
 | `PROMOTE` | Candidate becomes defended runtime model | Labeled holdout confirms improvement over current defended model |
 | `REJECT_OR_ARCHIVE` | Candidate kept but not used | Missing labels, worse metrics, unstable behavior, or no proof of improvement |
@@ -236,7 +236,7 @@ Promotion is justified when:
 - candidate model is evaluated on the same sample
 - candidate improves chosen metrics
 - no critical class regresses
-- preprocessing/scaler path is identical or explicitly justified
+- preprocessing contract is identical or explicitly justified
 - model registry records the decision
 
 Recommended metrics with labels:
@@ -349,7 +349,7 @@ Final monitoring evidence should include:
 
 - data quality
 - sampling rate
-- unit conversion and scaler provenance
+- unit conversion and input-contract provenance
 - synchronization QA
 - raw-axis drift
 - magnitude drift

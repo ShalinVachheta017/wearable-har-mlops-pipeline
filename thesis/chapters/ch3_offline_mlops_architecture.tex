@@ -1,3 +1,48 @@
 \chapter{Offline MLOps System Architecture}
+\label{chap:architecture}
 
-This chapter presents the end-to-end offline-first architecture and design rationale.
+This chapter presents the system architecture that operationalizes the thesis contribution. The design objective is not simply to run inference on wearable sensor files, but to create an offline-first lifecycle in which preprocessing, inference, monitoring, and retraining decisions remain reproducible, observable, and explicitly governed \cite{amershi2019mlops,kreuzberger2023mlops}.
+
+\section{Design Goals and Architectural Constraints}
+
+The architecture is shaped by four practical constraints. First, the system must be reproducible on a single machine from a clean environment, because the thesis contribution is evaluated through repository-backed evidence rather than through a managed cloud deployment. Second, stage boundaries must be explicit so that artifacts, thresholds, and decisions can be traced across the lifecycle rather than hidden inside a monolithic script. Third, the runtime must support label-scarce or label-free operation after inference, because production-style wearable batches often arrive without reliable ground truth. Fourth, retraining must be conservative: the system should be able to observe risk without immediately mutating the model in response \cite{amershi2019mlops,kreuzberger2023mlops}.
+
+These constraints lead to an architecture that emphasizes separation between observation and mutation. Data ingestion, validation, transformation, inference, evaluation, monitoring, and trigger evaluation form the operational assessment path. Retraining, registration, and baseline update exist as a second path, but they remain conditional rather than automatic. This distinction is central to the thesis because it frames automation as something to be governed, not merely maximized \cite{hewage2022mlops}.
+
+\section{Execution Views of the Pipeline}
+
+The repository contains several historical views of the pipeline, and they should not be conflated. Earlier design notes explored a broader 14-stage architecture. The defended thesis presentation narrows that view to seven core operational stages plus three conditional mutation stages. The current runtime still exposes an additional calibration stage, which is relevant to experimentation but not part of the minimal core claim. The important architectural point is therefore not the raw stage count alone, but the refinement from broad design ambition toward a smaller, more defensible operational boundary.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{fig_04_stage_evolution.png}
+\caption{Evolution of the pipeline framing across the project. The historical 14-stage design was progressively reduced to a thesis-centered view of seven core stages plus three conditional mutation stages, while the current runtime still exposes calibration as an optional extension.}
+\label{fig:stage_evolution}
+\end{figure}
+
+This evolution aligns with MLOps architecture guidance in two ways. First, it reduces over-claiming by separating the stable runtime argument from more exploratory research modules. Second, it clarifies that not every technically available stage should carry equal thesis weight. Kreuzberger et al.\ describe MLOps architectures as lifecycle-oriented systems whose value depends on clear interfaces, responsibilities, and operational boundaries \cite{kreuzberger2023mlops}. The stage evolution in this thesis is therefore a maturation of system scope, not merely a documentation cleanup.
+
+\section{Core Runtime Versus Governed Mutation}
+
+The defended architecture is best understood as two linked but different flows. The first is the core runtime: ingestion, validation, transformation, inference, evaluation, monitoring, and trigger evaluation. These stages observe and assess the state of the system on each run. The second is the governed mutation branch: retraining, registration, and baseline update. These stages alter the operational state of the system and therefore must remain gated by explicit policy rather than by routine execution alone.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.93\textwidth]{fig_05_core_vs_conditional_pipeline.png}
+\caption{Architecture of the defended pipeline. Stages 1--7 form the operational assessment path, while stages 8--10 form the mutation path that is entered only when governance conditions are satisfied. Calibration is treated separately as an optional extension.}
+\label{fig:core_vs_conditional}
+\end{figure}
+
+This decomposition is what makes the architecture thesis-relevant from an MLOps perspective. In many research pipelines, retraining is treated as the natural next step once new data becomes available. In this thesis, retraining is instead treated as a governed action whose prerequisites must be justified by monitoring evidence and trigger logic. That design is consistent with the broader software-engineering observation that ML systems fail when lifecycle decisions are implicit, weakly auditable, or insufficiently separated from the code path that produced the signals in the first place \cite{amershi2019mlops}.
+
+\section{Artifact Lineage, Configuration, and Reproducibility}
+
+The architecture depends not only on stage order but also on explicit state management. Each stage emits run-scoped artifacts, so that raw inputs, transformed tensors, inference outputs, monitoring summaries, and trigger decisions can be tied to one execution context. This creates a lineage from incoming wearable data to final governance outcome, which is crucial when the thesis later interprets negative results, collapse behavior, or retraining decisions \cite{gardner2018enabling,bahaidarah2021reusable}.
+
+Configuration is likewise layered rather than ad hoc. Static defaults, YAML-based preprocessing controls, and runtime overrides together define what the system actually does on a run. This matters because train--serve consistency depends on configuration fidelity as much as on model code. If unit conversion, normalization, sampling, or threshold settings drift between training and operation, the architecture may remain intact syntactically while the deployed behavior degrades semantically \cite{dhekane2024transfer}. The architectural choice to externalize these controls is therefore part of the thesis claim about reproducibility, not merely a convenience for implementation.
+
+\section{Offline-First Boundary and Thesis Claim}
+
+The system is intentionally offline-first. It runs on a single machine, uses file-based batch or upload-style inputs, and prioritizes controlled execution over distributed orchestration. This is a scope decision rather than a limitation disguised as a virtue. For the thesis contribution, a reproducible and inspectable local architecture is more defensible than a partially implemented cloud platform whose operational complexity would exceed the available evidence.
+
+The resulting thesis claim is therefore narrow but strong: an offline wearable HAR system can be architected as a governed MLOps lifecycle in which monitoring and retraining are integrated, yet still operationally separated. The later chapters build on this architectural boundary. Chapter~\ref{chap:data_model} defines the data and model assumptions that the architecture must preserve, and Chapter~\ref{chap:implementation} shows how these design principles are realized in the repository runtime.

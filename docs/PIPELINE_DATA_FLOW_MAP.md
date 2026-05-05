@@ -23,16 +23,13 @@ flowchart LR
     S5 --> S6[6 Monitoring]
     S6 --> S7[7 Trigger Evaluation]
 
-    S7 -->|should_retrain = true| S8[8 Retraining]
+    S7 -->|review + labels + QA approved| S8[8 Retraining]
     S7 -->|should_retrain = false| END1[Stop after stage 7]
 
     S8 --> S9[9 Registration]
     S9 --> S10[10 Baseline Update]
 
-    S4 --> S11[11 Calibration and Uncertainty]
-    S3 --> S12[12 Wasserstein Drift]
-    S3 --> S13[13 Curriculum Pseudo Labeling]
-    S3 --> S14[14 Sensor Placement]
+    S4 -. optional .-> S11[11 Calibration and Uncertainty]
 
     classDef defaultStage fill:#e9f2ff,stroke:#3b6ea5,stroke-width:1px;
     classDef retrainStage fill:#fef3e2,stroke:#a56a1f,stroke-width:1px;
@@ -40,20 +37,20 @@ flowchart LR
 
     class S1,S2,S3,S4,S5,S6,S7 defaultStage;
     class S8,S9,S10 retrainStage;
-    class S11,S12,S13,S14 advancedStage;
+    class S11 advancedStage;
 ```
 
 ### 1.2 Default execution and optional branches
 
 - Default run (`python run_pipeline.py`) executes stages 1-7.
-- Retraining branch (`--retrain`) appends stages 8-10, but stage 8 is still gated by stage 7 decision (`should_retrain`) unless `force_retraining` is wired/enabled.
-- Advanced branch (`--advanced`) appends stages 11-14.
+- Retraining branch (`--retrain`) appends stages 8-10, but model mutation is still governed by Stage 7 plus review, label, and QA requirements.
+- Advanced branch (`--advanced`) appends optional Stage 11 calibration/UQ only.
 
 ### 1.3 Runtime modes as "views"
 
 - Base view: stages 1-7 for production inference and decisioning.
-- Adaptation view: stages 8-10 for model update and governance.
-- Research view: stages 11-14 for calibration, deep drift, pseudo-labeling, and placement robustness.
+- Adaptation view: stages 8-10 for conditional model update, registration, and baseline update after governance gates.
+- Research view: Stage 11 for optional calibration/UQ. Earlier Stage 12-14 design notes are archive/future-work references, not current runtime evidence.
 
 ## 2) Detailed Data Flow
 
@@ -102,7 +99,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    D0[TriggerEvaluationArtifact] --> D1{should_retrain?}
+    D0[TriggerEvaluationArtifact] --> D1{review + labels + QA approved?}
     D1 -->|No| D2[Skip stages 8-10]
     D1 -->|Yes| D3[Stage 8 Retraining]
     D3 --> D4[Stage 9 Registration]
@@ -129,10 +126,7 @@ flowchart LR
     A8 --> A9[ModelRegistrationArtifact]
     A8 --> A10[BaselineUpdateArtifact]
 
-    A4 --> A11[CalibrationUncertaintyArtifact]
-    A3 --> A12[WassersteinDriftArtifact]
-    A3 --> A13[CurriculumPseudoLabelingArtifact]
-    A3 --> A14[SensorPlacementArtifact]
+    A4 -. optional .-> A11[CalibrationUncertaintyArtifact]
 ```
 
 ## 3) Stage-by-Stage Deep Map (with graphics)
@@ -178,17 +172,17 @@ flowchart LR
 
 - Component: `src/components/data_transformation.py`
 - Input: fused CSV and optional validation artifact
-- Core processing: optional unit conversion, optional gravity removal, optional calibration, normalization, windowing
+- Core processing: accelerometer unit conversion to m/s^2, gyroscope retained in deg/s, optional gravity/calibration, optional A/B normalization, windowing
 - Output data: `data/prepared/production_X.npy`, `data/prepared/production_metadata.json`
 - Artifact: `DataTransformationArtifact`
-- Important: `enable_gravity_removal` is currently false in `config/pipeline_config.yaml`
+- Important: final production inference keeps `enable_normalization=false`, `enable_gravity_removal=false`, and `enable_calibration=false` in `config/pipeline_config.yaml`.
 
 ```mermaid
 flowchart LR
     S3A[Fused CSV] --> S3B[Unit conversion if enabled]
     S3B --> S3C[Gravity removal if enabled]
     S3C --> S3D[Calibration if enabled]
-    S3D --> S3E[Normalization]
+    S3D --> S3E[Raw physical input contract by default]
     S3E --> S3F[Windowing 200 with 50 pct overlap]
     S3F --> S3G[production_X.npy plus metadata]
     S3G --> S3H[DataTransformationArtifact]
@@ -274,14 +268,14 @@ flowchart LR
 ## Stage 8 - Model Retraining (conditional)
 
 - Component: `src/components/model_retraining.py`
-- Input: trigger artifact plus transformed production data
-- Core processing: selected adaptation mode (`none`, `adabn`, `tent`, `adabn_tent`, `pseudo_label`)
+- Input: trigger artifact plus reviewed data; supervised retraining requires labels/QA
+- Core processing: selected adaptation mode (`none`, `adabn`, `tent`, `adabn_tent`, `pseudo_label`) only when governance permits
 - Output data: retrained model file and training report
 - Artifact: `ModelRetrainingArtifact`
 
 ```mermaid
 flowchart LR
-    S8A[TriggerEvaluationArtifact] --> S8B{should_retrain?}
+    S8A[TriggerEvaluationArtifact] --> S8B{governance gates passed?}
     S8B -->|No| S8C[Skip retraining]
     S8B -->|Yes| S8D[Load target data]
     S8D --> S8E[Run selected adaptation method]
@@ -292,8 +286,8 @@ flowchart LR
 ## Stage 9 - Model Registration (conditional)
 
 - Component: `src/components/model_registration.py`
-- Input: retrained model artifact and optional evaluation context
-- Core processing: registry versioning, proxy comparison, optional auto deploy
+- Input: retrained model artifact and labeled evaluation context
+- Core processing: registry versioning and promotion checks; inference finalization does not register model versions
 - Output data: registry update, optional deployment
 - Artifact: `ModelRegistrationArtifact`
 
@@ -311,14 +305,14 @@ flowchart LR
 ## Stage 10 - Baseline Update (conditional)
 
 - Component: `src/components/baseline_update.py`
-- Input: retraining context and baseline config
+- Input: reviewed labeled/QA-approved baseline data and baseline config
 - Core processing: rebuild baseline statistics, optional promotion to shared runtime baseline
-- Output data: `training_baseline.json`, `normalized_baseline.json` (artifact-only or shared)
+- Output data: `raw_physical_baseline.json` for final runtime monitoring; normalized baseline artifacts remain legacy/A-B references unless explicitly selected.
 - Artifact: `BaselineUpdateArtifact`
 
 ```mermaid
 flowchart LR
-    S10A[Training data baseline build] --> S10B[Compute baseline stats]
+    S10A[Reviewed baseline data] --> S10B[Compute baseline stats]
     S10B --> S10C{promote_to_shared?}
     S10C -->|No| S10D[Save baseline in artifact directory]
     S10C -->|Yes| S10E[Promote to models shared path]
@@ -343,54 +337,17 @@ flowchart LR
     S11E --> S11F[CalibrationUncertaintyArtifact]
 ```
 
-## Stage 12 - Wasserstein Drift (advanced)
+## Stage 12 - Wasserstein Drift (retired/archive)
 
-- Component: `src/components/wasserstein_drift.py`
-- Input: production windows and baseline windows
-- Core processing: per-channel Wasserstein distances and integrated report
-- Output data: `outputs/wasserstein_drift/wasserstein_drift_report.json`
-- Artifact: `WassersteinDriftArtifact`
+This was part of the older broader stage framing. Do not claim Stage 12 as current runtime evidence. Treat any Wasserstein/MMD work as offline audit or experiment evidence only when the specific artifact is cited.
 
-```mermaid
-flowchart LR
-    S12A[production_X.npy] --> S12B[Load baseline_X.npy]
-    S12B --> S12C[Compute per-channel Wasserstein]
-    S12C --> S12D[Integrated drift report]
-    S12D --> S12E[WassersteinDriftArtifact]
-```
+## Stage 13 - Curriculum Pseudo-Labeling (retired/archive)
 
-## Stage 13 - Curriculum Pseudo-Labeling (advanced)
+This was part of the older broader stage framing. Do not claim Stage 13 as current runtime evidence. Pseudo-labeling remains an experimental candidate-generation method and must not be treated as automatic production retraining from unlabeled drift.
 
-- Component: `src/components/curriculum_pseudo_labeling.py`
-- Input: labeled source arrays and unlabeled production arrays
-- Core processing: confidence-threshold curriculum pseudo-labeling with optional EWC
-- Output data: retrained curriculum model and training logs
-- Artifact: `CurriculumPseudoLabelingArtifact`
+## Stage 14 - Sensor Placement Robustness (retired/archive)
 
-```mermaid
-flowchart LR
-    S13A[Labeled source X and y] --> S13B[Load unlabeled target X]
-    S13B --> S13C[Run curriculum pseudo-label trainer]
-    S13C --> S13D[Iterative threshold decay]
-    S13D --> S13E[Save curriculum model]
-    S13E --> S13F[CurriculumPseudoLabelingArtifact]
-```
-
-## Stage 14 - Sensor Placement Robustness (advanced)
-
-- Component: `src/components/sensor_placement.py`
-- Input: production windows
-- Core processing: hand detection, mirror-augmentation utilities, hand report generation
-- Output data: hand detection report in outputs
-- Artifact: `SensorPlacementArtifact`
-
-```mermaid
-flowchart LR
-    S14A[production_X.npy] --> S14B[Detect hand and confidence]
-    S14B --> S14C[Placement features]
-    S14C --> S14D[Save hand report]
-    S14D --> S14E[SensorPlacementArtifact]
-```
+This was part of the older broader stage framing. Do not claim Stage 14 as current runtime evidence. Sensor-placement robustness belongs in future work unless a specific offline artifact is cited.
 
 ## 4) Multi-View Architecture
 
@@ -449,7 +406,17 @@ What this view answers:
 
 ## 5) Threshold and Decision Reference
 
-### 5.1 Trigger thresholds from `TriggerEvaluationConfig`
+### 5.1 Stage 6 monitoring thresholds
+
+- Mean confidence warning: 0.70
+- Uncertain windows warning: 20%
+- Transition-rate warning: 35%
+- Drift z-score warning: 1.8
+- Dominant-class warning/critical: 85% / 95%
+
+These are warning-oriented operating points for monitoring, not automatic retraining criteria.
+
+### 5.2 Trigger thresholds from `TriggerEvaluationConfig`
 
 - Confidence warn: 0.65
 - Confidence critical: 0.50
@@ -459,7 +426,7 @@ What this view answers:
 - Temporal flip critical: 0.50
 - Cooldown: 24 hours
 
-### 5.2 TriggerPolicyEngine defaults in `src/trigger_policy.py`
+### 5.3 TriggerPolicyEngine defaults in `src/trigger_policy.py`
 
 - Confidence warn: 0.65
 - Confidence critical: 0.50
@@ -467,9 +434,9 @@ What this view answers:
 - Flip rate warn/critical: 0.25 / 0.40
 - Drift z-score warn/critical: 2.0 / 3.0
 
-### 5.3 Important implementation behavior
+### 5.4 Important implementation behavior
 
-- Tiered confidence design is explicit: stage 6 monitoring warns at 0.60, stage 7 trigger warns at 0.65 (stricter gate for retraining decisions).
+- Tiered confidence design is explicit: Stage 6 monitoring warns at 0.70, while Stage 7 trigger governance uses 0.65/0.50 warning/critical confidence thresholds.
 - Collapse guard can force `REVIEW` and `should_retrain = false` for collapse-like patterns (for example very high class dominance), avoiding unsafe automatic retraining on unlabeled production batches.
 - Cooldown state is propagated into `TriggerEvaluationArtifact.cooldown_active`.
 - Baseline update promotion to shared runtime baselines is explicit and controlled by `update_baseline` governance flag.
@@ -489,7 +456,7 @@ Answer:
 
 Answer:
 
-- Current config and training assumptions indicate scaler compatibility with gravity-included data.
+- Current final production config uses raw physical units with gravity included.
 - Enabling gravity removal can change feature distribution enough to create preprocessing mismatch and confidence degradation.
 - Therefore stage 3 keeps gravity removal off unless explicitly enabled for controlled experiments.
 
@@ -498,7 +465,7 @@ Answer:
 Answer:
 
 - Not always.
-- `--retrain` includes retraining stages in planned sequence, but stage 8 can still be skipped if stage 7 gate does not allow retraining (`should_retrain = false`) and `force_retraining` is not active.
+- `--retrain` includes retraining stages in the planned sequence, but Stage 8 can still be skipped if Stage 7/review/label/QA gates are not satisfied.
 
 ### RQ4. What is the practical role of stage 10 baseline update in deployment safety?
 
@@ -516,7 +483,7 @@ Answer:
 - Stage 5 evaluation report for distribution and confidence quality.
 - Stage 6 monitoring report for confidence, temporal, and drift layers.
 - Stage 7 trigger decision for retraining governance evidence.
-- Optional stage 11/12 outputs for calibration and deep drift analysis.
+- Optional Stage 11 outputs for calibration/UQ when explicitly run; deep drift analysis is offline experiment evidence, not a current runtime stage.
 
 ## 7) File and Contract Index
 
@@ -540,9 +507,7 @@ Answer:
 - 9: `src/components/model_registration.py`
 - 10: `src/components/baseline_update.py`
 - 11: `src/components/calibration_uncertainty.py`
-- 12: `src/components/wasserstein_drift.py`
-- 13: `src/components/curriculum_pseudo_labeling.py`
-- 14: `src/components/sensor_placement.py`
+- 12-14: retired/archive stage framing; do not claim as current runtime evidence
 
 ## 8) Suggested usage patterns
 
@@ -564,6 +529,8 @@ python run_pipeline.py --stages ingestion validation transformation inference ev
 python run_pipeline.py --retrain --adapt adabn
 ```
 
+This includes conditional stages 8-10 in the planned sequence. It does not mean unlabeled production drift automatically retrains or promotes a model.
+
 ### 8.4 Include advanced research branch
 
 ```bash
@@ -575,6 +542,8 @@ python run_pipeline.py --advanced
 ```bash
 python run_pipeline.py --retrain --advanced
 ```
+
+Use this only for controlled evidence runs where the governance and optional-stage scope is explicit.
 
 ## 9) Notes for future extension
 
@@ -607,18 +576,18 @@ Before:
 
 - none: 20
 - monitor: 1
-- queue_retrain: 1
+- review/label queue: 1
 - review: 3
 
 After:
 
-- queue_retrain: 19
-- trigger: 3
+- review/label queue: 19
+- trigger-surfaced review: 3
 - review: 3
 
 Interpretation:
 
-- Modified mode increased operational strictness and retrain pressure.
+- Modified mode increased operational strictness and review pressure.
 - This did not improve mean confidence.
 - Therefore these changes are best treated as a negative-result ablation plus governance evidence, not as a direct production-quality gain.
 
@@ -627,7 +596,7 @@ Interpretation:
 ```mermaid
 flowchart LR
     Z1[Modified decision policy] --> Z2[Much higher review routing]
-    Z2 --> Z3[More queue_retrain and trigger actions]
+    Z2 --> Z3[More review and label-queue actions]
     Z3 --> Z4{If 8-10 auto-run online?}
     Z4 -->|Yes| Z5[High model churn and baseline churn risk]
     Z4 -->|No| Z6[Governed offline retraining queue]
@@ -655,7 +624,7 @@ Reasons:
 - Stage 8 can adapt or retrain on unlabeled target data and is compute-heavy.
 - Stage 9 mutates model registry/deployment state.
 - Stage 10 can mutate baseline state used by monitoring.
-- 26-session evidence shows modified logic can push many runs into queue_retrain/trigger. Auto-running 8-10 in-server would amplify instability.
+- 26-session evidence shows modified logic can push many runs into review/label queues. Auto-running 8-10 in-server would amplify instability.
 
 Recommended placement:
 
@@ -668,7 +637,7 @@ Governance gate before 8-10:
 - Confirm data-quality checks and collapse-guard context.
 - Require manual approval (or strict policy) before promotion/deployment.
 
-## 13) Where Stages 11-12 Should and Should Not Run
+## 13) Where Optional Research Work Should and Should Not Run
 
 ### 13.1 Stage 11 (Calibration and Uncertainty)
 
@@ -681,7 +650,7 @@ Should not run:
 - Per API request path.
 - Every tiny batch without enough representative data.
 
-### 13.2 Stage 12 (Wasserstein Drift)
+### 13.2 Offline Drift Audit
 
 Should run:
 
@@ -692,6 +661,8 @@ Should not run:
 
 - Live request path.
 - Cases with missing baseline data (`NO_BASELINE` outcome risk).
+
+Do not describe this as current Stage 12 runtime evidence; the defended runtime path ends at Stage 7 unless conditional stages 8-10 or optional Stage 11 are explicitly invoked.
 
 ## 14) Better Deployment Views (Serving vs Governance vs Research)
 
@@ -714,9 +685,9 @@ flowchart TB
 
     subgraph C[Research plane - deep diagnostics]
         C1[Stage 11 Calibration]
-        C2[Stage 12 Wasserstein drift]
-        C3[Stage 13 Curriculum pseudo-labeling]
-        C4[Stage 14 Sensor placement]
+        C2[Offline drift audit]
+        C3[Future adaptation studies]
+        C4[Future sensor-placement studies]
         C1 --> C2
         C2 --> C3
         C3 --> C4

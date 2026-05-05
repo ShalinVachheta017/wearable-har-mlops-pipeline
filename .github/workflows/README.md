@@ -1,11 +1,13 @@
 # GitHub Workflows Guide
 
-This folder contains the active CI/CD workflows for the repository.
+This folder contains the active CI workflow and the optional release-image smoke
+workflow for the repository. The release workflow builds and validates an
+inference container image; it is not a production continuous-deployment system.
 
 ## Files
 
 - [.github/workflows/ci.yml](.github/workflows/ci.yml): pull-request and push quality checks.
-- [.github/workflows/cd.yml](.github/workflows/cd.yml): release image build/push and smoke validation.
+- [.github/workflows/cd.yml](.github/workflows/cd.yml): optional release image build/push and smoke validation.
 
 ## CI Workflow Summary
 
@@ -28,24 +30,25 @@ graph LR
 - Run fast unit test suite.
 - Verify inference image builds.
 
-## CD Workflow Summary
+## Release Image Smoke Workflow Summary
 
-### CD Trigger
+### Trigger
 
 - Tag push matching v*.*.*.
 - Manual workflow dispatch with optional image tag.
 
-### CD Jobs
+### Jobs
 
 ```mermaid
 graph LR
   P[build-and-push] --> S[smoke-test]
 ```
 
-### CD Purpose
+### Purpose
 
 - Build and push GHCR image.
 - Start container and verify health endpoint.
+- Provide release-packaging evidence, not automated production rollout.
 
 ## End-to-End Release Flow
 
@@ -53,14 +56,14 @@ graph LR
 sequenceDiagram
   participant Dev as Developer
   participant CI as CI Workflow
-  participant CD as CD Workflow
+  participant CD as Release Image Smoke
   participant Reg as GHCR
 
   Dev->>CI: Push or PR
   CI->>CI: lint -> unit-tests -> docker-build-check
   CI-->>Dev: pass/fail feedback
 
-  Dev->>CD: Push release tag
+  Dev->>CD: Push release tag or manual dispatch
   CD->>Reg: build-and-push image
   CD->>CD: smoke-test container
   CD-->>Dev: release status
@@ -71,8 +74,8 @@ sequenceDiagram
 | Thesis topic | Workflow evidence |
 | --- | --- |
 | Continuous integration | [.github/workflows/ci.yml](.github/workflows/ci.yml) |
-| Release engineering | [.github/workflows/cd.yml](.github/workflows/cd.yml) |
-| Deployment validation | smoke-test job in [.github/workflows/cd.yml](.github/workflows/cd.yml) |
+| Release engineering | optional image build in [.github/workflows/cd.yml](.github/workflows/cd.yml) |
+| Deployment validation | local container smoke-test job in [.github/workflows/cd.yml](.github/workflows/cd.yml) |
 | Reproducibility guardrails | deterministic CI checks in [.github/workflows/ci.yml](.github/workflows/ci.yml) |
 
 ## Maintenance Rule

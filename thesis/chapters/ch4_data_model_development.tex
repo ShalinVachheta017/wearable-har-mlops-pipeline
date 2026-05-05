@@ -1,3 +1,521 @@
-\chapter{Data Processing and Model Development}
+﻿\chapter{Data Processing and Model Development}
+\label{chap:data_model}
 
-This chapter details dataset handling, preprocessing, model design, and training.
+\section{Chapter Purpose and Role in the Thesis}
+
+This chapter establishes the data and model foundation of the thesis system. It answers a single central question: what exactly is the data-and-model basis on which the offline MLOps pipeline operates, and why are the specific choices made here appropriate for the thesis goals?
+
+Chapter~\ref{chap:architecture} described the overall system architecture — the stages, data flows, and design principles of the offline MLOps pipeline. That chapter intentionally deferred the question of what data enters the pipeline and what model sits at its core. The present chapter fills that gap. It explains the wearable sensor data used in the thesis, the challenges that data presents, the preprocessing decisions taken to address those challenges, the construction of model inputs, the neural architecture selected for activity recognition, and the training assumptions that define the baseline. Chapter~\ref{chap:implementation} will then take these established foundations and show how they are operationalized within the actual pipeline implementation.
+
+The chapter is structured to follow the natural data flow: from raw sensor recordings, through preprocessing, into windowed model inputs, through the neural network, and finally to a trained baseline model with clearly defined scope. Throughout, the emphasis is not only on \emph{what} is done, but on \emph{why} each decision is made — particularly in relation to the MLOps requirement of train--serve consistency. In an offline MLOps setting, the choices made during data preparation and model development are not isolated engineering decisions: they define the assumptions that the entire downstream pipeline — inference, monitoring, and retraining — must respect and reproduce.
+
+\section{Dataset and Data Sources}
+\label{sec:dataset}
+
+Wearable inertial measurement unit (IMU) sensors have become one of the primary modalities for human activity recognition (HAR) research and deployment. As surveyed by Lara and Labrador~\cite{lara2013survey}, wearable sensors offer a portable, unobtrusive, and energy-efficient means of capturing human motion in naturalistic conditions, without the environmental constraints of camera-based or infrastructure-based recognition systems. Accelerometers and gyroscopes are among the most widely used sensor types in wearable HAR, as they capture the linear and rotational motion components most relevant to activity classification.
+
+The thesis uses a custom-collected wearable IMU dataset focused specifically on anxiety-related human activity recognition. The motivating application context is behavioral monitoring: identifying physical movement patterns associated with anxiety states, which can serve as observable indicators for mental health assessment. This application context is grounded in prior work: Khan et al.~\cite{khan2021adamsense} demonstrated that anxiety-displaying activities such as hair pulling, nail biting, hand tapping, and scratching can be reliably distinguished from baseline postural activities using motion sensor data from wearable devices, achieving recognition accuracy exceeding 92\% with CNN-LSTM models. The present thesis builds on this premise by embedding such a recognition model within a full offline MLOps pipeline.
+
+Data were collected from six participants using a Garmin wrist-worn device equipped with a triaxial accelerometer and triaxial gyroscope. The device records motion data in a wrist-worn configuration, which is practical for naturalistic use but also introduces challenges related to sensor placement variability and inter-subject differences, discussed further in Section~\ref{sec:challenges}. The combined dataset contains 385,326 raw sensor readings recorded at 50~Hz across all sessions and participants. The training-time supervised source is the consolidated file \texttt{all\_users\_data\_labeled.csv}, which provides aligned sensor measurements with activity labels for all users and sessions.
+
+The thesis does not rely on a single homogeneous evidence source. Later chapters combine a labeled development corpus, a separate production-style replay pool, and synthetic stress-test inputs, each serving a different evaluative role. Keeping these sources distinct is essential because supervised model development, unlabeled operational replay, and realism-stress comparisons do not support the same kind of claim. Table~\ref{tab:data_blocks} summarizes the data blocks used throughout the thesis.
+
+\begin{table}[htbp]
+\centering
+\caption{Data blocks used across the thesis. The sources are intentionally separated because they support different claims.}
+\label{tab:data_blocks}
+{\setlength{\tabcolsep}{3pt}
+\scriptsize
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{p{2.6cm}p{1.7cm}p{3.2cm}p{1.4cm}p{3.2cm}p{4.1cm}}
+\hline
+\textbf{Data block} & \textbf{Participants} & \textbf{Session / block structure} & \textbf{Labels} & \textbf{Primary role} & \textbf{Important difference} \\
+\hline
+Labeled development corpus & 6 & One fused CSV preserving 66 contiguous user-activity recording blocks & Yes & Model development and matched labeled reference evaluation & Explicit session identifiers are not retained after fusion; this is the canonical supervised source used by the training pipeline \\
+Production-style replay pool & Not preserved in filenames & 26 paired accelerometer/gyroscope sessions; 25 also include a \texttt{record.csv} file & No & Replay, preprocessing ablation, trigger evaluation, and governance experiments & One legacy session uses \texttt{.xlsx} sensor files; one session failed in the paired intervention comparison because of a corrupted accelerometer file \\
+Synthetic realism-stress sets & None & Two generated evaluation sets, each containing 3,852 windows & Yes, by construction & Controlled comparison of monitoring behavior under degraded realism & Not used for model training and not evidence of real deployment performance \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+Within the fused labeled corpus, participant contributions range from 60,712 to 68,352 raw samples per user. This spread is moderate rather than extreme, so the supervised corpus is not dominated by a single participant. The current training code creates user-isolated windows and grouped validation folds, while the full-corpus sequential window count is retained as a reproducible reference for pipeline-level comparisons.
+
+The dataset covers eleven activity classes. Eight classes represent anxiety-related repetitive body-focused behaviors: ear rubbing, forehead rubbing, hair pulling, hand scratching, hand tapping, knuckle cracking, nail biting, and nape rubbing. Three additional classes capture baseline postural and non-anxiety activities: sitting, standing, and smoking. This class structure was motivated by the ADAM-sense study~\cite{khan2021adamsense}, which established that anxiety-displaying behaviors can be recognized from motion data with sufficient discriminative accuracy when combined with a suitable deep learning architecture. Table~\ref{tab:activity_classes} lists the full class inventory.
+
+\begin{table}[htbp]
+\centering
+\caption{Activity classes in the dataset. Eight classes are anxiety-related body-focused behaviors; three are baseline postural or non-anxiety activities.}
+\label{tab:activity_classes}
+\begin{tabular}{llp{6cm}}
+\hline
+\textbf{Index} & \textbf{Activity} & \textbf{Category} \\
+\hline
+0 & Ear rubbing      & Anxiety-related behavior \\
+1 & Forehead rubbing & Anxiety-related behavior \\
+2 & Hair pulling     & Anxiety-related behavior \\
+3 & Hand scratching  & Anxiety-related behavior \\
+4 & Hand tapping     & Anxiety-related behavior \\
+5 & Knuckle cracking & Anxiety-related behavior \\
+6 & Nail biting      & Anxiety-related behavior \\
+7 & Nape rubbing     & Anxiety-related behavior \\
+8 & Sitting          & Baseline postural activity \\
+9 & Smoking          & Baseline activity \\
+10 & Standing        & Baseline postural activity \\
+\hline
+\multicolumn{3}{p{0.88\textwidth}}{\textit{Total: 11 classes. Raw dataset: 385,326 samples at 50 Hz across 6 participants.}} \\
+\hline
+\end{tabular}
+\end{table}
+
+When the fused labeled corpus is windowed with the baseline settings (200 samples, step size 100), it yields 3,852 model inputs. Because the retained model is trained and evaluated at the window level, Table~\ref{tab:window_class_distribution} reports the class composition in windows rather than in raw rows. The distribution is reasonably even, with class shares ranging from 8.49\% to 10.12\%, so later macro-averaged metrics are not driven by an extreme imbalance.
+
+\input{tables/ch4_class_distribution.tex}
+
+This overview fixes the evidence basis for the rest of the thesis. The supervised baseline depends on a reasonably balanced but small six-participant corpus, while the replay and synthetic datasets serve different evaluation purposes and should not be read as interchangeable sources of accuracy evidence.
+
+The operational pipeline is designed to accept two input formats: paired raw accelerometer and gyroscope session files, or an already fused sensor CSV. However, for the reproducible thesis evaluation path, the main execution uses explicit session-based inputs with fixed runtime prerequisites. This design ensures deterministic comparisons across runs and avoids ambiguity introduced by undocumented preprocessing differences between runs.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/ch4_dataset_source_overview.pdf}
+\caption{Overview of the dataset input structure and ingestion path. Raw wearable sensor recordings from six participants are consolidated into a labeled fused CSV, which serves as the primary training source. Session-based files are used for reproducible inference evaluation.}
+\label{fig:dataset_overview}
+\end{figure}
+
+
+\section{Exploratory Statistical Comparison Across Data Sources}
+\label{sec:ch4_statistical_comparison}
+
+The dataset overview in Section~\ref{sec:dataset} defines the role of each data source. However, a defensible MLOps argument also requires evidence that the sources are understood numerically before they are used for training, replay, monitoring, or stress testing. In wearable HAR, two datasets can share the same six apparent channels while still differing substantially because of unit conventions, sensor orientation, gravity contribution, sampling regularity, or synthetic-data generation assumptions. A statistical comparison is therefore needed before later chapters interpret confidence, uncertainty, drift, and trigger behavior.
+
+The statistical comparison is used as descriptive evidence of distributional similarity or mismatch between data sources. It is not treated as direct evidence of classification accuracy, because production-style replay sessions are mostly unlabeled and synthetic datasets are stress-test inputs rather than real deployment data.
+
+For reproducibility, the underlying inventory is written to \path{reports/chapter4/ch4_data_inventory.csv}. The labeled Garmin development corpus contributes 385,326 sample rows. The production-style replay pool contributes 10,534,206 fused 50~Hz rows across 26 replay sessions; for comparison, replay accelerometer values are internally harmonized from milliG to m\,s$^{-2}$ without overwriting the raw files. The two synthetic sources each contribute 385,326 sample rows in the available CSV representation, corresponding to the same nominal sample scale as the labeled reference. The planned self-recorded final validation dataset was not found in the repository, so it remains pending and no statistics are invented for it.
+
+\input{tables/ch4_channel_statistics.tex}
+
+Table~\ref{tab:ch4_channel_statistics} reports channel-wise count, missingness, mean, standard deviation, range, quartiles, skewness, and kurtosis for $A_x$, $A_y$, $A_z$, $G_x$, $G_y$, and $G_z$. The labeled Garmin accelerometer channels are not centered around zero before normalization, which is expected because gravity remains present in the baseline signal. The replay data occupy a different but physically comparable range after unit harmonization. This matters operationally: if unit conversion, normalization, or channel ordering differs between training and inference, the model may still produce a probability vector, but that vector would be produced under a different input contract.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/ch4_channel_mean_comparison.pdf}
+\caption{Channel-wise mean comparison across the main Chapter 4 data groups. The figure matters because channel means reveal offsets caused by unit handling, gravity, device orientation, or synthetic-data generation. It is descriptive train--serve evidence and not supervised accuracy evidence.}
+\label{fig:ch4_channel_mean_comparison}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/ch4_channel_std_comparison.pdf}
+\caption{Channel-wise standard-deviation comparison across the main Chapter 4 data groups. The figure shows whether signal dispersion differs between the labeled reference, replay sessions, and synthetic sources. The claim boundary is limited to distributional comparison because replay labels are mostly unavailable and synthetic data are not real deployment evidence.}
+\label{fig:ch4_channel_std_comparison}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/ch4_channel_boxplots.pdf}
+\caption{Boxplot comparison of accelerometer and gyroscope channel distributions across dataset groups. This complements the mean and standard-deviation tables by showing spread and outlier-resistant structure. It supports discussion of shift and realism but does not validate subject-independent deployment performance.}
+\label{fig:ch4_channel_boxplots}
+\end{figure}
+
+Figures~\ref{fig:ch4_channel_mean_comparison}--\ref{fig:ch4_channel_boxplots} visualize the same evidence from complementary perspectives. The mean comparison highlights systematic offsets between sources, the standard-deviation comparison shows differences in signal dispersion, and the boxplots expose distributional spread in a way that is less sensitive to individual extremes. Together, these figures support the thesis claim that preprocessing assumptions are not incidental: they define the numerical space in which the model operates.
+
+\input{tables/ch4_dataset_shift_comparison.tex}
+
+Table~\ref{tab:ch4_dataset_shift_comparison} makes the distributional comparison auditable by reporting pairwise mean differences, standard-deviation ratios, median differences, IQR ratios, and two-sample statistics where available. The production replay comparison is the most important train--serve check because these sessions represent the operational inference setting. The synthetic comparisons have a different interpretation: they indicate how closely the generated stress-test inputs resemble the labeled reference in simple channel statistics, but they do not turn synthetic data into real deployment evidence.
+
+The values should be interpreted conservatively. A small shift statistic does not prove that the classifier is correct, and a large shift statistic does not by itself identify the cause of a future failure. Instead, the table provides context for later monitoring results. For example, if a replay session produces low confidence or high drift indicators, the channel-level comparison helps distinguish a plausible input-distribution issue from a purely classifier-level explanation.
+
+Windowing provides a second consistency check. The full-corpus sequential view produces 3,852 windows, matching the historical baseline reference used for full-corpus comparisons. In that view, 129 windows cross activity boundaries and 9 windows cross participant boundaries. The current training implementation uses user-isolated window construction, producing 3,845 windows and eliminating participant-crossing windows by construction. This distinction is important for thesis safety: the 3,852-window view is useful as a reproducible full-corpus reference, while the grouped/user-aware training view is the defensible baseline for model-development claims.
+
+\input{tables/ch4_windowing_summary.tex}
+
+At 50~Hz, each 200-sample window represents four seconds of sensor context. The 100-sample step size means adjacent windows overlap by 50\% and predictions can update every two seconds in a continuous offline replay. This is not instant row-level inference. It is a window-level activity-recognition design that trades a small prediction delay for enough temporal context to recognize repetitive wrist movements. The same windowing convention must be preserved during production-style replay so that later monitoring and governance decisions are based on the same temporal input representation used during model development.
+
+\section{Data Characteristics and Challenges}
+\label{sec:challenges}
+
+The descriptive statistics in Section~\ref{sec:ch4_statistical_comparison} show that the available data sources are not numerically identical. This is expected in wearable IMU-based HAR rather than an anomaly. Differences can arise from sensor units, gravity contribution, wrist orientation, sampling jitter, participant behavior, and the distinction between real and generated data. The following challenges therefore explain why preprocessing, monitoring, and retraining governance are treated as pipeline responsibilities rather than as minor implementation details.
+
+\subsection{Multivariate Time-Series Nature}
+
+Wearable IMU data are multivariate time series. Each recording consists of six coupled channels: three accelerometer axes ($A_x$, $A_y$, $A_z$) and three gyroscope axes ($G_x$, $G_y$, $G_z$). The activity-relevant signal is not contained in a single row or a single axis. It is expressed through temporal patterns, cross-axis relationships, short bursts, and repeated movement cycles. This distinguishes wearable HAR from static tabular classification and motivates window-based sequence models that can use both local motion patterns and longer within-window dependencies~\cite{lara2013survey,bulling2014tutorial,bao2004activity}.
+
+\subsection{Sensor Noise and Device Variability}
+
+Raw wearable sensor readings contain measurement noise, small non-target wrist movements, mechanical vibration, and device-specific bias. These effects matter because the target classes in this thesis include fine-grained repetitive wrist movements such as tapping, scratching, rubbing, and biting-related hand motion. A baseline posture can still contain small adjustments, and a dynamic activity can be mixed with orientation and gravity components. Practical IMU-based activity classifiers must therefore tolerate noise and device variability rather than assuming laboratory-perfect signals~\cite{lyons2021improved}. In the Garmin data, unit conventions add a further source of variability: raw accelerometer values may appear in milliG, while the defended pipeline compares and serves accelerometer values in m\,s$^{-2}$. Unit standardization is therefore required before monitoring statistics or model inputs can be interpreted consistently.
+
+\subsection{Sampling Rate Inconsistencies}
+
+The baseline representation assumes 50~Hz sampling. At that rate, a 200-sample input window corresponds to four seconds of motion. If a production replay session contains timestamp jitter or a different effective sampling rate, then the same physical action may occupy a different number of samples. This changes the temporal scale seen by the convolutional and recurrent layers even if the channel names remain unchanged. Resampling to a fixed 50~Hz grid is therefore a train--serve consistency requirement. It preserves the intended relationship between physical time, window length, and prediction cadence.
+
+\subsection{Inter-Subject and Inter-Session Variability}
+
+A central challenge in wearable HAR is that the same activity can look different across users. Body size, arm length, dominant hand, speed, movement style, and watch tightness all affect the recorded signal. The same participant can also produce different traces across sessions because of fatigue, posture, mood, or slight placement changes. Prior work on personalization and uncertainty in wearable HAR shows that models trained on one user distribution can degrade when applied to another, even when the activity labels are unchanged~\cite{akbari2020personalizing,dhekane2024transfer}. In this thesis, that risk motivates grouped cross-validation using user IDs as groups, train-only scaler fitting, and conservative claims about generalization. The grouped folds reduce participant leakage within the internal evaluation, but the evidence base remains limited to six labeled participants and should not be interpreted as broad subject-independent deployment proof.
+
+\subsection{Sensor Placement and Wrist-Worn Challenges}
+
+Wrist-worn sensors are practical and unobtrusive, but they are also sensitive to placement and orientation. A small rotation of the watch, a looser strap, or a different position along the wrist can change the projection of motion onto the three accelerometer and gyroscope axes. Wang et al.~\cite{wang2024enhancing} show that sensor displacement can substantially degrade wearable HAR performance. This is especially relevant for fine-grained hand activities, where the discriminative motion may be localized and brief. The thesis therefore treats wrist placement as a source of possible distribution shift to be monitored, not as a nuisance that can be ignored after training.
+
+\subsection{Train--Serve Mismatch Risk}
+
+The preceding challenges become operationally important through train--serve mismatch. A model can receive an array with the correct shape while the meaning of that array has changed because units, channel order, sampling rate, normalization parameters, gravity treatment, or windowing differ from training. As discussed by Dhekane and Plötz~\cite{dhekane2024transfer}, HAR systems are vulnerable to such distributional differences between development and deployment settings. In this thesis, train--serve consistency is therefore not only a modeling preference. It is the basis for reliable monitoring and governed retraining. Confidence, drift, and trigger signals are meaningful only if the inference input contract matches the one used during model development.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/ch4_raw_signal_examples.pdf}
+\caption{Example raw accelerometer and gyroscope traces from the labeled dataset for a dynamic class (hand tapping) and a baseline class (sitting). The contrast illustrates why preprocessing and temporal modeling are required before classification.}
+\label{fig:raw_signals}
+\end{figure}
+
+\section{Preprocessing Methodology}
+\label{sec:preprocessing}
+
+The previous sections showed that the thesis data sources differ in their statistical properties and that such variation is expected in wearable IMU recordings. The preprocessing pipeline is therefore not a cosmetic cleaning step; it is the mechanism that makes raw sensor sessions comparable enough to be processed by the fixed baseline model. In this thesis, preprocessing is treated as a reproducible MLOps component because any undocumented change in units, sampling rate, normalization state, or window construction would change the effective input distribution seen by the model.
+
+The baseline preprocessing path consists of input validation, unit standardization, signal synchronization and resampling, and raw-unit window construction. Two additional transformations, gravity removal and calibration, are implemented as optional controls but are disabled in the defended baseline. This design follows the core train--serve consistency rule encoded in \texttt{config/pipeline\_config.yaml}: production preprocessing must match the documented final inference contract. Each preprocessing decision is therefore described below not only by what it does, but also by why it matters, how it is controlled, and what can go wrong if it is changed without a matching model-development step.
+
+\subsection{Input Validation}
+
+Input validation protects the pipeline from structurally invalid sessions before any transformation is applied. The validation stage checks that required sensor channels are present, timestamps are usable, missingness remains below the configured maximum of 5\%, the estimated sampling rate remains within the 50~Hz tolerance, and sensor magnitudes remain within plausible bounds. The configured bounds are 50~m\,s$^{-2}$ for acceleration and 500~deg\,s$^{-1}$ for gyroscope readings.
+
+This matters because later stages assume a six-channel, time-ordered IMU stream. If a channel is missing, timestamps are malformed, or values are physically implausible, the model can still produce a probability vector after array construction, but that vector would not be meaningful evidence of activity. Validation is controlled through the repository configuration rather than through manual inspection. Sessions that fail validation are rejected or routed out of the normal inference path, which prevents bad inputs from contaminating confidence summaries, drift statistics, or retraining-trigger decisions.
+
+\subsection{Unit Standardization}
+
+Unit standardization resolves the most direct train--serve scale risk in the Garmin recordings. Raw accelerometer files may appear in milliG, whereas the final production preprocessing contract expects acceleration in m\,s$^{-2}$ before windowing. The configured conversion uses $1\,\text{milliG} = 0.00981\,\text{m\,s}^{-2}$. Gyroscope values are retained in deg\,s$^{-1}$ as recorded.
+
+This step matters because a skipped or duplicated unit conversion would shift the accelerometer channels by orders of magnitude relative to the distribution used for scaling and inference. The pipeline controls the conversion through an explicit configuration flag and unit-detection logic; raw files are not overwritten. The risk is asymmetric: the software may continue running even when units are wrong, but the model input would represent a different physical signal. For that reason, unit conversion is treated as part of the model input contract, not as a presentation choice for plots or tables.
+
+\subsection{Signal Synchronization and Resampling}
+
+After unit conversion, accelerometer and gyroscope streams are aligned into a common time representation and resampled to a strict 50~Hz grid using linear interpolation. This produces a uniformly sampled six-channel signal that downstream windowing can process deterministically. The 50~Hz target is not arbitrary: it defines the temporal meaning of every model input, because 200 samples correspond to four seconds and a 100-sample step corresponds to a two-second update interval.
+
+This step matters because timestamp jitter or an unexpected effective sampling rate changes the number of samples representing the same physical motion. The convolutional filters and recurrent layers would then observe a different temporal scale from the one used during model development. Resampling is controlled by the pipeline configuration, including the target frequency and interpolation method. If this setting changes without retraining and regenerating preprocessing artifacts, later monitoring signals may reflect a changed time base rather than a genuine activity or drift pattern.
+
+\subsection{Normalization State}
+
+The defended final production path does not apply an external StandardScaler. After accelerometer unit conversion, the model receives raw physical IMU units: accelerometer channels in m\,s$^{-2}$ and gyroscope channels in deg\,s$^{-1}$. The train-only scaler artifact remains in the repository for model-development, leakage checks, and controlled A/B diagnostics, but it is not a final production inference dependency.
+
+This matters for two reasons. First, applying a scaler in production would place inference in a different feature space from the raw physical runtime contract and would also require a matching monitoring baseline. Second, fitting any scaler on validation, test, replay, or production data would leak information about the target distribution into preprocessing. The pipeline therefore records normalization state explicitly: final production runs keep \texttt{enable\_normalization=false}, while z-score or robust scaling is reserved for training or explicitly labeled A/B runs. If normalization is enabled, changed, or re-fitted without matching model and baseline evidence, later monitoring results become difficult to interpret.
+
+\subsection{Gravity Removal: Decision and Rationale}
+
+Gravity removal separates low-frequency gravitational acceleration from higher-frequency body motion, typically through a high-pass filter. It can be useful in some wearable HAR pipelines, especially when the goal is to isolate dynamic acceleration. In the defended baseline, however, gravity removal is \textbf{disabled}.
+
+The reason is train--serve consistency. The retained baseline model and scaler were built under gravity-included assumptions. Enabling gravity removal only during inference would remove information that was present during model development and would shift the accelerometer distribution, especially along axes affected by wrist orientation. This is the type of silent preprocessing mismatch highlighted in HAR deployment work~\cite{dhekane2024transfer}. Gravity removal therefore remains an ablation or future adaptation option, not a default inference behavior. If it is enabled, the model, scaler, monitoring baseline, and evaluation evidence must be regenerated under the same preprocessing path.
+
+\subsection{Calibration: Decision and Rationale}
+
+Calibration is also disabled in the baseline. In principle, calibration can reduce device- or session-specific offsets and may help when a new wearable, placement pattern, or recording environment differs from the training condition. In this thesis, calibration is implemented only as an optional experimental control because it changes the numerical relationship between raw signals and model inputs.
+
+The baseline is deliberately conservative: calibration is not applied unless a controlled experiment evaluates it with matching preprocessing assumptions. Enabling calibration automatically on unlabeled replay data would make it harder to attribute later changes in confidence, drift, or trigger behavior. It could improve a shifted session, but it could also hide a meaningful distribution shift or create a new one. For the defended pipeline, calibration is therefore treated as a governed adaptation candidate rather than as part of routine preprocessing.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/ch4_preprocessing_flow.pdf}
+\caption{Preprocessing pipeline flowchart. The active baseline path validates raw sensor recordings, harmonizes units, aligns and resamples streams, and preserves the raw physical input contract before windowing. Gravity removal, calibration, and external scaling are available as optional extensions or diagnostics but are disabled in the defended baseline to preserve train--serve consistency.}
+\label{fig:preprocessing_pipeline}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Baseline preprocessing configuration. All active settings are controlled by \texttt{config/pipeline\_config.yaml} and define the train--serve input contract for the fixed baseline model.}
+\label{tab:preprocessing_config}
+\begin{tabular}{p{2.8cm}p{4.2cm}p{4.4cm}}
+\hline
+\textbf{Step} & \textbf{Status / Value} & \textbf{Rationale} \\
+\hline
+Input validation       & Enabled                     & Reject invalid or physically implausible sessions before inference \\
+Unit conversion        & Enabled (milliG $\rightarrow$ m\,s$^{-2}$, factor 0.00981) & Preserve physical scale consistency across sessions \\
+Resampling             & Enabled (50~Hz, linear interpolation) & Preserve the temporal meaning of 200-sample windows \\
+Normalization          & \textbf{Disabled} for final production inference & Preserve raw physical input contract; scaler artifacts are training/A-B evidence only \\
+Gravity removal        & \textbf{Disabled}            & Preserve gravity-included baseline assumptions \\
+Calibration            & \textbf{Disabled}            & Keep adaptation outside the default defended preprocessing path \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Windowing and Input Representation}
+\label{sec:windowing}
+
+After preprocessing, the continuous six-channel IMU stream is converted into fixed-length windows. This step defines the final input representation used by the baseline model. Windowing is necessary because the target activities are not represented by isolated sensor samples, but by short temporal movement patterns. For example, hand tapping, scratching, rubbing, and nail biting produce repeated motion signatures that unfold over several seconds. A single timestamp is therefore insufficient for classification; the model requires a short segment of motion history.
+
+\subsection{Why Sliding Windows}
+
+Sliding-window segmentation transforms a continuous wearable recording into a sequence of model inputs. Each window contains a fixed number of consecutive sensor samples and is treated as one classification unit. This approach is common in wearable HAR because it preserves temporal context while still producing a finite set of samples for model training and inference~\cite{lara2013survey,bulling2014tutorial,dhekane2024transfer}.
+
+In this thesis, windowing also acts as a reproducibility boundary. The trained model expects inputs with a fixed temporal length and channel structure. Therefore, the same windowing configuration must be used during training, offline inference, monitoring, and replay experiments. If the window size, step size, sampling rate, or channel order changes, the effective model input distribution also changes. Such a change would no longer be a harmless implementation detail; it would become a train--serve mismatch.
+
+\subsection{Window Size and Latency Trade-Off}
+
+The baseline configuration uses a window size of 200 samples. At a sampling rate of 50~Hz, this corresponds to four seconds of sensor data per window. This duration provides enough temporal context to capture repetitive wrist-motion patterns while keeping the input length manageable for the 1D-CNN + BiLSTM model. The window size is therefore both a modeling choice and an operational choice.
+
+The operational consequence is latency. A complete prediction for one window cannot be generated until the full four seconds of sensor context are available. In the offline batch setting of this thesis, this is acceptable because sessions are processed after recording. In a future near-real-time deployment, however, the same configuration would introduce a minimum context delay of approximately four seconds before the first full-window prediction. This is not a weakness of the current pipeline, but it is an important property of the chosen input representation and should not be described as instant sample-level inference.
+
+\subsection{Step Size and Overlap}
+
+The step size is 100 samples, corresponding to two seconds at 50~Hz. Since the window length is 200 samples, adjacent windows overlap by 50\%. This overlap increases temporal coverage and reduces boundary effects. If an activity transition occurs near the edge of one window, the overlapping neighboring window may capture the movement pattern more completely.
+
+The overlap also increases the number of generated windows from a fixed recording length. This is useful for model development with a small labeled dataset of six participants, 385,326 raw rows, and eleven activity classes. However, overlapping windows must be interpreted carefully. They are statistically related because neighboring windows share sensor samples. They should therefore not be treated as fully independent observations when discussing generalization. This is one reason why the thesis separates internal model-development evidence from broader deployment claims.
+
+\subsection{Label Assignment}
+
+For labeled data, each window receives one activity label. When all samples in a window belong to the same activity, the label assignment is direct. When a window crosses an activity boundary, the assigned label is determined by the thesis-defined majority rule. This makes label assignment deterministic and reproducible, but it also records a boundary condition that must be interpreted carefully.
+
+Table~\ref{tab:ch4_windowing_summary} summarizes the resulting window counts. The fused sequential windowing path produces 3,852 windows from 385,326 raw rows. In that sequential view, 129 windows cross an activity boundary and 9 windows cross a participant boundary. For user-isolated windowing, the dataset produces 3,845 windows, with 120 activity-boundary crossing windows and 0 participant-crossing windows. The user-isolated view is therefore the safer basis for grouped, user-aware training and evaluation, because it avoids constructing windows that mix participants.
+
+\subsection{Output Tensor}
+
+The output of the windowing stage is a fixed-shape tensor with 200 time steps and six sensor channels. The six channels correspond to the three accelerometer axes and the three gyroscope axes. Each model input therefore has shape $(200, 6)$, and a batch of $N$ windows has shape $(N, 200, 6)$.
+
+This tensor is the direct interface between data processing and model inference. It is also a contract between this chapter and the implementation chapter: the pipeline must always produce tensors with the expected time dimension, channel dimension, and channel order before passing them to the model. Any deviation from this representation would require either retraining the model or explicitly evaluating the change as a controlled ablation.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/ch4_windowing_diagram.pdf}
+\caption{Sliding-window segmentation of the preprocessed sensor stream. Each 200-sample window represents four seconds at 50~Hz, and the 100-sample step produces a new window every two seconds after the first complete window. This figure documents the temporal context and prediction cadence of the baseline representation.}
+\label{fig:windowing}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.82\textwidth]{figures/ch4_input_tensor_shape.pdf}
+\caption{Illustrative six-channel input tensor with shape $(200, 6)$. The horizontal axis represents the 200 time steps in a four-second window, while the vertical axis represents the accelerometer and gyroscope channels passed to the baseline model. The tensor shape and channel order define the train--serve input contract.}
+\label{fig:input_tensor}
+\end{figure}
+
+\section{Model Architecture and Rationale}
+\label{sec:architecture}
+
+\subsection{Architecture Selection Rationale}
+
+The baseline model uses a 1D-CNN + BiLSTM hybrid architecture for multivariate wearable time-series classification \cite{hochreiter1997lstm,schuster1997bilstm,wang2017timeseries1dcnn,ordonez2016deep}. This combination was selected because it addresses two complementary aspects of the recognition problem: local temporal pattern extraction (handled by the convolutional component) and sequential dependency modeling over the full window (handled by the recurrent component).
+
+Convolutional neural networks have been shown to be effective feature extractors for IMU time-series data. Lyons et al.~\cite{lyons2021improved} demonstrated that 1D convolutional layers applied to accelerometer and gyroscope channels can extract discriminative local motion features — including oscillations, impulse responses, and directional changes — that are directly relevant to activity classification. Review papers on deep HAR report the same broader pattern: CNN-, RNN-, and hybrid CNN-LSTM architectures remain common precisely because they combine local feature extraction with temporal sequence modeling for wearable sensor streams \cite{wang2019sensorhar,zhang2022wearablehar}. One-dimensional convolution over the time axis is particularly well suited here because the key discriminative information in activities like nail biting or hand tapping is encoded in short, repeated temporal patterns that appear locally within the signal, rather than as global statistics over the entire window.
+
+However, convolutional feature extraction alone is insufficient for capturing longer temporal dependencies within the activity window. Activities such as ear rubbing or forehead rubbing involve sustained motion patterns with temporal structure at scales longer than the local kernel receptive field. For this reason, the convolutional blocks are followed by bidirectional long short-term memory (BiLSTM) layers \cite{hochreiter1997lstm,schuster1997bilstm}. The bidirectional design allows the model to access both the forward and backward temporal context at each position in the sequence, which is beneficial for recognizing activities whose discriminative features span the full window~\cite{khan2021adamsense}.
+
+The objective of this thesis is not to propose a novel neural architecture. As Akbari and Jafari~\cite{akbari2020personalizing} noted, the challenge in wearable HAR deployment is not primarily the design of architectures but the operationalization of models in ways that generalize reliably across users and conditions. The emphasis in this thesis is accordingly placed on stable inference behavior, pipeline reproducibility, and monitoring-aware deployment rather than on architectural novelty.
+
+\subsection{Layer Configuration}
+
+The complete architecture consists of two convolutional blocks, two stacked BiLSTM layers, and a two-layer dense classifier head. Batch normalization is applied after each block to stabilize the internal activation distributions and accelerate convergence. Dropout is applied after each block to reduce overfitting, with a conservative rate in the early layers (0.1 and 0.2) and a higher rate before the output layer (0.5).
+
+The first convolutional block applies 16 filters with a kernel size of 2 and ReLU activation. The small kernel size captures very local temporal features at the two-sample level, which at 50~Hz corresponds to a 40~ms temporal window. The second convolutional block applies 32 filters with the same kernel size, increasing the representational capacity of the extracted features. After the two convolutional blocks, the feature sequence is passed to the first BiLSTM layer with 64 units (\texttt{return\_sequences=True}) and then to the second BiLSTM layer with 32 units. The dense classifier head applies a 32-unit ReLU layer followed by the 11-unit softmax output layer. The complete model contains 499,131 trainable parameters.
+
+Operationally, the softmax head yields an 11-dimensional probability vector per window. Stage 4 persists both the predicted label and the probability distribution, because later monitoring stages consume confidence- and distribution-derived summaries rather than labels alone.
+
+\begin{table}[htbp]
+\centering
+\caption{Layer configuration of the baseline 1D-CNN + BiLSTM model. Input shape: $(200, 6)$. Output shape: $(11,)$.}
+\label{tab:model_arch}
+\begin{tabular}{lllc}
+\hline
+\textbf{Block} & \textbf{Layer} & \textbf{Configuration} & \textbf{Dropout} \\
+\hline
+CNN Block 1     & Conv1D              & 16 filters, kernel 2, ReLU    & 0.1  \\
+                & BatchNormalization  & ---                           & ---  \\
+CNN Block 2     & Conv1D              & 32 filters, kernel 2, ReLU    & 0.2  \\
+                & BatchNormalization  & ---                           & ---  \\
+BiLSTM 1        & Bidirectional LSTM  & 64 units, return sequences    & 0.2  \\
+                & BatchNormalization  & ---                           & ---  \\
+BiLSTM 2        & Bidirectional LSTM  & 32 units, return sequences    & 0.2  \\
+                & BatchNormalization  & ---                           & ---  \\
+Dense Head      & Dense               & 32 units, ReLU                & 0.5  \\
+                & BatchNormalization  & ---                           & ---  \\
+Output          & Dense               & 11 units, softmax             & ---  \\
+\hline
+\multicolumn{4}{l}{\textit{Total trainable parameters: 499,131.}} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Design rationale for key architectural choices in the baseline model.}
+\label{tab:design_rationale}
+\begin{tabular}{p{3.8cm}p{7.5cm}}
+\hline
+\textbf{Design Choice} & \textbf{Rationale} \\
+\hline
+1D convolution over time axis & Extracts local temporal motion patterns (oscillations, impulses) in IMU channels~\cite{lyons2021improved} \\
+Bidirectional LSTM            & Captures forward and backward temporal dependencies across the full 4-second window~\cite{hochreiter1997lstm,schuster1997bilstm,khan2021adamsense} \\
+Stacked BiLSTM (64->32)        & Hierarchical temporal abstraction; reduces sequence dimension towards the classifier \\
+BatchNormalization per block  & Stabilizes activations, reduces internal covariate shift, improves training convergence \\
+Dropout 0.5 before output     & Prevents memorization of training-specific patterns; improves generalization across users~\cite{akbari2020personalizing} \\
+Softmax output (11 units)     & Produces a normalized class-probability distribution over all activity classes \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/ch4_model_architecture.pdf}
+\caption{Baseline 1D-CNN + BiLSTM architecture. The two convolutional blocks extract local temporal motion features from the six IMU channels. The stacked BiLSTM layers model sequential dependencies across the full window. The dense head maps to the eleven activity classes.}
+\label{fig:model_architecture}
+\end{figure}
+
+\section{Training Setup and Baseline Assumptions}
+\label{sec:training}
+
+\subsection{Optimization Configuration}
+
+Model training uses the Adam optimizer with a learning rate of 0.001 and sparse categorical cross-entropy as the loss function. Adam was chosen as a practical default for sequence classification tasks and is commonly used in deep wearable HAR pipelines because it provides stable optimization without extensive schedule tuning \cite{wang2019sensorhar,zhang2022wearablehar,khan2021adamsense}. Training is configured for up to 100 epochs with a batch size of 64.
+
+\subsection{Callback-Based Regularization}
+
+Two callback-based strategies control the training process. Early stopping monitors validation accuracy and terminates training if no improvement is observed for 15 consecutive epochs, restoring the weights from the best-performing epoch. This prevents unnecessary overtraining and ensures that the saved model corresponds to the peak validation performance rather than the last epoch. Learning rate reduction on plateau monitors validation loss: if no improvement is observed for 5 consecutive epochs, the learning rate is multiplied by a factor of 0.5. The minimum allowable learning rate is set to $10^{-6}$. Together, these callbacks produce a practical self-regulating training loop that does not require manual early stopping or learning rate schedule tuning.
+
+\subsection{Cross-Validation Strategy}
+
+Model generalization is estimated using five-fold grouped cross-validation with participant IDs as groups over the user-isolated windows derived from the fused labeled corpus. The canonical training path implemented in \texttt{src/train.py} uses \texttt{GroupKFold}, with participant IDs as the grouping variable. The held-out group fold is passed to the training loop as \texttt{validation\_data}; it therefore serves both as the callback-monitoring signal and as the fold-level evaluation set. Within each fold, the scaler is fitted only on the training fold before being applied to the held-out fold. The configuration retains a fixed seed of 42 for reproducible operations where stochastic splitting or training behavior is used.
+
+The grouped validation choice follows the broader HAR evaluation concern discussed by Dhekane and Plötz~\cite{dhekane2024transfer}: estimates from small wearable datasets are sensitive to how subjects and sessions are split. The current implementation uses participant IDs as groups, so the same participant is not present in both the training and held-out fold for a given fold. At the same time, the evidence base remains small and collection-specific, so the resulting scores are best interpreted as an internal estimate under matched collection conditions, not as proof of subject-independent deployment behavior.
+
+\subsection{Split Logic and Evaluation Basis}
+
+The thesis uses more than one evaluation basis, and later chapters depend on keeping these bases separate. Table~\ref{tab:evidence_basis} distinguishes model-development splitting from matched labeled replay, unlabeled production-style replay, and synthetic realism-stress tests.
+
+\begin{table}[htbp]
+\centering
+\caption{Split logic and evaluation basis used across the thesis.}
+\label{tab:evidence_basis}
+{\setlength{\tabcolsep}{4pt}
+\scriptsize
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{p{3.1cm}p{3.1cm}p{2.5cm}p{1.8cm}p{4.7cm}}
+\hline
+\textbf{Evidence basis} & \textbf{Primary source} & \textbf{Unit of analysis} & \textbf{Labels} & \textbf{Main use in thesis} \\
+\hline
+Offline model development & Fused labeled CSV, then user-isolated windowing and grouped splitting & Grouped user folds & Yes & Model fitting, fold metrics, scaler fitting, and retained-model selection \\
+Labeled pipeline reference & Same 3,852-window corpus replayed end-to-end through the thesis pipeline & Full labeled window corpus & Yes & Chapter~\ref{chap:experiments} baseline reference and actual-versus-synthetic comparator \\
+Production-style replay & 26 paired raw sensor sessions from the replay pool & Session-level runs plus aggregated window summaries & No & Chapter~\ref{chap:experiments} preprocessing ablation, trigger evaluation, and governance analysis \\
+Synthetic realism-stress comparison & Two generated 3,852-window evaluation sets & Full labeled window corpus & Yes, by construction & Chapter~\ref{chap:experiments} uncertainty and realism comparison \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+The critical distinction is that the labeled pipeline reference is not an independent held-out test set; it is a full-corpus replay used to verify end-to-end pipeline behavior on known data. Conversely, the replay sessions are operationally closer to deployment inputs, but they are unlabeled and therefore support behavioral and governance claims rather than direct accuracy claims.
+
+\subsection{Generalization Boundary}
+
+The data and split design support four bounded conclusions. First, they support controlled development and internal validation of the retained model on the collected six-participant corpus. Second, they support end-to-end checks that the pipeline can reproduce strong behavior when train and serve conditions remain aligned. Third, they support unlabeled replay studies of preprocessing sensitivity, monitoring response, and governance logic on production-style inputs. Fourth, they support synthetic stress tests of whether uncertainty and drift signals move directionally when realism degrades.
+
+The same design does not support broad claims about subject-independent or real-world deployment generalization. The labeled corpus is small, the canonical cross-validation is grouped by participant but still limited to six participants, the matched labeled replay is not an independent test set, and the production-style sessions used later are unlabeled. The dataset design and split strategy therefore support controlled evaluation of pipeline behavior and monitored inference under the tested conditions, but they do not by themselves establish broad subject-independent real-world generalization.
+
+\subsection{Fixed Baseline Assumption}
+
+The thesis baseline assumes that a single trained model --- produced from the training pipeline described above --- is used as the fixed inference model for all downstream pipeline experiments. This design decision is intentional: the primary thesis contribution is not hyperparameter optimization or model redesign, but the operationalization of a reproducible offline MLOps pipeline around a stable model. Repeated retraining with varying configurations would make it impossible to cleanly evaluate monitoring behavior, drift detection performance, and retraining governance --- all of which require a consistent model as the reference point.
+
+Concretely, the defended runtime uses the mentor-provided pretrained artifact \path{models/pretrained/fine_tuned_model_1dcnnbilstm.keras} as the default inference model. Retrained artifacts are treated as candidate models and are promoted only after labeled evaluation demonstrates improvement over the current default. Pseudo-label fine-tuning is evaluated later as a controlled negative-result path that illustrates collapse risk under unlabeled shift; it is not the defended runtime default.
+
+\begin{table}[htbp]
+\centering
+\caption{Training configuration for the baseline 1D-CNN + BiLSTM model.}
+\label{tab:training_config}
+{\setlength{\tabcolsep}{4pt}
+\small
+\begin{tabular}{p{3.1cm}p{2.9cm}p{5.0cm}}
+\hline
+\textbf{Parameter} & \textbf{Value} & \textbf{Notes} \\
+\hline
+Optimizer           & Adam            & Default $\beta_1=0.9$, $\beta_2=0.999$ \\
+Learning rate       & 0.001           & Initial value \\
+Loss function       & Sparse categorical cross-entropy & Multi-class, integer labels \\
+Epochs (max)        & 100             & Subject to early stopping \\
+Batch size          & 64              & \\
+Early stopping      & Patience 15     & Monitor: val\_accuracy; restore best weights \\
+LR reduction        & Patience 5, factor 0.5 & Monitor: val\_loss; min LR: $10^{-6}$ \\
+Windowed corpus size & 3,852 reference / 3,845 training windows & Sequential reference vs. user-isolated training view \\
+Validation input    & Held-out CV fold & Used for callbacks and fold evaluation \\
+Cross-validation    & 5-fold grouped by participant & \texttt{GroupKFold}; user IDs define held-out groups \\
+Window size         & 200 samples     & 4 seconds at 50~Hz \\
+Step size           & 100 samples     & 50\% overlap \\
+Input channels      & 6               & Acc (3) + Gyro (3) \\
+Output classes      & 11              & 8 anxiety + 3 baseline \\
+Total parameters    & 499,131         & Trainable \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/ch4_training_workflow.pdf}
+\caption{Training workflow for the baseline model. Five-fold grouped cross-validation is used for internal generalization estimation. Within each fold, the scaler is fitted on training data only, and callback-based regularization controls epoch count and learning rate.}
+\label{fig:training_workflow}
+\end{figure}
+
+\section{Baseline Scope and Adaptation Boundary}
+\label{sec:scope}
+
+Defining the boundary of the baseline is as important for a defensible thesis as defining the baseline itself. Without a clear scope boundary, the core system claims can become confused with optional research extensions, making it difficult to evaluate whether the primary thesis contributions hold.
+
+The baseline system defined in this chapter consists of: the custom wearable IMU dataset, the five-stage preprocessing pipeline (validation, unit conversion, resampling, normalization-state control, and windowing), the 1D-CNN + BiLSTM architecture, and the training configuration described in Section~\ref{sec:training}. This baseline produces a fixed, trained model that is deployed within the offline MLOps pipeline for inference, monitoring, and retraining experiments.
+
+Several advanced components exist in the broader project repository that are explicitly \emph{not} part of the baseline. These include domain adaptation methods such as AdaBN \cite{li2016adabn}, TENT \cite{wang2021tent}, and their hybrid combination, pseudo-label-based test-time refinement \cite{lee2013pseudolabel,arazo2020pseudolabel}, and uncertainty-based personalization modules. In operational terms, pseudo-label refinement means running the current model on unlabeled target-domain windows, selecting sufficiently confident predictions, and then reusing those predictions as surrogate labels for an additional fine-tuning pass. This can improve adaptation when the model is already reasonably calibrated and the target data are representative, but it can also amplify an existing class bias because the supervision signal is generated by the model itself rather than by verified labels \cite{lee2013pseudolabel,arazo2020pseudolabel}. Chapter~\ref{chap:experiments} later returns to this risk with a controlled comparison between the historical pseudo-labeled model and the raw retrained baseline. While these components are present as experimental extensions and represent valid future research directions, they are excluded from the primary evaluation path of this thesis. Enabling them by default would conflate the baseline pipeline story with optional adaptation experiments, compromising the clarity of the core claims.
+
+\begin{table}[htbp]
+\centering
+\caption{Baseline scope: in-scope components versus out-of-scope extensions in this chapter.}
+\label{tab:scope}
+\begin{tabular}{p{5cm}cp{5.5cm}}
+\hline
+\textbf{Component} & \textbf{Status} & \textbf{Notes} \\
+\hline
+Custom wearable IMU dataset  & In scope & Training and evaluation data source \\
+5-stage preprocessing pipeline & In scope & Validation, unit conv., resample, raw-unit contract, window \\
+1D-CNN + BiLSTM model        & In scope & Baseline architecture (499,131 params) \\
+5-fold grouped CV training & In scope & Internal grouped-user estimate under matched collection conditions \\
+Adam + callbacks training    & In scope & Practical baseline optimizer setup \\
+\hline
+Gravity removal              & Optional & Disabled in baseline; available for ablation \\
+Sensor calibration           & Optional & Disabled in baseline; experimental extension \\
+AdaBN / TENT adaptation      & Optional & Future work / later experiment chapters \\
+Pseudo-label refinement      & Optional & Future work / later experiment chapters \\
+Uncertainty personalization  & Optional & Research extension; not evaluated in core pipeline \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Reproducibility and Consistency Considerations}
+\label{sec:reproducibility}
+
+Reproducibility is a first-class requirement in this thesis, not a secondary concern. The data and model foundation described in this chapter must be fully re-creatable from fixed inputs and documented configuration, so that any downstream inference result, monitoring statistic, or retraining decision can be traced back to a known and stable baseline.
+
+Three mechanisms enforce reproducibility in the data and model development path. First, configuration-driven execution: all preprocessing flags, windowing parameters, normalization state, and training hyperparameters are specified in versioned configuration files (\texttt{config/pipeline\_config.yaml}, \texttt{src/config.py}). No preprocessing decision is left to implicit notebook logic or undocumented default values. Second, fixed random seeds: cross-validation fold assignment and all stochastic training operations use a fixed seed (42), ensuring that re-running the training pipeline from the same data produces the same fold splits, the same model weights, and the same evaluation metrics. Third, artifact traceability: trained model artifacts are recorded through experiment tracking where available, and preprocessing artifacts such as windowed arrays and metadata are saved as versioned intermediate outputs, so that the exact model and preprocessing configuration used in any given pipeline run can be reconstructed from recorded metadata.
+
+Train--serve consistency is the most operationally critical form of reproducibility in this thesis. As Dhekane and Plötz~\cite{dhekane2024transfer} note, inconsistencies between training and serving preprocessing -- even apparently minor ones -- can cause systematic shifts in model input distribution that degrade performance in ways that are difficult to diagnose during deployment. The preprocessing pipeline is therefore designed to make the inference contract explicit: the same unit conversion, sampling rate, normalization state, and windowing parameters must be used whenever final production behavior is claimed. Disabling normalization, gravity removal, and calibration in the final production baseline is itself a reproducibility decision: it eliminates three potential sources of train--serve divergence that could otherwise go undetected.
+
+\begin{table}[htbp]
+\centering
+\caption{Reproducibility anchors for Chapter 4. Each claim in this chapter is grounded in a specific, versioned artifact.}
+\label{tab:reproducibility}
+\begin{tabular}{p{4cm}p{7.5cm}}
+\hline
+\textbf{Claim} & \textbf{Artifact / Source} \\
+\hline
+Preprocessing configuration  & \texttt{config/pipeline\_config.yaml} \\
+Windowing parameters          & \texttt{config/pipeline\_config.yaml}, \texttt{src/config.py} \\
+Model architecture            & \texttt{src/train.py} (\texttt{build\_model}), \texttt{models/pretrained/model\_info.json} \\
+Training hyperparameters      & \texttt{src/train.py} (\texttt{TrainingConfig} dataclass and CLI argument defaults) \\
+Cross-validation setup        & \texttt{src/train.py}, 5-fold \texttt{GroupKFold} with participant IDs as groups \\
+Normalization state           & \texttt{config/pipeline\_config.yaml}; final production disables external scaling, while training/A-B scalers are provenance-checked \\
+Model registry                & MLflow \cite{zaharia2018mlflow} artifact: \texttt{har-1dcnn-bilstm} \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Chapter Summary}
+
+This chapter established the data and model foundation of the thesis system. The thesis draws on three distinct data blocks: a six-participant labeled Garmin IMU corpus used for model development, a separate pool of 26 paired raw replay sessions used for unlabeled operational studies, and two synthetic 3,852-window stress-test sets used to probe monitoring behavior under degraded realism. The labeled development corpus contains 385,326 raw sensor readings and yields 3,852 model inputs under the baseline windowing configuration. Its window-level class distribution is relatively even, but the evidence base remains small and participant-limited.
+
+Raw sensor signals present several inherent challenges -- including measurement noise, sampling irregularities, inter-subject variability, and unit inconsistencies -- that require a controlled preprocessing pipeline. The five-stage pipeline applied in this thesis (input validation, unit conversion to m\,s$^{-2}$, resampling to 50~Hz, explicit no-normalization runtime state, and sliding-window segmentation) addresses these challenges while preserving the critical requirement of train--serve consistency~\cite{dhekane2024transfer}. Gravity removal and calibration are explicitly disabled in the baseline to prevent avoidable distributional divergence between training and inference.
+
+Windowed tensors of shape $(200, 6)$ — representing four seconds of six-channel IMU data — form the direct input to the baseline model: a 1D-CNN + BiLSTM architecture with 499,131 parameters. The convolutional layers extract local motion features from the sensor channels~\cite{lyons2021improved}; the BiLSTM layers capture temporal dependencies across the full window~\cite{khan2021adamsense}. The model-development baseline uses five-fold grouped cross-validation with participant IDs as groups, with the held-out fold serving directly as validation data for callbacks and fold evaluation. Later chapters deliberately separate this internal labeled estimate from the full-corpus labeled replay, the unlabeled production-style replay pool, and the synthetic stress tests so that each claim is matched to its evidence basis.
+
+This distinction sets the boundary for the rest of the thesis. Chapter~\ref{chap:implementation} operationalizes the fixed preprocessing and model assumptions in the repository pipeline; Chapter 6 and Chapter~\ref{chap:experiments} evaluate monitoring, trigger, and governance behavior on replay and synthetic evidence relative to the matched labeled reference. The dataset design and split strategy support controlled evaluation of pipeline behavior and monitored inference under the tested conditions, but they do not by themselves establish broad subject-independent real-world generalization.

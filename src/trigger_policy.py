@@ -77,7 +77,7 @@ class TriggerAction(Enum):
     MONITOR = "monitor"  # Continue monitoring, no action
     REVIEW = "review"  # Manual review required
     QUEUE_RETRAIN = "queue_retrain"  # Add to retrain queue
-    TRIGGER_RETRAIN = "trigger"  # Trigger immediate retraining
+    TRIGGER_RETRAIN = "trigger"  # Candidate-generation trigger after governance gates
     ROLLBACK = "rollback"  # Rollback to previous model
 
 

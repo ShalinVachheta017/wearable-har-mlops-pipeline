@@ -1,3 +1,106 @@
 \chapter{Discussion and Conclusion}
+\label{chap:discussion}
 
-This chapter discusses findings, limitations, and future work.
+This chapter consolidates the thesis findings, answers the research questions from Chapter~\ref{chap:introduction} against the evidence in Chapters~5--7, states the threats to validity that qualify those answers, records scope limitations, and finally sketches the future work that would extend rather than overstate the contribution.
+
+\section{Summary of Findings}
+
+This thesis set out to build an offline-first, auditable, and reproducible wearable HAR system in which ingestion, preprocessing, inference, monitoring, and retraining governance are treated as one coordinated lifecycle rather than as disconnected scripts \cite{amershi2019mlops,kreuzberger2023mlops}. The resulting system is a governed pipeline with seven core operational stages and three conditional mutation stages, in which the runtime entry point, configuration layering, and artifact persistence are explicit enough to be reproduced from versioned configuration and run artifacts.
+
+The empirical chapter supports five bounded claims. First, preprocessing decisions matter operationally: configurations A/B/C/D produce substantially different downstream behavior, and the gravity-removal-only configuration worsened rather than improved class diversity; the final production contract is therefore kept raw, explicit, and governed rather than silently changed by scaler, gravity, or calibration switches at inference. Second, trigger-policy design matters: the \texttt{two\_of\_three} voting policy achieves precision 0.9878 and false alarm rate 0.0069 where the single-signal policy reaches only 0.8406 and 0.1389. Third, controlled synthetic-versus-actual comparisons show that uncertainty and drift signals respond directionally to realism, so the monitoring stack still carries information when labels are absent. Fourth, calibrated MMD branch experiments strengthen drift visibility and non-mutating alert surfacing, but do not improve final queue/retrain decisions sufficiently to replace the defended runtime governance path. Fifth, a same-input comparison between the historical pretrained model and the retrained model isolates model choice as a direct driver of hand-tapping dominance rather than treating that dominance as a property of the input alone. A preserved negative result on 26 production sessions further shows that a plausible unit-fix plus abstain intervention changed routing behavior without genuinely improving class discrimination, with mean confidence unchanged at 0.8578.
+
+Together, these findings frame the contribution as an \emph{engineering and governance} contribution, not as an architectural claim about a new HAR model. The thesis value lies in showing that the lifecycle can be built so that these distinctions are observable at all.
+
+\section{Answers to the Research Questions}
+\label{sec:rq_answers}
+
+The four research questions from Chapter~\ref{chap:introduction} are answered here against the evidence mapping of Chapter~\ref{chap:experiments}.
+
+\begin{table}[htbp]
+\centering
+\caption{Research questions and bounded answers supported by Chapter~\ref{chap:experiments}.}
+\label{tab:rq_answers}
+\small
+\begin{tabular}{p{0.30\textwidth}p{0.60\textwidth}}
+\hline
+Research question & Bounded answer and supporting evidence \\
+\hline
+RQ1: Can an offline-first wearable HAR pipeline detect operational risk without labels at inference time? & Yes, partially. Confidence, uncertainty, lightweight drift, and calibrated MMD audit signals respond directionally across actual versus synthetic inputs. MMD improves drift visibility in branch experiments, but the defended runtime claim remains bounded to detection of \emph{risk}, not to recovery of label-level correctness. \\
+\hline
+RQ2: How strongly do preprocessing decisions such as gravity removal and calibration affect production-style model behavior? & Strongly and non-monotonically. Gravity removal alone worsened collapse (configuration C), while gravity removal combined with calibration produced the broadest class diversity (configuration D). Intuitively reasonable preprocessing is not automatically beneficial. \\
+\hline
+RQ3: Can governed retraining and trigger-policy design improve system behavior more safely than unrestricted automation? & Yes, within scope. The \texttt{two\_of\_three} voting policy dominates single-signal triggering on precision and false alarm rate, and the collapse guard plus cooldown prevents unsafe retraining from degenerate outputs. The MMD branch further shows that stronger drift detection must still pass governance tests before it is allowed to affect model mutation. \\
+\hline
+RQ4: How much of observed prediction collapse is attributable to model choice rather than to input distribution alone? & Materially attributable to model choice. A controlled same-input rerun reproduced the old model's collapse pattern, whereas the retrained model spanned all 11 classes on the same input. \\
+\hline
+\end{tabular}
+\end{table}
+
+None of these answers is a claim of clinical validity or of unrestricted autonomous deployment. Each is an engineering-scoped statement tied to archived run artifacts and evaluation outputs.
+
+\section{Threats to Validity}
+\label{sec:threats}
+
+The above answers hold only under specific conditions. Four threats to validity must be recorded alongside them.
+
+First, \emph{construct validity} is limited by label availability. Much of the production-style evaluation is unlabeled, so monitoring signals are interpreted as proxies rather than as direct measurements of classification correctness. Calibration work has shown that proxies such as expected calibration error can be identical across models that behave very differently under shift \cite{blasiok2024calibration,guo2017calibration}. The claim that the pipeline detects \emph{risk} is therefore weaker than a claim that it detects error.
+
+Second, \emph{internal validity} depends on train--serve consistency. The preprocessing ablation shows that unit handling, gravity treatment, and calibration can each alter behavior in ways that are not visible in the software execution alone \cite{dhekane2024transfer,wang2024enhancing}. If a future deployment subtly drifts from the configuration layer documented here, the same code path could produce different inferences without raising an alarm.
+
+Third, \emph{external validity} is limited by dataset scope and evaluation design. The baseline training data comes from a small number of participants, and both the synthetic and actual evaluation sets are narrow relative to the diversity of real wearable deployment. The current model-development implementation uses grouped cross-validation with user IDs as groups, which is more defensible than naive window-level splitting because the same participant is not placed in both training and held-out folds within a fold. However, this does not remove the external-validity limitation: the grouped folds are still drawn from only six participants, the matched labeled replay is not an independent deployment test, and production-style replay sessions are mostly unlabeled. External wearable-HAR studies on anxiety-related repetitive behaviors report strong in-lab accuracy but weaker cross-subject or noise-robust behavior \cite{khan2021adamsense,alkurdi2025resilience,sahu2025anxiety,schapiro2023noise,abdalrazaq2023wearable}. This thesis does not claim an exception to that pattern, and broader subject-independent evaluation would be required to characterize the deployment generalization ceiling of the baseline.
+
+Fourth, \emph{governance validity} is limited by what the trigger layer is allowed to do. The system deliberately does not apply test-time adaptation such as AdaBN or TENT \cite{li2016adabn,wang2021tent} and does not implement a continual-learning objective such as Elastic Weight Consolidation \cite{kirkpatrick2017ewc}. The governance claim here is therefore about safe abstention and retraining gating, not about actively reshaping the deployed model under shift.
+
+The final MMD experiment sharpens this threat rather than removing it. MMD improved warning-level drift visibility on the tested degraded replay sets, but the staged governance policies still produced 0 queue/retrain decisions because the behavior-risk signals did not corroborate the drift signal under the configured thresholds. This result suggests that monitoring sensitivity and governance quality should be evaluated as separate claims: a detector can be more informative without being sufficient evidence for model mutation.
+
+\section{Limitations}
+\label{sec:limitations}
+
+Building on the threats above, the implemented system has explicit scope limitations that should not be attributed to the thesis claim.
+
+\begin{itemize}
+	\item many production evaluations are unlabeled, so proxy monitoring metrics must be interpreted carefully rather than as direct performance measurements;
+	\item adaptation methods are available in the literature but are not the default production mode in this pipeline, by design rather than by omission;
+	\item calibrated MMD is retained as an experimental/offline audit and alerting signal, not as the defended runtime retraining trigger;
+	\item calibration (stage~11) is treated as an optional research-oriented extension and is not part of the minimal operational runtime path defended in this thesis;
+	\item the Stage~6 monitoring thresholds (confidence 0.70, uncertain windows 20\%, transition rate 35\%, drift z-score 1.8, dominant-class 85\%) are engineering operating points calibrated against this repository's training distribution and 26-session production-style replays; a multi-participant held-out longitudinal reference is required before they can be treated as statistically robust deployment limits \cite{hendrycks2017baseline,shewhart1931economic,montgomery2009sqc};
+	\item the system is offline-first and single-machine, so streaming, multi-tenant, and cross-institution deployment concerns are outside the defended scope \cite{khattak2023mlhops};
+	\item figure regeneration and evidence assembly are still partly manual, which is acceptable for a thesis artifact but would need strengthening for long-term reusability \cite{gardner2018enabling,bahaidarah2021reusable,ghosh2025reproducible}.
+\end{itemize}
+
+These limitations are treated as explicit scope boundaries rather than hidden assumptions. They mark the edge of what can be defended from the evidence produced by the current artifact set.
+
+\section{Future Work}
+\label{sec:future_work}
+
+Six extensions would strengthen the thesis without overstating its present claim.
+
+First, labeled-evaluation expansion. A larger, cross-subject labeled evaluation set would upgrade several monitoring claims from proxy interpretation to direct measurement, and would allow the calibration and uncertainty layers to be tested against true error rates rather than against indirect signals \cite{gal2016dropout,guo2017calibration}.
+
+Second, governed adaptation studies. A controlled study of test-time adaptation methods such as AdaBN and TENT \cite{li2016adabn,wang2021tent}, and of continual-learning approaches such as EWC \cite{kirkpatrick2017ewc}, would make it possible to compare adaptation-first and governance-first responses to drift within the same pipeline rather than asserting the governance-first choice a priori.
+
+Third, class-collapse diagnosis and prevention. The 25-session comparison in Chapter~\ref{chap:experiments} shows that dominant-class collapse is not explained by input distribution alone; the training pathway also matters materially. A focused follow-up should compare raw retraining, pseudo-label fine-tuning, class-balanced training, and stricter confidence-gated pseudo-label selection on the same session pool to identify which interventions create, amplify, or reduce collapse. That would close an important gap between monitoring collapse at runtime and understanding which model-update choices actually prevent it.
+
+Fourth, trigger-policy calibration on longitudinal data. The current trigger evaluation uses bounded synthetic and production-style sessions. A longer longitudinal evaluation with richer episode structure would let the precision and false-alarm trade-off of \texttt{two\_of\_three} be stress-tested under real usage rather than under curated session sets \cite{hewage2022mlops}. It would also be the appropriate setting for deciding whether calibrated MMD should move beyond offline audit into runtime alerting or retraining governance: the present evidence supports MMD as a visibility improvement, but not as a sufficient mutation trigger. The threshold calibration gap described in Section~\ref{sec:threshold_calibration_gap} is the first item such a longitudinal evaluation should address: the current Stage~6 operating thresholds were calibrated against this repository's training distribution and 26 curated sessions, not against a held-out multi-participant deployment stream \cite{hendrycks2017baseline}.
+
+Fifth, reproducibility tooling. Figure and evidence regeneration could be tightened so that every figure and table in Chapter~\ref{chap:experiments} is produced from a single automated entry point tied to run artifacts, following reproducibility practice for scientific software \cite{bahaidarah2021reusable,ghosh2025reproducible,gardner2018enabling}.
+
+Sixth, cloud-based multi-user deployment. The present system is explicitly offline-first and single-machine: one operator runs one pipeline against one session at a time on a local workstation. A natural next step is to expose the inference capability as a shared service so that multiple Garmin device users can submit session data and receive activity predictions without installing the pipeline locally. The architectural foundation for this extension already exists: the FastAPI inference endpoint in \path{src/api/app.py} and the corresponding \path{docker/Dockerfile.inference} image package the model as a containerised REST service that accepts raw sensor uploads and returns per-window predictions with confidence scores. In the current local API, users submit data through \texttt{POST /api/upload}; a future managed deployment could expose the same contract behind a serverless container platform such as Google Cloud Run or Azure Container Apps. The existing release workflow provides image-build and health-smoke evidence, but it should not be read as a production continuous-deployment system. The key engineering challenges that this extension would need to address are: (i) governed model versioning across deployments, so that all users are served by the same registered model version and a rollback is coordinated rather than per-instance; (ii) session-level data privacy, which in a mental-health-adjacent wearable context means that raw sensor data should be processed transiently and not persisted in the cloud without explicit consent; and (iii) monitoring telemetry aggregation across multiple concurrent sessions, which requires the Stage~6 monitoring stack to operate over streaming or batched session submissions rather than a single local file. Addressing these challenges would move the system from MLOps Level~1 (governed offline pipeline) toward MLOps Level~2 (automated continuous deployment with multi-tenant inference), as described in Section~\ref{sec:mlops_maturity} \cite{kreuzberger2023mlops,hewage2022mlops}.
+
+\section{Closing Remarks}
+
+The central conclusion is narrow but defensible: operational reliability for wearable HAR depends on lifecycle engineering discipline at least as much as on model accuracy. A reproducible, inspectable, and governance-aware MLOps process provides the structure needed to observe degradation, distinguish routing changes from true quality gains, and make retraining a deliberated action rather than an automatic reflex. The calibrated MMD branch experiments strengthen this conclusion: better drift visibility did not automatically translate into better retraining decisions, so drift-monitor sophistication and governance quality must be evaluated separately. The thesis does not claim a clinically validated system. It claims a defensible offline-first governance architecture in which monitoring signals, trigger policy, and retraining conditions are linked by an audit trail that can be reproduced from archived artifacts.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{fig_05_core_vs_conditional_pipeline.png}
+\caption{Closing view of the defended architecture (reprised from Figure~\ref{fig:core_vs_conditional}): the seven-stage operational assessment path is separated from the three-stage conditional mutation path, with calibration treated as an optional extension.}
+\label{fig:closing_core_vs_conditional}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{fig_03_scope_map.png}
+\caption{Closing view of the defended scope boundary (reprised from Figure~\ref{fig:intro_scope_map}): offline-first, single-machine, governed wearable HAR lifecycle, rather than a cloud-native clinical platform or unrestricted auto-deployment system.}
+\label{fig:closing_scope_map}
+\end{figure}

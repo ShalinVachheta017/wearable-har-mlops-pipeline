@@ -1,116 +1,47 @@
 #!/usr/bin/env python3
 """
-=============================================================================
-HAR MLOps — Production Pipeline  (Single Entry Point)
-=============================================================================
+HAR MLOps production pipeline entrypoint.
 
-Run the ENTIRE 14-stage production pipeline with one command:
-
-    python run_pipeline.py                                      # stages 1-7
-    python run_pipeline.py --retrain --adapt adabn_tent         # + optional two-stage TTA (research)
-    python run_pipeline.py --retrain --adapt adabn              # + optional AdaBN (research)
-    python run_pipeline.py --retrain --adapt tent               # + optional TENT entropy-min (research)
-    python run_pipeline.py --retrain --adapt pseudo_label       # + optional calibrated pseudo-labels (research)
-    python run_pipeline.py --advanced                  # + calibration, drift, etc.
-    python run_pipeline.py --stages inference evaluation  # specific stages
-    python run_pipeline.py --input-csv my_recording.csv   # your own data
-
-Pipeline stages (in order):
-     1  ingestion         →  raw Garmin Excel / CSV → sensor_fused_50Hz.csv
-     2  validation        →  schema + value-range checks
-     3  transformation    →  CSV → normalised, windowed production_X.npy
-     4  inference         →  .npy + pretrained model → predictions CSV/NPY
-     5  evaluation        →  confidence / distribution / ECE analysis
-     6  monitoring        →  3-layer (confidence, temporal, drift)
-     7  trigger           →  automated retraining decision
-  ── retraining cycle (--retrain) ──
-     8  retraining        →  standard / AdaBN / pseudo-label
-     9  registration      →  version, deploy, rollback
-    10  baseline_update   →  rebuild drift baselines
-  ── advanced analytics (--advanced) ──
-    11  calibration       →  temperature scaling, MC Dropout, ECE
-    12  wasserstein_drift →  Wasserstein distance, change-point detection
-    13  curriculum_pseudo_labeling → progressive self-training with EWC
-    14  sensor_placement  →  hand detection, axis mirroring augmentation
-
-Result LOG → logs/pipeline/pipeline_result_<timestamp>.log
-Result JSON → logs/pipeline/pipeline_result_<timestamp>.json
-
-=============================================================================
+This file intentionally stays thin: it parses CLI arguments, builds config
+dataclasses, calls `ProductionPipeline`, and prints the final run summary.
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-# Ensure project root is on sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-# Import centralized logger
-from src.logger import CURRENT_LOG_FILE, logging
-
-logger = logging.getLogger(__name__)
-
-from src.entity.config_entity import (
-    DataIngestionConfig,
-    DataTransformationConfig,
-    ModelInferenceConfig,
-    ModelRetrainingConfig,
-    PipelineConfig,
+from src.logger import logging
+from src.pipeline.pipeline_config_factory import (
+    build_runtime_configs,
+    load_preprocessing_config,
+    load_validation_config,
+)
+from src.pipeline.pipeline_console_reporter import (
+    print_pipeline_summary,
+    print_planned_stages,
+    print_startup_banner,
 )
 from src.pipeline.production_pipeline import ProductionPipeline
-from src.utils.config_loader import (
-    apply_overrides,
-    load_monitoring_config,
-    load_trigger_config,
-    load_yaml_overrides,
-)
 
-# Logging is already configured in src.logger module - no need for basicConfig here
+logger = logging.getLogger(__name__)
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="HAR MLOps Production Pipeline — run all stages with one command",
+        description="HAR MLOps Production Pipeline - run all stages with one command",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Full inference cycle (stages 1-7)
   python run_pipeline.py
-
-  # Skip ingestion — CSV already exists
   python run_pipeline.py --skip-ingestion
-
-  # Inference onward (stages 4-7)
   python run_pipeline.py --stages inference evaluation monitoring trigger
-
-  # Your own recording — CSV input
   python run_pipeline.py --input-csv data/raw/my_recording.csv
-
-    # Full cycle + optional two-stage TTA (research)
   python run_pipeline.py --retrain --adapt adabn_tent
-
-    # Full cycle + optional AdaBN only (research)
-  python run_pipeline.py --retrain --adapt adabn
-
-    # Full cycle + optional TENT entropy minimisation (research)
-  python run_pipeline.py --retrain --adapt tent
-
-    # Retrain with optional calibrated pseudo-labeling (research)
-  python run_pipeline.py --retrain --adapt pseudo_label
-
-  # Advanced analytics (calibration, Wasserstein drift, etc.)
   python run_pipeline.py --advanced
-
-  # Curriculum pseudo-labeling only
-  python run_pipeline.py --stages curriculum_pseudo_labeling --curriculum-iterations 10
-
-  # Run specific advanced stages
-  python run_pipeline.py --stages calibration wasserstein_drift sensor_placement
-
-  # Continue past errors
   python run_pipeline.py --continue-on-failure
         """,
     )
@@ -130,59 +61,50 @@ Examples:
             "registration",
             "baseline_update",
             "calibration",
-            "wasserstein_drift",
-            "curriculum_pseudo_labeling",
-            "sensor_placement",
         ],
         default=None,
-        help="Run only these stages (default: 1-7; use --retrain for 8-10, --advanced for 11-14)",
+        help="Run only these stages (default: 1-7; use --retrain for 8-10, --advanced for 11)",
     )
     parser.add_argument(
         "--skip-ingestion",
         action="store_true",
-        help="Skip data ingestion — use existing sensor_fused_50Hz.csv",
+        help="Skip data ingestion - use newest existing fused_<dataset>_50Hz.csv",
     )
-    parser.add_argument(
-        "--skip-validation",
-        action="store_true",
-        help="Skip data validation",
-    )
+    parser.add_argument("--skip-validation", action="store_true", help="Skip data validation")
     parser.add_argument(
         "--continue-on-failure",
         action="store_true",
         help="Log errors and continue to next stage instead of aborting",
     )
 
-    # ── Input overrides ───────────────────────────────────────────────
     parser.add_argument(
         "--input-csv",
         type=str,
         default=None,
-        help="Path to fused CSV (your own recording, ABCD cases)",
+        help="Path to input file - CSV or Excel (.xlsx/.xls).",
     )
     parser.add_argument(
         "--accel-file",
         type=str,
         default=None,
-        help="Path to raw accelerometer CSV/XLSX (targets one specific session)",
+        help="Path to raw accelerometer CSV/XLSX for one specific session.",
     )
     parser.add_argument(
         "--gyro-file",
         type=str,
         default=None,
-        help="Path to raw gyroscope CSV/XLSX (targets one specific session)",
+        help="Path to raw gyroscope CSV/XLSX for one specific session.",
     )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=None,
-        help="Path to .keras model for inference",
-    )
+    parser.add_argument("--model", type=str, default=None, help="Path to .keras model for inference")
     parser.add_argument(
         "--config",
         type=str,
         default="config/pipeline_config.yaml",
-        help="Path to YAML config file (default: config/pipeline_config.yaml)",
+        help=(
+            "Path to YAML config for preprocessing and Stage 2 validation settings. "
+            "Monitoring/trigger/registration thresholds are read from "
+            "config/pipeline_overrides.yaml or $HAR_PIPELINE_OVERRIDES."
+        ),
     )
     parser.add_argument(
         "--gravity-removal",
@@ -193,19 +115,24 @@ Examples:
     parser.add_argument(
         "--no-unit-conversion",
         action="store_true",
-        help="Disable unit conversion milliG→m/s² (overrides config file)",
+        help="Disable unit conversion milliG->m/s^2 (overrides config file)",
+    )
+    parser.add_argument(
+        "--enable-normalization",
+        action="store_true",
+        help="Enable saved-scaler normalization for A/B testing.",
     )
     parser.add_argument(
         "--no-normalization",
         action="store_true",
-        help="Disable data normalization (overrides config file) — for comparison experiments",
+        help="Disable saved-scaler normalization (overrides config file)",
     )
     parser.add_argument(
         "--normalization-variant",
         type=str,
         default=None,
         choices=["zscore", "robust", "none"],
-        help="Normalization variant to use (overrides config file): zscore | robust | none",
+        help="Normalization variant to use: zscore | robust | none",
     )
     parser.add_argument(
         "--calibrate",
@@ -214,31 +141,25 @@ Examples:
         help="Enable domain calibration (overrides config file)",
     )
 
-    # ── Retraining flags ──────────────────────────────────────────────
     parser.add_argument(
         "--retrain",
         action="store_true",
-        help="Include stages 8-10 (retraining → registration → baseline)",
+        help="Include stages 8-10 (retraining -> registration -> baseline)",
     )
     parser.add_argument(
         "--adapt",
         type=str,
         choices=["adabn", "tent", "adabn_tent", "pseudo_label", "none"],
         default="none",
-        help="Domain adaptation method for retraining (default: none; adaptation is optional research mode)",
+        help="Domain adaptation method for retraining (default: none).",
     )
     parser.add_argument(
         "--labels",
         type=str,
         default=None,
-        help="Path to ground-truth labels for supervised retraining",
+        help="Path to ground-truth labels for supervised retraining/evaluation",
     )
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=100,
-        help="Training epochs for retraining (default: 100)",
-    )
+    parser.add_argument("--epochs", type=int, default=100, help="Training epochs for retraining")
     parser.add_argument(
         "--skip-cv",
         action="store_true",
@@ -254,221 +175,47 @@ Examples:
         action="store_true",
         default=False,
         help=(
-            "Promote rebuilt baseline to the shared models/ path that monitoring reads. "
-            "Default: False — baseline is saved only as an MLflow artifact (safe). "
-            "Only set this when you are confident the new baseline reflects production reality."
+            "Promote rebuilt baseline to the shared models/ path. "
+            "Default is safe: save baseline only as an MLflow artifact."
         ),
     )
 
-    # ── Advanced analytics flags ──────────────────────────────────────
     parser.add_argument(
         "--advanced",
         action="store_true",
-        help="Include stages 11-14 (calibration, Wasserstein drift, "
-        "curriculum pseudo-labeling, sensor placement)",
-    )
-    parser.add_argument(
-        "--curriculum-iterations",
-        type=int,
-        default=5,
-        help="Number of curriculum pseudo-labeling iterations (default: 5)",
-    )
-    parser.add_argument(
-        "--ewc-lambda",
-        type=float,
-        default=1000.0,
-        help="EWC regularization strength (default: 1000.0)",
+        help="Include stage 11 (calibration: temperature scaling, MC Dropout)",
     )
     parser.add_argument(
         "--mc-dropout-passes",
         type=int,
         default=30,
-        help="Number of MC Dropout forward passes (default: 30)",
+        help="Number of MC Dropout forward passes",
     )
 
     return parser.parse_args()
 
 
-def _detect_gpu() -> str:
-    """Detect GPU availability, enable memory growth, and return 'gpu' or 'cpu'."""
-    try:
-        import tensorflow as tf
-
-        gpus = tf.config.list_physical_devices("GPU")
-        if gpus:
-            for gpu in gpus:
-                try:
-                    tf.config.experimental.set_memory_growth(gpu, True)
-                except RuntimeError:
-                    pass  # memory growth must be set before GPUs are initialized
-            names = ", ".join(g.name for g in gpus)
-            print(f"  Device : GPU ({names}) — memory growth enabled")
-            logger.info("Device: GPU available — %s (memory growth enabled)", names)
-            return "gpu"
-        else:
-            tf_ver = getattr(tf, "__version__", "?")
-            if tf_ver >= "2.11":
-                msg = (
-                    f"CPU — TF {tf_ver} on Windows-native has no CUDA GPU support "
-                    "(last native-Windows GPU build was TF 2.10). "
-                    "Use WSL2 for GPU: tensorflow.org/install/pip"
-                )
-            else:
-                msg = "CPU (no GPU detected)"
-            print(f"  Device : {msg}")
-            logger.info("Device: %s", msg)
-            return "cpu"
-    except Exception as exc:
-        print(f"  Device : CPU (GPU detection failed: {exc})")
-        logger.warning("GPU detection failed: %s", exc)
-        return "cpu"
-
-
-def load_preprocessing_config(config_path: str) -> dict:
-    """Load preprocessing toggles from YAML config file."""
-    import yaml
-
-    path = Path(config_path)
-    if not path.exists():
-        print(f"Config file not found: {path}, using defaults")
-        return {}
-    with open(path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
-    return cfg.get("preprocessing", {})
-
-
-def main():
-    # Display startup banner with log file location
-    print("=" * 80)
-    print("HAR MLOps Production Pipeline")
-    print("=" * 80)
-    print(f"  Log file: {CURRENT_LOG_FILE}")
-    device = _detect_gpu()
-    print("=" * 80)
-    print()
-    logger.info("Pipeline starting... (device=%s)", device)
-
+def main() -> None:
     args = parse_args()
 
-    # ── Load config from YAML ─────────────────────────────────────────
-    yaml_preproc = load_preprocessing_config(args.config)
+    device = print_startup_banner()
+    logger.info("Pipeline starting... (device=%s)", device)
 
-    # Resolve preprocessing toggles: CLI flags override YAML config
-    enable_unit_conversion = yaml_preproc.get("enable_unit_conversion", True)
-    enable_gravity_removal = yaml_preproc.get("enable_gravity_removal", False)
-    enable_calibration = yaml_preproc.get(
-        "enable_calibration", yaml_preproc.get("enable_domain_calibration", False)
-    )
-    enable_normalization = yaml_preproc.get("enable_normalization", True)
-    normalization_variant = yaml_preproc.get("normalization_variant", "zscore")
+    configs = build_runtime_configs(args)
+    print_planned_stages(args)
 
-    # CLI overrides
-    if args.no_unit_conversion:
-        enable_unit_conversion = False
-    if args.gravity_removal:
-        enable_gravity_removal = True
-    if args.calibrate:
-        enable_calibration = True
-    if args.no_normalization:
-        enable_normalization = False
-    if args.normalization_variant:
-        normalization_variant = args.normalization_variant
-
-    # Show what's active using logger
-    logger.info("Preprocessing configuration (from %s):", args.config)
-    logger.info(
-        "  Unit Conversion (milliG\u2192m/s\u00b2): %s", "ON" if enable_unit_conversion else "OFF"
-    )
-    logger.info("  Gravity Removal:               %s", "ON" if enable_gravity_removal else "OFF")
-    logger.info("  Domain Calibration:            %s", "ON" if enable_calibration else "OFF")
-    logger.info(
-        "  Normalization:                 %s  (variant=%s)",
-        "ON" if enable_normalization else "OFF",
-        normalization_variant,
-    )
-
-    # ── Build configs ─────────────────────────────────────────────────
-    pipeline_cfg = PipelineConfig()
-
-    # Load runtime threshold overrides from YAML (or HAR_PIPELINE_OVERRIDES env var)
-    _overrides = load_yaml_overrides()
-
-    ingestion_cfg = DataIngestionConfig(
-        input_csv=Path(args.input_csv) if args.input_csv else None,
-        accel_file=Path(args.accel_file) if args.accel_file else None,
-        gyro_file=Path(args.gyro_file) if args.gyro_file else None,
-    )
-
-    transformation_cfg = DataTransformationConfig(
-        enable_unit_conversion=enable_unit_conversion,
-        enable_gravity_removal=enable_gravity_removal,
-        enable_calibration=enable_calibration,
-        enable_normalization=enable_normalization,
-        normalization_variant=normalization_variant,
-    )
-
-    inference_cfg = ModelInferenceConfig(
-        model_path=Path(args.model) if args.model else None,
-    )
-
-    retraining_cfg = ModelRetrainingConfig(
-        enable_adaptation=(args.adapt != "none"),
-        adaptation_method=args.adapt,
-        epochs=args.epochs,
-        skip_cv=args.skip_cv,
-        labels_path=Path(args.labels) if args.labels else None,
-    )
-
-    from src.entity.config_entity import ModelRegistrationConfig
-
-    registration_cfg = ModelRegistrationConfig(
-        auto_deploy=args.auto_deploy,
-    )
-
-    # Advanced configs
-    from src.entity.config_entity import (
-        CalibrationUncertaintyConfig,
-        CurriculumPseudoLabelingConfig,
-        SensorPlacementConfig,
-        WassersteinDriftConfig,
-    )
-
-    calibration_cfg = CalibrationUncertaintyConfig(
-        mc_forward_passes=args.mc_dropout_passes,
-    )
-    wasserstein_cfg = WassersteinDriftConfig()
-    curriculum_cfg = CurriculumPseudoLabelingConfig(
-        n_iterations=args.curriculum_iterations,
-        ewc_lambda=args.ewc_lambda,
-    )
-    sensor_cfg = SensorPlacementConfig()
-
-    # ── Apply YAML overrides to all threshold-bearing configs ─────────
-    monitoring_cfg = load_monitoring_config()
-    trigger_cfg = load_trigger_config()
-    if _overrides:
-        apply_overrides(registration_cfg, _overrides.get("registration", {}))
-        apply_overrides(calibration_cfg, _overrides.get("calibration", {}))
-        apply_overrides(curriculum_cfg, _overrides.get("curriculum", {}))
-        logger.info("YAML overrides applied from config/pipeline_overrides.yaml")
-
-    # ── Print planned stages ──────────────────────────────────────────
-    _print_planned_stages(args)
-
-    # ── Build and run pipeline ────────────────────────────────────────
     pipeline = ProductionPipeline(
-        pipeline_config=pipeline_cfg,
-        ingestion_config=ingestion_cfg,
-        transformation_config=transformation_cfg,
-        inference_config=inference_cfg,
-        retraining_config=retraining_cfg,
-        registration_config=registration_cfg,
-        monitoring_config=monitoring_cfg,
-        trigger_config=trigger_cfg,
-        calibration_config=calibration_cfg,
-        wasserstein_config=wasserstein_cfg,
-        curriculum_config=curriculum_cfg,
-        sensor_placement_config=sensor_cfg,
+        pipeline_config=configs.pipeline,
+        ingestion_config=configs.ingestion,
+        validation_config=configs.validation,
+        transformation_config=configs.transformation,
+        inference_config=configs.inference,
+        evaluation_config=configs.evaluation,
+        retraining_config=configs.retraining,
+        registration_config=configs.registration,
+        monitoring_config=configs.monitoring,
+        trigger_config=configs.trigger,
+        calibration_config=configs.calibration,
     )
 
     result = pipeline.run(
@@ -481,306 +228,8 @@ def main():
         update_baseline=args.update_baseline,
     )
 
-    # ── Print Summary ─────────────────────────────────────────────────
-    _print_pipeline_summary(result)
-
-    # ── Exit code ─────────────────────────────────────────────────────
-    if result.overall_status == "SUCCESS":
-        sys.exit(0)
-    else:
-        sys.exit(1)
-
-
-def _print_planned_stages(args):
-    """Print a clear stage manifest so the user (and thesis logs) know exactly
-    which stages are scheduled to run before execution begins."""
-    P = _safe_print
-
-    # Determine which stage groups are active
-    core_stages = [
-        ("1", "ingestion", "Raw Garmin CSV/XLSX → sensor_fused_50Hz.csv"),
-        ("2", "validation", "Schema + value-range checks on fused data"),
-        ("3", "transformation", "CSV → normalised, windowed production_X.npy"),
-        ("4", "inference", ".npy + pretrained model → predictions CSV/NPY"),
-        ("5", "evaluation", "Confidence / distribution / ECE analysis"),
-        ("6", "monitoring", "3-layer (confidence, temporal, z-score drift)"),
-        ("7", "trigger", "Automated retraining decision (PASS/WARN/ALERT)"),
-    ]
-    retrain_stages = [
-        ("8", "retraining", f"Domain adaptation: {args.adapt} → retrained .keras"),
-        ("9", "registration", "Version, validate proxy metrics, deploy or rollback"),
-        ("10", "baseline_update", "Rebuild drift + calibration baselines from new data"),
-    ]
-    advanced_stages = [
-        ("11", "calibration", "Temperature scaling + MC Dropout uncertainty"),
-        ("12", "wasserstein_drift", "Wasserstein distance + change-point detection"),
-        ("13", "curriculum_pseudo_labeling", "Progressive self-training with EWC"),
-        ("14", "sensor_placement", "Hand detection + axis-mirroring augmentation"),
-    ]
-
-    # Filter to explicitly requested stages when --stages is used
-    explicit = set(args.stages) if args.stages else None
-
-    def _will_run(name: str) -> bool:
-        if explicit:
-            return name in explicit
-        return True  # default: all applicable groups run
-
-    P("\n" + "=" * 70)
-    P("  PLANNED PIPELINE STAGES")
-    P("=" * 70)
-
-    P("\n  ── Training Pipeline (stages 1-7, always included) ──────────")
-    skipped = {"ingestion"} if args.skip_ingestion else set()
-    skipped |= {"validation"} if args.skip_validation else set()
-    for num, name, desc in core_stages:
-        if explicit and name not in explicit:
-            status = "  skip  "
-        elif name in skipped:
-            status = " --skip "
-        else:
-            status = "  queue "
-        P(f"    [{status}] Stage {num:>2}: {name:<30}  {desc}")
-
-    if args.retrain or (explicit and any(n in explicit for _, n, _ in retrain_stages)):
-        P("\n  ── Retraining Cycle (stages 8-10, --retrain) ────────────────")
-        for num, name, desc in retrain_stages:
-            if explicit and name not in explicit:
-                status = "  skip  "
-            else:
-                status = "  queue "
-            P(f"    [{status}] Stage {num:>2}: {name:<30}  {desc}")
-
-    if args.advanced or (explicit and any(n in explicit for _, n, _ in advanced_stages)):
-        P("\n  ── Advanced Analytics (stages 11-14, --advanced) ────────────")
-        for num, name, desc in advanced_stages:
-            if explicit and name not in explicit:
-                status = "  skip  "
-            else:
-                status = "  queue "
-            P(f"    [{status}] Stage {num:>2}: {name:<30}  {desc}")
-
-    P("\n  ── Runtime components (not pipeline stages) ─────────────────")
-    P("    [ always ]        inference/     FastAPI service  (docker/ or src/api/)")
-    P("    [ always ]        monitoring/    Post-prediction monitoring layer")
-    P("    [ on demand ]     deployment/    Model deploy / rollback manager")
-    P("    [ retraining ]    domain_adaptation/  AdaBN / TENT / pseudo-label")
-
-    P("\n" + "=" * 70)
-    P("  Starting execution …")
-    P("=" * 70 + "\n")
-
-
-def _safe_print(text: str):
-    """Print text, replacing characters that can't be encoded on Windows cp1252."""
-    import sys as _sys
-
-    try:
-        print(text)
-    except UnicodeEncodeError:
-        print(
-            text.encode(_sys.stdout.encoding or "utf-8", errors="replace").decode(
-                _sys.stdout.encoding or "utf-8", errors="replace"
-            )
-        )
-
-
-def _print_compact_run_summary(result):
-    """Print a compact boxed RUN SUMMARY block — one glance overview."""
-    P = _safe_print
-
-    # ── collect values ────────────────────────────────────────────────────
-    run_id = result.run_id or "—"
-
-    # Input source
-    input_src = "—"
-    if result.ingestion and getattr(result.ingestion, "fused_csv_path", None):
-        import os
-
-        input_src = os.path.basename(str(result.ingestion.fused_csv_path))
-        if getattr(result.ingestion, "reused_existing", False):
-            input_src += " (reused)"
-
-    # Windows
-    n_windows = "—"
-    if result.transformation and result.transformation.n_windows:
-        n_windows = f"{result.transformation.n_windows:,}"
-
-    # Inference
-    infer_line = "—"
-    if result.inference:
-        inf = result.inference
-        dur = getattr(inf, "inference_time_seconds", None)
-        n_win = getattr(inf, "n_predictions", None)
-        if dur and n_win:
-            rate = int(n_win / dur) if dur > 0 else 0
-            infer_line = f"{dur:.2f}s  ({rate:,} win/sec)"
-
-    # Mean confidence
-    conf_line = "—"
-    if result.inference and result.inference.confidence_stats:
-        m = result.inference.confidence_stats.get("mean", 0)
-        conf_line = f"{m*100:.1f}%"
-
-    # Dominant class
-    dom_line = "—"
-    if result.inference and result.inference.activity_distribution:
-        ad = result.inference.activity_distribution
-        dom_cls = max(ad, key=lambda k: ad[k])
-        dom_n = ad[dom_cls]
-        total = max(result.inference.n_predictions, 1)
-        dom_pct = dom_n / total * 100
-        dom_line = f"{dom_cls} ({dom_pct:.1f}%)"
-        dom_warn = (
-            result.evaluation.distribution_dominance_warning
-            if result.evaluation
-            else dom_pct > 95.0
-        )
-        if dom_warn:
-            dom_line += "  [!] dominance flag"
-
-    # Drift
-    drift_line = "—"
-    if result.monitoring and result.monitoring.layer3_drift:
-        drift_val = result.monitoring.layer3_drift.get("max_drift", 0)
-        drift_status = "PASS" if result.monitoring.overall_status == "PASS" else "FAIL"
-        drift_line = f"{drift_status}  (max={drift_val:.3f})"
-
-    # Trigger
-    trigger_line = "—"
-    if result.trigger:
-        action = result.trigger.action if result.trigger.action else "NONE"
-        reasons = result.trigger.reasons or []
-        reason_str = reasons[0] if reasons else "all metrics normal"
-        trigger_line = f"{action}  ({reason_str})"
-
-    # MLflow
-    mlflow_line = "run logged"
-
-    # Overall
-    total_stages = len(result.stages_completed) + len(result.stages_failed)
-    ok_stages = len(result.stages_completed)
-    status = result.overall_status or "UNKNOWN"
-    overall_line = f"{status}  ({ok_stages}/{total_stages} stages)"
-
-    # ── format box ────────────────────────────────────────────────────────
-    W = 64  # inner width (between the border pipes)
-    border_top = "+" + "=" * W + "+"
-    border_sep = "+" + "-" * W + "+"
-    border_bot = "+" + "=" * W + "+"
-
-    def row(label, value, warn=False):
-        marker = " [!]" if warn else "    "
-        cell = f"  {label:<18}{marker}{value}"
-        if len(cell) > W - 1:
-            cell = cell[: W - 4] + "..."
-        return "|" + cell.ljust(W) + "|"
-
-    P("\n" + border_top)
-    title = "RUN SUMMARY"
-    P("|" + title.center(W) + "|")
-    P(border_sep)
-    P(row("Run ID", run_id))
-    P(row("Input source", input_src))
-    P(row("Windows", n_windows))
-    P(row("Inference", infer_line))
-    P(row("Mean confidence", conf_line))
-    dom_flag = result.evaluation.distribution_dominance_warning if result.evaluation else False
-    P(row("Dominant class", dom_line, warn=dom_flag))
-    P(row("Drift status", drift_line))
-    P(row("Trigger", trigger_line))
-    P(row("MLflow", mlflow_line))
-    P(row("Overall", overall_line))
-    P(border_bot + "\n")
-
-
-def _print_pipeline_summary(result):
-    """Print a clean summary of key pipeline metrics."""
-    P = _safe_print  # shorthand
-    _print_compact_run_summary(result)
-    P("\n" + "=" * 70)
-    P("  PIPELINE SUMMARY")
-    P("=" * 70)
-
-    # Overall status
-    status_icon = (
-        "[OK]"
-        if result.overall_status == "SUCCESS"
-        else "[!!]" if result.overall_status == "PARTIAL" else "[FAIL]"
-    )
-    P(f"\n{status_icon} Overall Status: {result.overall_status}")
-    P(f"   Completed: {len(result.stages_completed)} stages")
-    P(f"   Failed: {len(result.stages_failed)} stages")
-
-    # Key metrics
-    P("\n  KEY METRICS")
-    P("-" * 70)
-
-    # Inference metrics
-    if result.inference:
-        P(f"\n  Inference:")
-        P(f"    - Predictions: {result.inference.n_predictions:,}")
-        P(f"    - Duration: {result.inference.inference_time_seconds:.2f}s")
-        if result.inference.confidence_stats:
-            conf = result.inference.confidence_stats
-            P(f"    - Mean Confidence: {conf.get('mean', 0)*100:.1f}%")
-            P(
-                f"    - Uncertain: {conf.get('n_uncertain', 0)} ({conf.get('n_uncertain', 0)/max(result.inference.n_predictions, 1)*100:.1f}%)"
-            )
-
-    # Monitoring metrics
-    if result.monitoring:
-        P(f"\n  Monitoring:")
-        P(f"    - Overall: {result.monitoring.overall_status}")
-
-        if result.monitoring.layer3_drift:
-            drift = result.monitoring.layer3_drift
-            drift_score = drift.get("max_drift", 0)
-            P(f"    - Drift Score: {drift_score:.4f}")
-
-            if drift_score > 1.50:
-                P(f"      [!] HIGH DRIFT ({drift_score:.3f}) - Retraining recommended")
-            elif drift_score > 0.75:
-                P(f"      [~] Moderate drift ({drift_score:.3f}) - Monitor closely")
-            else:
-                P(f"      [ok] Drift within acceptable range")
-
-    # Trigger decision
-    if result.trigger:
-        P(f"\n  Retraining Decision:")
-        retrain_icon = "[retrain]" if result.trigger.should_retrain else "[ok]"
-        P(f"    {retrain_icon} Should Retrain: {'YES' if result.trigger.should_retrain else 'NO'}")
-        P(f"    - Alert Level: {result.trigger.alert_level}")
-        if result.trigger.reasons:
-            P(f"    - Reasons:")
-            for reason in result.trigger.reasons[:3]:
-                P(f"      - {reason}")
-
-    # Retraining metrics (if retrain ran)
-    if result.retraining:
-        P(f"\n  Retraining:")
-        for k, v in result.retraining.metrics.items():
-            if isinstance(v, float):
-                P(f"    - {k}: {v:.4f}")
-            else:
-                P(f"    - {k}: {v}")
-        P(f"    - Source samples: {result.retraining.n_source_samples}")
-        P(f"    - Target samples: {result.retraining.n_target_samples}")
-
-    # Activity distribution
-    if result.inference and result.inference.activity_distribution:
-        P(f"\n  Top 3 Activities Detected:")
-        sorted_activities = sorted(
-            result.inference.activity_distribution.items(), key=lambda x: x[1], reverse=True
-        )[:3]
-        for activity, count in sorted_activities:
-            pct = count / max(result.inference.n_predictions, 1) * 100
-            P(f"    - {activity}: {count} ({pct:.1f}%)")
-
-    P("\n" + "=" * 70)
-    P(f"  Artifacts saved to: artifacts/{result.run_id}")
-    P(f"  Log file: {CURRENT_LOG_FILE}")
-    P("=" * 70 + "\n")
+    print_pipeline_summary(result)
+    sys.exit(0 if result.overall_status == "SUCCESS" else 1)
 
 
 if __name__ == "__main__":

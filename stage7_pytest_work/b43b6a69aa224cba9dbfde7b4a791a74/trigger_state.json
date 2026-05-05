@@ -1,0 +1,13 @@
+{
+  "last_retrain_timestamp": null,
+  "warning_count": 0,
+  "consecutive_warnings": 1,
+  "batches_since_retrain": 1,
+  "alert_history": [
+    {
+      "timestamp": "2026-05-05T12:39:12.066502",
+      "level": "CRITICAL",
+      "action": "review"
+    }
+  ]
+}

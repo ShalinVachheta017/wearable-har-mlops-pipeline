@@ -15,9 +15,9 @@
 | EV-004 | Trigger policy eval CSV | `reports/TRIGGER_POLICY_EVAL.csv` | ✅ EXISTS | Raw data for REF_TRIGGER_EVAL |
 | EV-005 | Evidence pack index | `reports/EVIDENCE_PACK_INDEX.md` | ✅ EXISTS | 23 claims; 0 unsupported |
 | EV-006 | Windowing justification | `reports/WINDOWING_JUSTIFICATION.md` | ✅ EXISTS | Narrative + paper citations |
-| EV-007 | Pipeline factsheet | `reports/PIPELINE_FACTSHEET.md` | ✅ EXISTS | 359 lines; all 14 stages |
+| EV-007 | Pipeline factsheet | `reports/PIPELINE_FACTSHEET.md` | ✅ EXISTS | Historical factsheet; do not cite the "14 stages" wording as defended evidence. Defended pipeline scope is the 11-stage `ALL_STAGES` list in `src/pipeline/production_pipeline.py`. |
 | EV-008 | Scaler config (training) | `data/prepared/config.json` | ✅ EXISTS | z-score scaler parameters |
-| EV-009 | Pretrained model | `models/pretrained/fine_tuned_model_1dcnnbilstm.keras` | ✅ EXISTS | 1D-CNN-BiLSTM v1 |
+| EV-009 | Pretrained model | `models/pretrained/fine_tuned_model_1dcnnbilstm.keras` | ✅ EXISTS | **DEFENDED RUNTIME MODEL (locked 2026-04-26 — Option A). Supervisor-provided 1D-CNN-BiLSTM v1, 11 classes, 499 131 parameters, 200×6 input. Registry confirms no retrained candidate has been promoted (`current_version: null`). See `docs/THESIS_CONSISTENCY_NOTES.md` §5.** |
 | EV-010 | Model info | `models/pretrained/model_info.json` | ✅ EXISTS | Architecture metadata |
 
 ---
@@ -51,10 +51,10 @@
 | EV-202 | MLflow Tracking | REF_MLFLOW_TRACKING | ✅ EXISTS | Experiment tracking |
 | EV-203 | MLflow Model Registry | REF_MLFLOW_REGISTRY | ✅ EXISTS | Model versioning |
 | EV-204 | Docker Best Practices | REF_DOCKER_BEST_PRACTICES | ✅ EXISTS | Container standards |
-| EV-205 | Prometheus Histograms | REF_PROM_HISTOGRAMS | ✅ EXISTS | Metrics patterns |
+| EV-205 | Prometheus Histograms | REF_PROM_HISTOGRAMS | ✅ EXISTS | **HISTORICAL/FUTURE-WORK — not active thesis evidence; config files exist but Prometheus is not part of the defended implementation** |
 | EV-206 | FastAPI | REF_FASTAPI | ✅ EXISTS | API framework |
 | EV-207 | GitHub Actions | REF_GITHUB_ACTIONS | ✅ EXISTS | CI/CD platform |
-| EV-208 | Grafana Provisioning | REF_GRAFANA_PROVISIONING | ✅ EXISTS | Dashboard config |
+| EV-208 | Grafana Provisioning | REF_GRAFANA_PROVISIONING | ✅ EXISTS | **HISTORICAL/FUTURE-WORK — not active thesis evidence; dashboard config exists but Grafana is not part of the defended implementation** |
 
 ---
 
@@ -87,11 +87,11 @@
 | EV-412 | `tests/test_model_rollback.py` | Stage 9 | ✅ EXISTS | — |
 | EV-413 | `tests/test_baseline_update.py` | Stage 10 | ✅ EXISTS | — |
 | EV-414 | `tests/test_calibration.py` | Stage 11 | ✅ EXISTS | — |
-| EV-415 | `tests/test_wasserstein_drift.py` | Stage 12 | ✅ EXISTS | — |
-| EV-416 | `tests/test_curriculum_pseudo_labeling.py` | Stage 13 | ✅ EXISTS | — |
-| EV-417 | `tests/test_sensor_placement.py` | Stage 14 | ✅ EXISTS | — |
+| EV-415 | `tests/test_wasserstein_drift.py` | Stage 12 | ✅ EXISTS | **FUTURE-WORK — Stage 12 is not wired into `src/pipeline/production_pipeline.py:ALL_STAGES`; test exists but the stage is not part of the defended 11-stage pipeline. Treat as future-work scaffolding, not active evidence.** |
+| EV-416 | `tests/test_curriculum_pseudo_labeling.py` | Stage 13 | ✅ EXISTS | **FUTURE-WORK — Stage 13 is not wired into `ALL_STAGES`; documented as future work. Note: candidate-mode pseudo-labeling exists separately under `--adapt pseudo_label` and is governed by Stage 9 promotion, not by Stage 13.** |
+| EV-417 | `tests/test_sensor_placement.py` | Stage 14 | ✅ EXISTS | **FUTURE-WORK — Stage 14 is not wired into `ALL_STAGES`; documented as future work, not defended evidence.** |
 | EV-418 | `tests/test_threshold_consistency.py` | Cross-cutting | ✅ EXISTS | — |
-| EV-419 | `tests/test_prometheus_metrics.py` | Cross-cutting | ✅ EXISTS | — |
+| EV-419 | `tests/test_prometheus_metrics.py` | Cross-cutting | ✅ EXISTS | **HISTORICAL — tests a module not in the defended implementation; do not cite as active evidence** |
 | EV-420 | `tests/test_pipeline_integration.py` | Integration | ✅ EXISTS | — |
 | EV-421 | Stage 1 tests | Stage 1 (ingestion) | ❌ MISSING | GAP-TEST-01 |
 | EV-422 | Stage 4 tests | Stage 4 (inference) | ❌ MISSING | GAP-TEST-01 |
@@ -107,9 +107,9 @@
 | EV-502 | Docker training image | `docker/Dockerfile.training` (52 L) | ⚠️ NEEDS_UPDATE | GAP-DOCKER-01: single-stage |
 | EV-503 | Docker Compose | `docker-compose.yml` (223 L) | ✅ EXISTS | 7 services |
 | EV-504 | CI/CD workflows | `.github/workflows/ci.yml` + `.github/workflows/cd.yml` | ✅ EXISTS | CI (3 jobs) + CD (2 jobs) |
-| EV-505 | Prometheus config | `config/prometheus.yml` | ✅ EXISTS | 6 scrape jobs |
-| EV-506 | Alert rules | `config/alerts/har_alerts.yml` | ✅ EXISTS | 8 rules, 4 groups |
-| EV-507 | Alertmanager config | `config/alertmanager.yml` (111 L) | ✅ EXISTS | Inhibit rules |
+| EV-505 | Prometheus config | `config/prometheus.yml` | ✅ EXISTS | **HISTORICAL/FUTURE-WORK — config file exists but Prometheus is not part of the defended current implementation; not active evidence** |
+| EV-506 | Alert rules | `config/alerts/har_alerts.yml` | ✅ EXISTS | **HISTORICAL/FUTURE-WORK — alert rules exist but alerting is not part of the defended current implementation; not active evidence** |
+| EV-507 | Alertmanager config | `config/alertmanager.yml` (111 L) | ✅ EXISTS | **HISTORICAL/FUTURE-WORK — config exists but Alertmanager is not part of the defended current implementation; not active evidence** |
 | EV-508 | Pipeline config | `config/pipeline_config.yaml` (83 L) | ✅ EXISTS | Runtime toggles |
 | EV-509 | DVC config | `.dvc/config` | ✅ EXISTS | Local remote configured |
 

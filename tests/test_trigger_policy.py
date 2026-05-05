@@ -40,6 +40,7 @@ class TestTriggerThresholds:
         assert thresholds.confidence_critical == 0.50
         assert thresholds.drift_zscore_warn == 2.0
         assert thresholds.drift_zscore_critical == 3.0
+        assert thresholds.dominant_pct_critical == 95.0
     
     def test_custom_thresholds(self):
         """Test custom threshold configuration."""
@@ -79,13 +80,11 @@ class TestTriggerPolicyEngine:
         
         decision = engine.evaluate(degraded_monitoring_report)
         
-        # With multiple signals degraded, should trigger
+        # With multiple signals degraded, alert escalates.
         assert decision.alert_level in [AlertLevel.WARNING, AlertLevel.CRITICAL]
-        # May be queued or triggered depending on severity
-        assert decision.action in [
-            TriggerAction.QUEUE_RETRAIN, 
-            TriggerAction.TRIGGER_RETRAIN
-        ]
+        # Governance: CRITICAL signals route to REVIEW (human gate), never auto-retrain.
+        assert decision.action in [TriggerAction.QUEUE_RETRAIN, TriggerAction.TRIGGER_RETRAIN, TriggerAction.REVIEW]
+        assert decision.auto_retrain is False
     
     def test_low_confidence_triggers_warning(self, temp_state_file):
         """Test that low confidence triggers at least a warning."""
@@ -113,6 +112,35 @@ class TestTriggerPolicyEngine:
         # Should at least note the low confidence
         assert 'confidence' in str(decision.signals).lower() or \
                decision.alert_level != AlertLevel.INFO
+
+    def test_drift_zscore_key_replaces_psi_alias(self, temp_state_file):
+        """New drift payloads use drift_zscore; psi remains only as a compatibility alias."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = {
+            "confidence_report": {
+                "metrics": {
+                    "mean_confidence": 0.90,
+                    "mean_entropy": 1.0,
+                    "uncertain_ratio": 0.01,
+                }
+            },
+            "temporal_report": {
+                "metrics": {"flip_rate": 0.10}
+            },
+            "drift_report": {
+                "per_channel_metrics": {
+                    "Ax_w": {"drift_zscore": 2.2},
+                    "Ay_w": {"drift_zscore": 2.1},
+                },
+                "n_drifted_channels": 0,
+                "aggregate_drift_score": 0.0,
+            },
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.signals["drift"]["level"] == AlertLevel.WARNING.value
 
     def test_collapse_guard_dominant_pct_95_forces_review(
         self, temp_state_file, sample_monitoring_report
@@ -158,6 +186,57 @@ class TestTriggerPolicyEngine:
         assert decision.action in [TriggerAction.NONE, TriggerAction.MONITOR]
         assert decision.should_trigger is False
         assert decision.alert_level == AlertLevel.INFO
+
+    def test_collapse_level_critical_forces_review(
+        self, temp_state_file, sample_monitoring_report
+    ):
+        """Stage 4 CRITICAL_COLLAPSE must directly block automatic retraining."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = json.loads(json.dumps(sample_monitoring_report))
+        report["collapse_signals"] = {
+            "collapse_level": "CRITICAL_COLLAPSE",
+            "dominant_class": "hand_tapping",
+            "dominant_pct": 88.0,
+            "mean_confidence": 0.90,
+            "transition_rate": 4.0,
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.should_trigger is False
+        assert decision.alert_level == AlertLevel.CRITICAL
+        matched = decision.signals["collapse_guard"].get("matched_conditions", [])
+        assert "collapse_level=CRITICAL_COLLAPSE" in matched
+
+    def test_low_motion_collapse_risk_forces_review(
+        self, temp_state_file, sample_monitoring_report
+    ):
+        """Stage 6 low-motion collapse risk must block automatic retraining."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = json.loads(json.dumps(sample_monitoring_report))
+        report["collapse_signals"] = {
+            "low_motion_collapse_risk": True,
+            "low_gyro_motion": True,
+            "g_mag_median": 0.545,
+            "gravity_dominant_axis": "Az",
+            "dominant_class": "hand_tapping",
+            "dominant_pct": 78.0,
+            "mean_confidence": 0.91,
+            "transition_rate": 5.0,
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.should_trigger is False
+        assert decision.alert_level == AlertLevel.CRITICAL
+        guard = decision.signals["collapse_guard"]
+        assert "low_motion_collapse_risk=true" in guard["matched_conditions"]
+        assert guard["g_mag_median"] == 0.545
+        assert guard["gravity_dominant_axis"] == "Az"
     
     def test_multiple_signals_required(self, temp_state_file):
         """Test that multiple signals are required for trigger."""
@@ -262,9 +341,9 @@ class TestConsecutiveWarnings:
         for i in range(4):
             decisions.append(engine.evaluate(warning_report))
         
-        # After 3+ consecutive warnings, at least one should trigger
-        # Note: state resets after trigger, so check across all decisions
-        assert any(d.should_trigger for d in decisions)
+        # Governance: consecutive warnings escalate to REVIEW (human gate), not auto-retrain.
+        assert any(d.action == TriggerAction.REVIEW for d in decisions)
+        assert all(d.auto_retrain is False for d in decisions)
 
 
 class TestCooldownOrdering:
@@ -303,10 +382,12 @@ class TestCooldownOrdering:
 
         decision = engine.evaluate(warning_report)
 
-        assert decision.cooldown_active is True
+        # Governance: consecutive warnings → REVIEW + should_trigger=False.
+        # Cooldown is irrelevant here since auto-retrain never fires.
         assert decision.should_trigger is False
-        assert decision.action == TriggerAction.QUEUE_RETRAIN
-        assert any("Cooldown active" in rec for rec in decision.recommendations)
+        assert decision.auto_retrain is False
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.review_required is True
         assert engine.state["last_retrain_timestamp"] == previous_retrain
 
     def test_cooldown_does_not_override_review_decision(self, temp_state_file):

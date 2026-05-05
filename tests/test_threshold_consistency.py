@@ -20,34 +20,40 @@ from src.entity.config_entity import (
 from src.trigger_policy import TriggerThresholds
 
 
-def test_drift_zscore_consistent_across_all_sources():
-    """Layer-3 drift z-score warn threshold must be identical in monitoring AND trigger."""
+def test_drift_zscore_stage6_at_most_stage7():
+    """
+    A28 tiered alerting (2026-04-21): Stage 6 warns EARLIER than Stage 7 on the same
+    metric, so Stage 6 drift threshold must be <= Stage 7 drift warn. Stage 7 trigger
+    threshold remains the citation-backed 2.0σ; Stage 6 fires at 1.8σ to give
+    dashboards earlier visibility before the voting policy escalates.
+    """
     mon = PostInferenceMonitoringConfig()
     trig = TriggerEvaluationConfig()
     thresh = TriggerThresholds()
 
-    assert mon.drift_zscore_threshold == trig.drift_zscore_warn, (
-        f"drift_zscore mismatch: monitoring.drift_zscore_threshold={mon.drift_zscore_threshold} "
-        f"!= trigger_eval.drift_zscore_warn={trig.drift_zscore_warn}"
+    assert mon.drift_zscore_threshold <= trig.drift_zscore_warn, (
+        f"Stage 6 drift must be at most Stage 7 drift (tiered). "
+        f"monitoring={mon.drift_zscore_threshold}, trigger={trig.drift_zscore_warn}"
     )
-    assert mon.drift_zscore_threshold == thresh.drift_zscore_warn, (
-        f"drift_zscore mismatch: monitoring.drift_zscore_threshold={mon.drift_zscore_threshold} "
+    # TriggerThresholds and TriggerEvaluationConfig must stay aligned.
+    assert trig.drift_zscore_warn == thresh.drift_zscore_warn, (
+        f"trigger_eval.drift_zscore_warn={trig.drift_zscore_warn} "
         f"!= trigger_policy.drift_zscore_warn={thresh.drift_zscore_warn}"
     )
 
 
-def test_trigger_confidence_warn_geq_monitoring_warn():
+def test_monitoring_confidence_warn_geq_trigger_confidence_warn():
     """
-    Tiered alerting: trigger fires at a higher (stricter) confidence threshold
-    than the monitoring layer-1 WARNING.  The trigger must NOT be more lenient.
+    A28 tiered alerting (2026-04-21): Stage 6 must warn at HIGHER confidence than
+    Stage 7's trigger. On mean_conf=0.68 Stage 6 warns but Stage 7 does not escalate
+    — this is the early-indicator story from thesis ch6 Threshold Calibration Gap.
     """
     mon = PostInferenceMonitoringConfig()
     trig = TriggerEvaluationConfig()
 
-    assert trig.confidence_warn >= mon.confidence_warn_threshold, (
-        "Trigger confidence threshold must be >= monitoring warning threshold "
-        "(tiered alerting invariant violated). "
-        f"trigger={trig.confidence_warn}, monitoring={mon.confidence_warn_threshold}"
+    assert mon.confidence_warn_threshold >= trig.confidence_warn, (
+        "Monitoring warning must be >= trigger warning (tiered alerting invariant). "
+        f"monitoring={mon.confidence_warn_threshold}, trigger={trig.confidence_warn}"
     )
 
 
@@ -88,6 +94,8 @@ def test_monitoring_and_api_use_same_config_class():
         "uncertain_window_threshold",
         "transition_rate_threshold",
         "drift_zscore_threshold",
+        "dominant_class_warn_threshold",
+        "dominant_class_critical_threshold",
     ]
     for field in required_fields:
         assert hasattr(cfg, field), f"PostInferenceMonitoringConfig is missing field: {field}"
@@ -149,7 +157,7 @@ def test_stage6_thresholds_pass_through_to_runtime_monitor(monkeypatch, tmp_path
 
     monkeypatch.setitem(
         sys.modules,
-        "post_inference_monitoring",
+        "src.monitoring.post_inference_monitor",
         types.SimpleNamespace(PostInferenceMonitor=_FakeMonitor),
     )
 
@@ -174,6 +182,8 @@ def test_stage6_thresholds_pass_through_to_runtime_monitor(monkeypatch, tmp_path
         uncertain_pct_threshold=22.0,
         transition_rate_threshold=37.0,
         drift_zscore_threshold=1.9,
+        dominant_class_warn_threshold=84.0,
+        dominant_class_critical_threshold=94.0,
         calibration_temperature=1.3,
     )
 
@@ -191,5 +201,7 @@ def test_stage6_thresholds_pass_through_to_runtime_monitor(monkeypatch, tmp_path
     assert init_kwargs["uncertain_threshold_pct"] == pytest.approx(22.0)
     assert init_kwargs["transition_rate_threshold"] == pytest.approx(37.0)
     assert init_kwargs["drift_threshold"] == pytest.approx(1.9)
+    assert init_kwargs["dominant_class_warn_threshold"] == pytest.approx(84.0)
+    assert init_kwargs["dominant_class_critical_threshold"] == pytest.approx(94.0)
     assert init_kwargs["calibration_temperature"] == pytest.approx(1.3)
     assert artifact.overall_status == "PASS"

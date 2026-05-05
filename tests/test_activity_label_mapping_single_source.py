@@ -3,8 +3,8 @@ import json
 import pytest
 
 from src.api import app as api_app
-from src.evaluate_predictions import ACTIVITY_CLASSES as EVAL_CLASSES
-from src.run_inference import ACTIVITY_CLASSES as INF_CLASSES
+from src.components.model_inference import ACTIVITY_CLASSES as INF_CLASSES
+from src.components.model_evaluation import ACTIVITY_CLASSES as EVAL_CLASSES
 from src.utils.label_mapping import load_activity_mapping
 
 
