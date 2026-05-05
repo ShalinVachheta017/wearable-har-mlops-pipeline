@@ -56,6 +56,47 @@ Detailed bug narratives, full file lists, and deep forensics stay below the quic
   - mean confidence,
   - top-2 predicted activities.
 - Updated the thesis defense dashboard/evidence docs so the newest external-evaluation result is visible from the main readiness and evidence trackers.
+- Archived stale root planning documents into `_archive/root/` in commit `77ffa03`:
+  - `SUBMISSION_READINESS_SUMMARY.md`
+  - `WORK_2026-04-21.md`
+  - `NEXT_WEEK_PIPELINE_FIX_REGISTER_2026-04-23.md`
+  - `orange_audit_closure_plan_2026-04-26.md`
+  - `FIX_BEFORE_SUBMISSION_WEAK_LINKS.md`
+- Kept `THESIS_JOURNEY_tillapril.md` and `pt.md` in the root for tomorrow's cleanup review.
+
+### Cleanup And Evidence Handoff
+
+Starting tomorrow, cleanup should proceed folder-by-folder and should not be only deletion. Every folder/file decision should answer: keep as active evidence, update because it is stale, archive as historical, or remove only after a second check.
+
+Current branch state checked on 2026-05-06:
+
+| Item | State |
+|---|---|
+| Current active branch | `feature/inference-parity-gpt-no-scaler` |
+| Most advanced branch to preserve | `feature/inference-parity-gpt-no-scaler` |
+| Local branches | 11 |
+| Remote branch refs | 5 |
+| Important side branch to inspect before deletion | `audit/stage1-7-manual-check` because it is ahead of its remote |
+| Immediate branch goal | Keep `main` plus one or two active thesis branches; delete/archive redundant old branches after evidence is checked |
+
+Tomorrow's cleanup/evidence checklist:
+
+| Area | What to check | Why it matters |
+|---|---|---|
+| Folder cleanup | Root, `docs/`, `reports/`, `internal/`, `notes/`, `thesis/`, `outputs/`, `data/`, `models/`, `scripts/`, `notebooks/` | Reduce final repo noise without deleting evidence |
+| Stage evidence | Stages 1-7 runtime artifacts; Stages 8-10 conditional retraining artifacts; Stage 11 optional calibration scope | Prove each defended stage has artifact-backed evidence |
+| Technology evidence | DVC, MLflow, Docker, FastAPI, GitHub Actions, pytest, logging/artifacts, config management | Support the MLOps claim, not only the ML claim |
+| Robustness | unit/timestamp checks, schema checks, missing data handling, confidence/collapse monitoring, trigger guardrails | Show the system fails safely and review-gates risky updates |
+| Deployment | Docker Compose, FastAPI health/upload, local service smoke, image-size/runtime notes | Bound deployment claims to local/offline-first evidence |
+| Scalability | batch processing limits, memory/runtime notes, single-machine scope, future cloud/Kubernetes boundary | Avoid over-claiming production scalability |
+| Reproducibility | `README.md`, `REPRODUCE.md`, configs, fixed paths, model/data provenance, seed/config notes | Examiner must be able to rerun or trace results |
+| Governance | model promotion policy, review gate, label/QA requirements, no automatic retraining from unlabeled drift | This is the thesis-specific MLOps contribution |
+| Data and labels | training data, mentor production data, self-recorded User 7 labels, unit conversion, transition exclusion | Keep evaluation claims defensible |
+| CI/CD and tests | test counts, focused tests, workflow scope, release-image smoke if available | Separate real CI evidence from future CD claims |
+| Security/privacy | local/offline-first positioning, no cloud deployment claim, no unnecessary personal data in final package | Important for wearable and mental-health framing |
+| Writing | Chapter 5/6/7 integration, Chapter 8 limitations, defense slide anchors, claim-evidence table | Most important next deliverable is thesis text, not more code |
+
+Possible missed items to remember: figure/table cross-references, bibliography consistency, final package `.gitignore` hygiene, branch consolidation plan, screenshots or command-output evidence for demos, and a final "do not retrain yet" wording sweep.
 
 ### Key Evidence
 
