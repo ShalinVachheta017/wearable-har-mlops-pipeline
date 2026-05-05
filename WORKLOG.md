@@ -24,6 +24,87 @@ From 2026-04-16 onward, each day should start with a compact scan block before d
 
 Detailed bug narratives, full file lists, and deep forensics stay below the quick block as evidence.
 
+## 2026-05-06 - Self-Recorded Garmin External Evaluation And Thesis Defense Package
+
+### Today in 5 lines
+
+- Self-recorded Garmin session `2026-05-05-15-11-15` is now fully documented as external evaluation evidence, not retraining data.
+- Parser timestamps, manual labels, transition exclusion, and m/s2 accelerometer unit correction are validated.
+- Frozen model performance is weak on the external User 7 session: accuracy `0.0860`, balanced accuracy `0.0868`, macro F1 `0.0281`, weighted F1 `0.0278` over `977` included windows.
+- Distribution comparison shows self-recorded windows are closest to original training among compared datasets (`mean KS=0.2146`, `mean PSI=0.3502`, `MMD=0.0328`) but still shifted in movement variability/range features.
+- Thesis-ready reporting package is complete; decision remains: use as self-recorded external evaluation + domain-shift evidence, do not retrain yet.
+
+### Done Today
+
+- Created and validated the thesis-facing self-recorded evaluation report:
+  - `reports/self_recorded_eval_2026_05_05/EVALUATION_REPORT.md`
+  - `reports/self_recorded_eval_2026_05_05/prediction_timeline_summary.csv`
+  - `reports/self_recorded_eval_2026_05_05/THESIS_PARAGRAPH_SELF_RECORDED_EVAL.md`
+  - `reports/self_recorded_eval_2026_05_05/CLAIM_EVIDENCE_TABLE.md`
+- Preserved existing evaluation artifacts:
+  - `evaluation_metrics.json`
+  - `classification_report.csv`
+  - `confusion_matrix.csv`
+  - `DISTRIBUTION_COMPARISON_REPORT.md`
+  - `distribution_pair_summary.csv`
+  - `psi_ks_summary.csv`
+  - `mmd_summary.csv`
+  - `plots/prediction_timeline.png`
+- Added a thesis-facing prediction timeline summary with 11 activity segments:
+  - dominant prediction per segment,
+  - segment recall,
+  - mean confidence,
+  - top-2 predicted activities.
+- Updated the thesis defense dashboard/evidence docs so the newest external-evaluation result is visible from the main readiness and evidence trackers.
+
+### Key Evidence
+
+| Evidence item | Value |
+|---|---:|
+| Fused rows | 104,057 |
+| Pipeline windows | 1,039 |
+| Included evaluation windows | 977 |
+| Excluded windows | 62 |
+| Training-style labeled rows | 99,017 |
+| Evaluated accuracy | 0.0860 |
+| Balanced accuracy | 0.0868 |
+| Macro F1 | 0.0281 |
+| Weighted F1 | 0.0278 |
+| Training vs self mean KS | 0.2146 |
+| Training vs self mean PSI | 0.3502 |
+| Training vs self MMD | 0.0328 |
+
+### Interpretation
+
+The self-recorded session is not broken: timestamps, labels, official activity names, window alignment, and m/s2 units are now validated. The frozen model still performs poorly, mostly collapsing into `ear_rubbing` and `hand_tapping`. This supports a thesis-safe domain-shift/generalization conclusion rather than a pipeline-failure conclusion.
+
+The self-recorded session was closest to the original labeled training distribution among the compared production-style datasets, but performance remained weak, especially for activities whose motion variability differed from the training set. This supports treating new user data as external evaluation and gating retraining behind additional labeled sessions and QA rather than triggering automatic retraining from a single recording.
+
+### Leftover and Risk
+
+| Risk | Severity | Current stance |
+|---|---|---|
+| Single labeled self-recorded session | HIGH | Not enough for retraining; use only as external evaluation evidence |
+| Dominant-wrist/session-specific motion style | MEDIUM | Discuss as plausible generalization limitation, not as proven universal cause |
+| Mentor production sessions are unlabeled continuous recordings | MEDIUM | Use distribution comparison cautiously; do not over-claim activity-level conclusions |
+| Dashboard/manuscript wording drift | MEDIUM | Keep worklog, defense dashboard, evidence table, and Chapter 5/6 wording synchronized |
+
+### Writing Impact
+
+- Chapter 5/6 can cite the self-recorded Garmin evaluation as a full parser-label-unit-prediction-governance case study.
+- Chapter 7 should report the external evaluation metrics and confusion/timeline collapse pattern as an external-user generalization finding.
+- Chapter 8 should frame retraining as conditional future work requiring more labeled sessions, repeated days, a held-out self-recorded split, and QA.
+- Defense answer: "The system did not auto-retrain because one labeled recording is insufficient; Stage 7 correctly supports review-gated governance."
+
+### Next Session Start Point
+
+1. Insert the thesis paragraph from `THESIS_PARAGRAPH_SELF_RECORDED_EVAL.md` into the Chapter 5/6 or Chapter 7 draft location.
+2. Add the claim-evidence table to the appendix or defense backup slides.
+3. Use `prediction_timeline.png`, `confusion_matrix.png`, and `distribution_pair_summary.csv` as the three visual/numeric anchors for the self-recorded evaluation slide.
+4. Do not retrain until at least multiple labeled self-recorded sessions and a held-out split exist.
+
+---
+
 ## 2026-05-05 - Final Runtime Contract and Governance Freeze
 
 ### Today in 5 lines
