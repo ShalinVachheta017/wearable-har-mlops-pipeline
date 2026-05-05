@@ -109,7 +109,7 @@ credentials/
 outputs/
 artifacts/
 reports/*
-!reports/repo_audit/
+!reports/repo_inventory/
 images/
 
 # ============================================================================
@@ -235,3 +235,39 @@ mlruns/
 # Large model binaries unless tracked by DVC/LFS
 *.keras
 *.h5
+
+
+# Pytest root-level temp directories
+.pytest_tmp/
+.tmp_pytest/
+.tmp_pytest_current/
+.tmp_stage6_pytest_current/
+
+# Stage pytest generated work folders
+stage6_pytest_work/
+stage7_pytest_work/
+
+# Local temp files
+tmp_run3/
+temp.txt
+reasoningtxt.txt
+thesis_doc.txt
+pt.md
+
+# Local evidence and generated outputs
+evidence/
+artifacts/
+outputs/
+mlruns/
+logs/
+
+# Local DVC storage
+.dvc_storage/
+
+# Large model/data artifacts
+models/retrained/*.keras
+models/registry/*.keras
+
+# Notebook and notebook-generated local files
+nb/
+notebooks/
