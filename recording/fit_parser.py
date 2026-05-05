@@ -3,12 +3,12 @@ import csv
 import os
 
 # Define the name of your FIT file
-fit_filename = '2026-05-04-12-40-53.fit'
-
+from pathlib import Path
+fit_filename = r"4th and 5th may\2026-05-05-15-11-15.fit "
 # Define the names for your output CSV files
-record_csv_filename = 'record_data.csv'
-accel_csv_filename = 'accelerometer_data.csv'
-gyro_csv_filename = 'gyroscope_data.csv'
+record_csv_filename = '2026-05-05-15-11-15_record_data.csv'
+accel_csv_filename = '2026-05-05-15-11-15_accelerometer_data.csv'
+gyro_csv_filename = '2026-05-05-15-11-15_gyroscope_data.csv'
 
 def write_to_csv(filename, data_list, headers):
     """Writes a list of dictionaries to a CSV file using explicit headers."""
