@@ -1,5 +1,5 @@
-# HAR MLOps — Runtime Pipeline Config Overrides
-# ================================================
+# HAR MLOps - Runtime Pipeline Config Overrides
+# =============================================
 # This file allows operators to override dataclass default thresholds at
 # runtime WITHOUT changing Python source code (12-Factor App, Factor III).
 #
@@ -14,18 +14,21 @@
 # All values shown are the current Python dataclass defaults.
 # ------------------------------------------------
 
-# Stage 6 — Post-Inference Monitoring thresholds
+# Stage 6 - Post-Inference Monitoring thresholds
 # (src/entity/config_entity.py:PostInferenceMonitoringConfig)
 # monitoring:
-#   confidence_warn_threshold: 0.60       # mean confidence below this → WARNING (Layer 1)
-#   uncertain_pct_threshold: 30.0         # % of low-confidence windows → WARNING (Layer 1)
-#   uncertain_window_threshold: 0.50      # per-window cutoff for "uncertain" classification
-#   transition_rate_threshold: 50.0       # flip rate above this → WARNING (Layer 2)
-#   drift_zscore_threshold: 2.0           # z-score above this → WARNING (Layer 3)
-#   max_baseline_age_days: 90             # warn if baseline file > this many days old
-#   calibration_temperature: 1.0          # temperature scaling T from Stage 11 output
+#   confidence_warn_threshold: 0.70        # mean confidence below this -> WARNING (Layer 1)
+#   uncertain_pct_threshold: 20.0          # % of low-confidence windows -> WARNING (Layer 1)
+#   uncertain_window_threshold: 0.50       # per-window cutoff for "uncertain" classification
+#   dominant_class_warn_threshold: 85.0    # % in one predicted class -> WARNING (collapse risk)
+#   dominant_class_critical_threshold: 95.0 # % in one predicted class -> CRITICAL/review
+#   transition_rate_threshold: 35.0        # flip rate above this -> WARNING (Layer 2)
+#   drift_zscore_threshold: 1.8            # z-score above this -> WARNING (Layer 3)
+#   drift_detector_mode: zscore_mean_shift # defended runtime; mmd is experimental/offline audit
+#   max_baseline_age_days: 90              # warn if baseline file > this many days old
+#   calibration_temperature: 1.0           # temperature scaling T from Stage 11 output
 
-# Stage 7 — Trigger Evaluation thresholds
+# Stage 7 - Trigger Evaluation thresholds
 # (src/entity/config_entity.py:TriggerEvaluationConfig)
 # trigger:
 #   confidence_warn: 0.65
@@ -36,24 +39,16 @@
 #   temporal_flip_critical: 0.50
 #   cooldown_hours: 24
 
-# Stage 9 — Model Registration gate
+# Stage 9 - Model Registration gate
 # (src/entity/config_entity.py:ModelRegistrationConfig)
 # registration:
-#   degradation_tolerance: 0.005          # new_acc >= cur_acc - tolerance to deploy
-#   block_if_no_metrics: false            # block TTA models (no val_accuracy)?
+#   degradation_tolerance: 0.005           # new_acc >= cur_acc - tolerance to deploy
+#   block_if_no_metrics: false             # block TTA models (no val_accuracy)?
 #   auto_deploy: false
 
-# Stage 11 — Calibration & Uncertainty
+# Stage 11 - Calibration & Uncertainty (optional research extension)
 # (src/entity/config_entity.py:CalibrationUncertaintyConfig)
 # calibration:
 #   mc_forward_passes: 30
 #   mc_dropout_rate: 0.2
 #   ece_warn_threshold: 0.10
-
-# Stage 13 — Curriculum Pseudo-Labeling
-# (src/entity/config_entity.py:CurriculumPseudoLabelingConfig)
-# curriculum:
-#   initial_confidence_threshold: 0.95
-#   final_confidence_threshold: 0.80
-#   n_iterations: 5
-#   ewc_lambda: 1000.0

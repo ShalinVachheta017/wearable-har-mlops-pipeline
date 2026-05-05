@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# CANONICAL TRAINING MODULE — use this for all training and retraining.
+# scripts/train.py is a deprecated backward-compatibility wrapper; prefer src/train.py or run_pipeline.py --retrain.
 """
 HAR Model Training Module
 =========================
@@ -43,27 +45,22 @@ import pandas as pd
 # Suppress TF warnings before import
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
-from sklearn.metrics import (  # noqa: E402, F401
+from sklearn.metrics import (  # noqa: E402
     accuracy_score,
     classification_report,
     cohen_kappa_score,
-    confusion_matrix,
     f1_score,
 )
-from sklearn.model_selection import StratifiedKFold, train_test_split  # noqa: E402
+from sklearn.model_selection import GroupKFold  # noqa: E402
 from sklearn.preprocessing import LabelEncoder, RobustScaler, StandardScaler  # noqa: E402
 from tensorflow import keras  # noqa: E402
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import mlflow  # noqa: E402
 
-from config import (  # noqa: E402, F401
-    ACTIVITY_LABELS,
-    DATA_PREPARED,
+from src.config import (  # noqa: E402
     DATA_RAW,
-    LOGS_DIR,
-    MODELS_DIR,
     NUM_CLASSES,
     NUM_SENSORS,
     OVERLAP,
@@ -71,7 +68,9 @@ from config import (  # noqa: E402, F401
     SENSOR_COLUMNS,
     WINDOW_SIZE,
 )
-from mlflow_tracking import MLflowTracker  # noqa: E402
+from src.mlflow_tracking import MLflowTracker  # noqa: E402
+from src.utils.scaler import CANONICAL_SCALER_PATH, assert_scaler_integrity  # noqa: E402
+from src.utils.common import get_timestamp
 
 # Setup logging
 logging.basicConfig(
@@ -92,10 +91,10 @@ class TrainingConfig:
     """Configuration for model training."""
 
     # Data parameters
-    window_size: int = 200  # 4 seconds at 50Hz
-    step_size: int = 100  # 50% overlap
-    n_sensors: int = 6  # Ax, Ay, Az, Gx, Gy, Gz
-    n_classes: int = 11  # Activity classes
+    window_size: int = WINDOW_SIZE  # 4 seconds at 50Hz
+    step_size: int = int(WINDOW_SIZE * (1 - OVERLAP))  # 50% overlap
+    n_sensors: int = NUM_SENSORS  # Ax, Ay, Az, Gx, Gy, Gz
+    n_classes: int = NUM_CLASSES  # Activity classes
 
     # Training parameters
     epochs: int = 100
@@ -178,7 +177,9 @@ class DataLoader:
     def load_training_data(self, data_path: Optional[Path] = None) -> pd.DataFrame:
         """Load labeled training data."""
         if data_path is None:
-            data_path = DATA_RAW / "all_users_data_labeled.csv"
+            default_raw = DATA_RAW / "all_users_data_labeled.csv"
+            fallback_root = PROJECT_ROOT / "data" / "all_users_data_labeled.csv"
+            data_path = default_raw if default_raw.exists() else fallback_root
 
         if not data_path.exists():
             raise FileNotFoundError(f"Training data not found: {data_path}")
@@ -193,12 +194,7 @@ class DataLoader:
         return df
 
     def create_windows(self, X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Create sliding windows from sensor data.
-
-        Per ICTH_16: "window size of 200 time steps (4 seconds at 50Hz)
-        with 50% overlap between consecutive windows"
-        """
+        """Legacy sequential windowing (kept for backward compatibility)."""
         from collections import Counter
 
         windows = []
@@ -207,35 +203,100 @@ class DataLoader:
         for i in range(0, len(X) - self.config.window_size + 1, self.config.step_size):
             window = X[i : i + self.config.window_size]
             window_labels = y[i : i + self.config.window_size]
-            # Use majority label in window
             majority_label = Counter(window_labels).most_common(1)[0][0]
             windows.append(window)
             labels.append(majority_label)
 
         return np.array(windows), np.array(labels)
 
+    def create_windows_by_user(
+        self,
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        label_col: str = "label_idx",
+        user_col: str = "User",
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Create windows per user to prevent cross-user contamination.
+
+        Returns:
+            X_windows: (n_windows, window, channels)
+            y_windows: (n_windows,)
+            users_per_window: (n_windows,)
+        """
+        from collections import Counter
+
+        X_all: List[np.ndarray] = []
+        y_all: List[int] = []
+        users_all: List[int] = []
+
+        for user_id in sorted(df[user_col].dropna().unique()):
+            df_user = df[df[user_col] == user_id].reset_index(drop=True)
+            X_user = df_user[feature_cols].values
+            y_user = df_user[label_col].values
+
+            if len(X_user) < self.config.window_size:
+                self.logger.warning(
+                    "Skipping user %s: %d rows < window_size=%d",
+                    user_id,
+                    len(X_user),
+                    self.config.window_size,
+                )
+                continue
+
+            for start in range(
+                0,
+                len(X_user) - self.config.window_size + 1,
+                self.config.step_size,
+            ):
+                window = X_user[start : start + self.config.window_size]
+                label_window = y_user[start : start + self.config.window_size]
+                majority = Counter(label_window).most_common(1)[0][0]
+                X_all.append(window)
+                y_all.append(int(majority))
+                users_all.append(int(user_id))
+
+        if not X_all:
+            raise ValueError("No windows created. Check dataset size and user column values.")
+
+        return np.array(X_all), np.array(y_all), np.array(users_all)
+
     def prepare_data(
         self, df: pd.DataFrame, feature_cols: List[str] = None
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Prepare data for training: extract features, encode labels, create windows."""
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Prepare data for training: encode labels and create per-user windows."""
         if feature_cols is None:
             feature_cols = SENSOR_COLUMNS
 
-        # Extract features and labels
-        X = df[feature_cols].values
+        if "User" not in df.columns:
+            raise ValueError("Training CSV must contain a 'User' column for grouped evaluation.")
+
         y = df["activity"].values
 
         # Encode labels
         y_encoded = self.label_encoder.fit_transform(y)
+        df_work = df.copy()
+        df_work["label_idx"] = y_encoded
 
-        # Create windows
+        # Create windows per user (no cross-user windows).
         self.logger.info(
-            f"Creating windows: size={self.config.window_size}, step={self.config.step_size}"
+            "Creating user-isolated windows: size=%d, step=%d",
+            self.config.window_size,
+            self.config.step_size,
         )
-        X_windows, y_windows = self.create_windows(X, y_encoded)
+        X_windows, y_windows, users_per_window = self.create_windows_by_user(
+            df_work,
+            feature_cols=feature_cols,
+            label_col="label_idx",
+            user_col="User",
+        )
         self.logger.info(f"  Created {len(X_windows):,} windows")
+        self.logger.info(
+            "  Users in windows: %s",
+            sorted(np.unique(users_per_window).tolist()),
+        )
 
-        return X_windows, y_windows
+        return X_windows, y_windows, users_per_window
 
     def get_scaler_config(self) -> Dict[str, Any]:
         """Get scaler parameters for inference."""
@@ -419,25 +480,24 @@ class HARTrainer:
         self.model_builder = HARModelBuilder(config)
         self.tracker = MLflowTracker(experiment_name=config.experiment_name)
 
-    def run_cross_validation(self, X: np.ndarray, y: np.ndarray) -> List[Dict[str, Any]]:
+    def run_cross_validation(
+        self, X: np.ndarray, y: np.ndarray, groups: np.ndarray
+    ) -> List[Dict[str, Any]]:
         """
-        Run 5-fold stratified cross-validation.
+        Run grouped cross-validation with user IDs as groups.
 
-        Per ICTH_16: "5-fold cross-validation protocol. The data was partitioned
-        into five folds. In each iteration, four folds were used for training,
-        and the remaining fold was used for testing."
+        GroupKFold prevents leakage from the same user appearing in both train
+        and validation folds.
         """
         self.logger.info("=" * 70)
-        self.logger.info("5-FOLD CROSS-VALIDATION (ICTH_16 Methodology)")
+        self.logger.info("5-FOLD GROUPED CROSS-VALIDATION (USER HOLDOUT)")
         self.logger.info("=" * 70)
 
-        skf = StratifiedKFold(
-            n_splits=self.config.n_folds, shuffle=True, random_state=self.config.cv_random_seed
-        )
+        gkf = GroupKFold(n_splits=self.config.n_folds)
 
         fold_results = []
 
-        for fold, (train_idx, val_idx) in enumerate(skf.split(X, y), 1):
+        for fold, (train_idx, val_idx) in enumerate(gkf.split(X, y, groups=groups), 1):
             self.logger.info(f"\n{'─' * 60}")
             self.logger.info(f"FOLD {fold}/{self.config.n_folds}")
             self.logger.info(f"{'─' * 60}")
@@ -446,7 +506,15 @@ class HARTrainer:
             X_train, X_val = X[train_idx], X[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
 
-            self.logger.info(f"Train: {len(X_train):,} samples, Val: {len(X_val):,} samples")
+            train_users = sorted(np.unique(groups[train_idx]).tolist())
+            val_users = sorted(np.unique(groups[val_idx]).tolist())
+            self.logger.info(
+                "Train: %d samples (users=%s), Val: %d samples (users=%s)",
+                len(X_train),
+                train_users,
+                len(X_val),
+                val_users,
+            )
 
             # Normalize (fit on train, transform both) — variant-aware
             fold_scaler = _make_scaler(self.config.normalization_variant)
@@ -472,6 +540,8 @@ class HARTrainer:
                     "fold": fold,
                     "train_samples": len(X_train),
                     "val_samples": len(X_val),
+                    "train_users": ",".join(map(str, train_users)),
+                    "val_users": ",".join(map(str, val_users)),
                 }
                 if fold == 1:
                     # Log architecture param count once — verifies the ~499 K assumption
@@ -519,6 +589,8 @@ class HARTrainer:
                         "f1_weighted": f1_weighted,
                         "kappa": kappa,
                         "best_epoch": len(history.history["accuracy"]),
+                        "train_users": train_users,
+                        "val_users": val_users,
                     }
                 )
 
@@ -534,79 +606,129 @@ class HARTrainer:
         return fold_results
 
     def train_final_model(
-        self, X: np.ndarray, y: np.ndarray, save_artifacts: bool = True
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        groups: np.ndarray,
+        save_artifacts: bool = True,
     ) -> Tuple[keras.Model, Dict[str, Any]]:
-        """Train final model on all data."""
+        """Train final model with explicit user holdout (train=1-4, val=5, test=6)."""
         self.logger.info("\n" + "=" * 70)
-        self.logger.info("TRAINING FINAL MODEL ON 100% DATA")
+        self.logger.info("TRAINING FINAL MODEL (USER HOLDOUT PROTOCOL)")
         self.logger.info("=" * 70)
 
-        # Normalize all data — variant-aware
-        X_flat = X.reshape(-1, self.config.n_sensors)
-        if self.data_loader.scaler is not None:
-            self.data_loader.scaler.fit(X_flat)
-            X_scaled = self.data_loader.scaler.transform(X_flat).reshape(X.shape)
+        unique_users = sorted(np.unique(groups).tolist())
+        if set([1, 2, 3, 4, 5, 6]).issubset(set(unique_users)):
+            fit_users = [1, 2, 3, 4]
+            val_users = [5]
+            test_users = [6]
         else:
-            # Variant B: passthrough — no amplitude normalization
-            X_scaled = X.copy()
+            if len(unique_users) < 3:
+                raise ValueError(
+                    "Need at least 3 distinct users for train/val/test holdout."
+                )
+            fit_users = unique_users[:-2]
+            val_users = [unique_users[-2]]
+            test_users = [unique_users[-1]]
 
-        scaler_config = self.data_loader.get_scaler_config()
-        variant = self.config.normalization_variant
-        self.logger.info(f"Normalization variant: {variant}")
-        if variant == "zscore":
-            self.logger.info(f"Scaler fitted: mean={scaler_config['mean'][:3]}...")
-        elif variant == "robust":
-            self.logger.info(f"RobustScaler fitted: center={scaler_config['scaler_center'][:3]}...")
+        train_mask = np.isin(groups, fit_users)
+        val_mask = np.isin(groups, val_users)
+        test_mask = np.isin(groups, test_users)
 
-        # Create model
-        model = self.model_builder.create_1dcnn_bilstm()
+        X_train, y_train = X[train_mask], y[train_mask]
+        X_val, y_val = X[val_mask], y[val_mask]
+        X_test, y_test = X[test_mask], y[test_mask]
 
-        # Split for validation during training (10%)
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_scaled, y, test_size=0.1, random_state=42, stratify=y
+        if len(X_train) == 0 or len(X_val) == 0 or len(X_test) == 0:
+            raise ValueError(
+                "User-holdout split produced an empty split. "
+                f"train={len(X_train)}, val={len(X_val)}, test={len(X_test)}"
+            )
+
+        self.logger.info(
+            "Split summary -> Train users=%s (%d windows), Val users=%s (%d), Test users=%s (%d)",
+            fit_users,
+            len(X_train),
+            val_users,
+            len(X_val),
+            test_users,
+            len(X_test),
         )
 
-        # Setup checkpoint path
+        # Fit scaler ONLY on train users and transform val/test with same scaler.
+        if self.data_loader.scaler is not None:
+            train_flat = X_train.reshape(-1, self.config.n_sensors)
+            val_flat = X_val.reshape(-1, self.config.n_sensors)
+            test_flat = X_test.reshape(-1, self.config.n_sensors)
+
+            self.data_loader.scaler.fit(train_flat)
+            X_train_scaled = self.data_loader.scaler.transform(train_flat).reshape(X_train.shape)
+            X_val_scaled = self.data_loader.scaler.transform(val_flat).reshape(X_val.shape)
+            X_test_scaled = self.data_loader.scaler.transform(test_flat).reshape(X_test.shape)
+        else:
+            X_train_scaled = X_train.copy()
+            X_val_scaled = X_val.copy()
+            X_test_scaled = X_test.copy()
+
+        scaler_config = self.data_loader.get_scaler_config()
+        scaler_config["fit_users"] = fit_users
+        scaler_config["val_users"] = val_users
+        scaler_config["test_users"] = test_users
+        scaler_config["fit_dataset"] = "data/all_users_data_labeled.csv"
+        scaler_config["sensor_cols"] = SENSOR_COLUMNS
+
+        # Create and train model.
+        model = self.model_builder.create_1dcnn_bilstm()
         checkpoint_path = self.config.output_dir / "best_model.keras"
         callbacks = self.model_builder.get_callbacks(checkpoint_path)
 
-        # Train
-        self.logger.info(f"Training for up to {self.config.epochs} epochs...")
+        self.logger.info("Training for up to %d epochs...", self.config.epochs)
         history = model.fit(
-            X_train,
+            X_train_scaled,
             y_train,
-            validation_data=(X_val, y_val),
+            validation_data=(X_val_scaled, y_val),
             epochs=self.config.epochs,
             batch_size=self.config.batch_size,
             callbacks=callbacks,
             verbose=1,
         )
 
-        # Final evaluation
-        final_loss, final_acc = model.evaluate(X_val, y_val, verbose=0)
-        predictions = model.predict(X_val, verbose=0)
-        pred_classes = np.argmax(predictions, axis=1)
+        # Evaluate on validation and held-out test user.
+        val_loss, val_acc = model.evaluate(X_val_scaled, y_val, verbose=0)
+        test_loss, test_acc = model.evaluate(X_test_scaled, y_test, verbose=0)
 
-        # Compute comprehensive metrics
+        val_pred = np.argmax(model.predict(X_val_scaled, verbose=0), axis=1)
+        test_pred = np.argmax(model.predict(X_test_scaled, verbose=0), axis=1)
+
         metrics = {
-            "final_accuracy": float(final_acc),
-            "final_loss": float(final_loss),
-            "f1_macro": float(f1_score(y_val, pred_classes, average="macro")),
-            "f1_weighted": float(f1_score(y_val, pred_classes, average="weighted")),
-            "cohen_kappa": float(cohen_kappa_score(y_val, pred_classes)),
+            "final_accuracy": float(test_acc),
+            "final_loss": float(test_loss),
+            "val_accuracy": float(val_acc),
+            "val_loss": float(val_loss),
+            "test_accuracy": float(test_acc),
+            "test_loss": float(test_loss),
+            "f1_macro_val": float(f1_score(y_val, val_pred, average="macro")),
+            "f1_macro_test": float(f1_score(y_test, test_pred, average="macro")),
+            "f1_weighted_val": float(f1_score(y_val, val_pred, average="weighted")),
+            "f1_weighted_test": float(f1_score(y_test, test_pred, average="weighted")),
+            "cohen_kappa_val": float(cohen_kappa_score(y_val, val_pred)),
+            "cohen_kappa_test": float(cohen_kappa_score(y_test, test_pred)),
             "best_epoch": len(history.history["accuracy"]),
+            "fit_users": fit_users,
+            "val_users": val_users,
+            "test_users": test_users,
+            "window_size": self.config.window_size,
+            "step_size": self.config.step_size,
         }
 
-        # Per-class F1 scores
-        f1_per_class = f1_score(y_val, pred_classes, average=None)
-        for i, f1 in enumerate(f1_per_class):
-            metrics[f"f1_class_{i}"] = float(f1)
+        self.logger.info(
+            "\n✓ Holdout metrics: val_acc=%.4f test_acc=%.4f val_f1=%.4f test_f1=%.4f",
+            metrics["val_accuracy"],
+            metrics["test_accuracy"],
+            metrics["f1_macro_val"],
+            metrics["f1_macro_test"],
+        )
 
-        self.logger.info(f"\n✓ Final Model Accuracy: {final_acc:.4f} ({final_acc*100:.1f}%)")
-        self.logger.info(f"  F1-Macro: {metrics['f1_macro']:.4f}")
-        self.logger.info(f"  Cohen's Kappa: {metrics['cohen_kappa']:.4f}")
-
-        # Save artifacts
         if save_artifacts:
             self._save_training_artifacts(model, scaler_config, metrics, history)
 
@@ -621,7 +743,7 @@ class HARTrainer:
     ):
         """Save all training artifacts."""
         output_dir = self.config.output_dir
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_timestamp()
 
         # Save model
         model_path = output_dir / f"har_model_{timestamp}.keras"
@@ -651,6 +773,17 @@ class HARTrainer:
             "config": asdict(self.config),
             "metrics": metrics,
             "scaler": scaler_config,
+            "fit_users": metrics.get("fit_users"),
+            "val_users": metrics.get("val_users"),
+            "test_users": metrics.get("test_users"),
+            "scaler_path": str(scaler_path),
+            "window_size": self.config.window_size,
+            "step_size": self.config.step_size,
+            "gravity_removal_applied": False,
+            "val_accuracy": metrics.get("val_accuracy"),
+            "test_accuracy": metrics.get("test_accuracy"),
+            "f1_macro_val": metrics.get("f1_macro_val"),
+            "f1_macro_test": metrics.get("f1_macro_test"),
             "label_mapping": label_mapping,
             "history": {
                 "accuracy": [float(v) for v in history.history.get("accuracy", [])],
@@ -686,7 +819,7 @@ class HARTrainer:
 
         # Load and prepare data
         df = self.data_loader.load_training_data(data_path)
-        X, y = self.data_loader.prepare_data(df)
+        X, y, groups = self.data_loader.prepare_data(df)
         num_classes = len(self.data_loader.label_encoder.classes_)
 
         self.logger.info(f"\nClasses ({num_classes}):")
@@ -694,7 +827,7 @@ class HARTrainer:
             self.logger.info(f"  {i}: {cls}")
 
         # Start MLflow run
-        run_name = self.config.run_name or f"training_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_name = self.config.run_name or f"training_{get_timestamp()}"
 
         # Guard: end any stale active run before starting a new one
         if mlflow.active_run() is not None:
@@ -713,12 +846,13 @@ class HARTrainer:
                     "n_folds": self.config.n_folds,
                     "n_classes": num_classes,
                     "n_windows": len(X),
+                    "n_users_in_windows": int(len(np.unique(groups))),
                 }
             )
 
             # Run cross-validation
             if not skip_cv:
-                cv_results = self.run_cross_validation(X, y)
+                cv_results = self.run_cross_validation(X, y, groups)
 
                 # Log CV summary
                 accuracies = [r["accuracy"] for r in cv_results]
@@ -746,7 +880,7 @@ class HARTrainer:
                 )
 
             # Train final model
-            model, final_metrics = self.train_final_model(X, y)
+            model, final_metrics = self.train_final_model(X, y, groups)
             self.tracker.log_metrics(final_metrics)
             results["final_metrics"] = final_metrics
 
@@ -935,12 +1069,13 @@ class DomainAdaptationTrainer(HARTrainer):
         else:
             source_onehot = source_y
 
-        # Scale source_X with the same production scaler used on target_X
-        # (production_X.npy was normalized via data/prepared/config.json).
+        # Scale source_X with the same canonical train-only scaler used by
+        # production preprocessing.
         import json as _json
 
-        _config_path = Path(__file__).resolve().parent.parent / "data" / "prepared" / "config.json"
+        _config_path = CANONICAL_SCALER_PATH
         if _config_path.exists():
+            assert_scaler_integrity(_config_path)
             with open(_config_path) as _f:
                 _scaler_cfg = _json.load(_f)
             from sklearn.preprocessing import StandardScaler as _SS
@@ -953,10 +1088,10 @@ class DomainAdaptationTrainer(HARTrainer):
             source_X_scaled = _scaler.transform(src_flat).reshape(source_X.shape)
             self.logger.info("  Source data scaled with production scaler.")
         else:
-            self.logger.warning(
-                "  Production scaler config not found — using unscaled source data."
+            raise FileNotFoundError(
+                f"Canonical scaler not found: {_config_path}. "
+                "Run scripts/refit_scaler_train_only.py first."
             )
-            source_X_scaled = source_X
 
         # ------------------------------------------------------------------
         # 6b. Self-consistency filter: keep only source windows where the
@@ -1306,7 +1441,7 @@ Examples:
     return parser.parse_args()
 
 
-def main():
+def main():                                                                                                             
     """Main entry point."""
     args = parse_args()
 
@@ -1318,6 +1453,9 @@ def main():
     print(f"Cross-Validation: {'Disabled' if args.skip_cv else f'{args.n_folds}-fold'}")
     print(f"Experiment: {args.experiment_name}")
     print("=" * 70)
+
+    # Enforce canonical scaler provenance for all training/evaluation runs.
+    assert_scaler_integrity(CANONICAL_SCALER_PATH)
 
     # Create configuration
     config = TrainingConfig(

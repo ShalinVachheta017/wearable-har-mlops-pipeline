@@ -1,6 +1,6 @@
 # 🐍 Source Code (src/) - Python Scripts
 
-> **📝 Summary:** Inventory of all Python scripts in the src/ folder. Contains: file table (config.py, sensor_data_pipeline.py, preprocess_data.py, compare_data.py, run_inference.py, evaluate_predictions.py), each file's purpose, status, and log locations. Use this to understand what each Python script does.
+> **📝 Summary:** Legacy inventory of Python scripts in the src/ folder. Current Stage 5 evaluation runtime is `src/components/model_evaluation.py`; the old `src/evaluate_predictions.py` script has been removed.
 
 This folder contains Python scripts for the MLOps pipeline. These are **command-line versions** of the Jupyter notebooks, designed for automation and production use.
 
@@ -15,7 +15,7 @@ This folder contains Python scripts for the MLOps pipeline. These are **command-
 | 3 | `preprocess_data.py` | CSV → .npy windows (Step 2) | ✅ Active | ✅ `logs/preprocessing/` |
 | 4 | `compare_data.py` | Data drift detection | ✅ Active | ✅ `logs/comparison/` |
 | 5 | `run_inference.py` | Model inference | ✅ **NEW** | ✅ `logs/inference/` |
-| 6 | `evaluate_predictions.py` | Prediction analysis | ✅ **NEW** | ✅ `logs/evaluation/` |
+| 6 | `components/model_evaluation.py` | Stage 5 prediction analysis | ✅ Active | ✅ `logs/evaluation/` |
 | 7 | Archived scripts | Old preprocessing versions | 📁 Archive | N/A |
 
 ---
@@ -32,7 +32,7 @@ logs/
 │   └── comparison_20251208_143055.log
 ├── inference/         # run_inference.py
 │   └── inference_20251208_143100.log
-└── evaluation/        # evaluate_predictions.py
+└── evaluation/        # components/model_evaluation.py
     └── evaluation_20251208_143105.log
 ```
 
@@ -60,7 +60,7 @@ logs/
    ├── Input: production_X.npy + model.keras
    └── Output: predictions.csv + predictions_metadata.json
 
-4. evaluate_predictions.py  ← NEW
+4. components/model_evaluation.py
    ├── Input: predictions.csv
    └── Output: evaluation report (confidence, distribution)
 
@@ -467,7 +467,7 @@ data/prepared/predictions/
 
 ---
 
-### 6️⃣ `evaluate_predictions.py` (NEW - 400+ lines)
+### 6️⃣ `components/model_evaluation.py`
 
 **Purpose:** Analyze predictions and confidence scores
 
@@ -512,11 +512,8 @@ data/prepared/predictions/
 
 **Usage:**
 ```bash
-# Analyze latest predictions
-python evaluate_predictions.py
-
-# Analyze specific file
-python evaluate_predictions.py --input predictions_20251208.csv
+# Run Stage 5 through the production pipeline
+python run_pipeline.py --stages evaluation
 ```
 
 **Output:**
@@ -551,7 +548,7 @@ python src/compare_data.py
 python src/run_inference.py
 
 # STEP 5: Evaluate predictions
-python src/evaluate_predictions.py
+python run_pipeline.py --stages evaluation
 ```
 
 ### **Individual Script Usage:**
@@ -578,7 +575,7 @@ python src/preprocess_data.py \
 3. ✅ **preprocess_data.py** - CSV preprocessing with unit detection (with logging)
 4. ✅ **compare_data.py** - Drift detection (with logging)
 5. ✅ **run_inference.py** - Model inference (NEW, with logging)
-6. ✅ **evaluate_predictions.py** - Prediction analysis (NEW, with logging)
+6. ✅ **components/model_evaluation.py** - Prediction analysis (with logging)
 
 ### ⏳ **TODO (Next Steps)**
 
@@ -609,7 +606,7 @@ python src/preprocess_data.py \
 ### **Phase 2: Model Inference** ✅ (DONE)
 - [x] Pretrained model available
 - [x] Inference script (run_inference.py)
-- [x] Prediction analysis (evaluate_predictions.py)
+- [x] Prediction analysis (`components/model_evaluation.py`)
 - [x] Confidence validation
 - [x] Logging for all scripts
 
@@ -670,7 +667,7 @@ python src/preprocess_data.py \
 1. **Immediate Next Steps (Week 1-2):**
    ```
    Priority 1: run_inference.py
-   Priority 2: evaluate_predictions.py
+   Priority 2: components/model_evaluation.py
    Priority 3: Basic API (FastAPI)
    ```
 

@@ -26,7 +26,10 @@ class DataIngestionArtifact:
     n_columns: int
     sampling_hz: int
     ingestion_timestamp: str
-    source_type: str = "excel"  # "excel" or "csv"
+    source_type: str = "unknown"
+    source_path: Optional[Path] = None
+    has_labels: bool = False
+    label_column: Optional[str] = None
 
 
 # ============================================================================
@@ -59,8 +62,16 @@ class DataTransformationArtifact:
     window_size: int
     unit_conversion_applied: bool
     preprocessing_timestamp: str
+    transformation_report_path: Optional[Path] = None
+    channel_order: List[str] = field(default_factory=list)
+    has_labels: bool = False
+    normalization_applied: bool = False
+    scaler_path: Optional[Path] = None
+    unit_conversion_factor: Optional[float] = None
+    model_input_space: str = ""
     gravity_removal_applied: bool = False
     calibration_applied: bool = False
+    production_y_path: Optional[Path] = None  # BUG-2 fix: set when label column present
 
 
 # ============================================================================
@@ -75,11 +86,20 @@ class ModelInferenceArtifact:
     predictions_csv_path: Path
     predictions_npy_path: Path
     probabilities_npy_path: Optional[Path] = None
+    metadata_json_path: Optional[Path] = None
+    inference_report_path: Optional[Path] = None
     n_predictions: int = 0
     inference_time_seconds: float = 0.0
     model_version: str = ""
+    active_model_path: Optional[Path] = None  # full path of model used — fed to MLflow registration
+    model_md5: str = ""
     activity_distribution: Dict = field(default_factory=dict)
     confidence_stats: Dict = field(default_factory=dict)
+    entropy_stats: Dict = field(default_factory=dict)
+    top2_margin_stats: Dict = field(default_factory=dict)
+    dominant_class: Optional[str] = None
+    dominant_pct: Optional[float] = None
+    collapse_level: str = "NONE"
 
 
 # ============================================================================
@@ -135,6 +155,13 @@ class TriggerEvaluationArtifact:
     alert_level: str = "INFO"  # INFO / WARNING / CRITICAL
     reasons: List[str] = field(default_factory=list)
     cooldown_active: bool = False
+    # Governance fields — mirrors TriggerDecision governance contract.
+    decision: str = "HEALTHY"       # HEALTHY / REVIEW_REQUIRED / DATA_QA_REQUIRED / etc.
+    auto_retrain: bool = False      # always False for unlabeled production inference
+    review_required: bool = False   # True when human review is required
+    label_required: bool = False    # True when label/QA gate must be satisfied
+    qa_required: bool = False       # True when data QA is required
+    required_next_steps: List[str] = field(default_factory=list)
 
 
 # ============================================================================
@@ -214,64 +241,6 @@ class CalibrationUncertaintyArtifact:
 
 
 # ============================================================================
-# Stage 12 – Wasserstein Drift Detection
-# ============================================================================
-
-
-@dataclass
-class WassersteinDriftArtifact:
-    """Output of Wasserstein-based drift detection."""
-
-    overall_status: str = "UNKNOWN"
-    mean_wasserstein: float = 0.0
-    max_wasserstein: float = 0.0
-    n_channels_warn: int = 0
-    n_channels_critical: int = 0
-    per_channel: Dict = field(default_factory=dict)
-    change_points: List[int] = field(default_factory=list)
-    drift_trend: str = "UNKNOWN"
-    integrated_report: Dict = field(default_factory=dict)
-    report_path: Optional[Path] = None
-
-
-# ============================================================================
-# Stage 13 – Curriculum Pseudo-Labeling
-# ============================================================================
-
-
-@dataclass
-class CurriculumPseudoLabelingArtifact:
-    """Output of curriculum pseudo-labeling training."""
-
-    retrained_model_path: Optional[Path] = None
-    iterations_completed: int = 0
-    total_pseudo_labeled: int = 0
-    best_val_accuracy: float = 0.0
-    final_mean_confidence: float = 0.0
-    iteration_logs: List[Dict] = field(default_factory=list)
-    ewc_used: bool = False
-    training_report: Dict = field(default_factory=dict)
-
-
-# ============================================================================
-# Stage 14 – Sensor Placement Robustness
-# ============================================================================
-
-
-@dataclass
-class SensorPlacementArtifact:
-    """Output of sensor placement analysis."""
-
-    detected_hand: str = "UNKNOWN"
-    detection_confidence: float = 0.0
-    augmented_data_path: Optional[Path] = None
-    n_original_samples: int = 0
-    n_augmented_samples: int = 0
-    per_hand_report: Dict = field(default_factory=dict)
-    hand_features: Dict = field(default_factory=dict)
-
-
-# ============================================================================
 # Pipeline Result (aggregated)
 # ============================================================================
 
@@ -287,6 +256,11 @@ class PipelineResult:
     stages_completed: List[str] = field(default_factory=list)
     stages_skipped: List[str] = field(default_factory=list)
     stages_failed: List[str] = field(default_factory=list)
+    dataset_has_labels: Optional[bool] = None
+    dataset_label_source: Optional[str] = None
+    dataset_label_column: Optional[str] = None
+
+    mlflow_tracked: bool = False  # True only when MLflow init succeeded
 
     # Artifacts from each stage (None = stage did not run)
     ingestion: Optional[DataIngestionArtifact] = None
@@ -300,6 +274,3 @@ class PipelineResult:
     registration: Optional[ModelRegistrationArtifact] = None
     baseline_update: Optional[BaselineUpdateArtifact] = None
     calibration: Optional["CalibrationUncertaintyArtifact"] = None
-    wasserstein_drift: Optional["WassersteinDriftArtifact"] = None
-    curriculum_pseudo_labeling: Optional["CurriculumPseudoLabelingArtifact"] = None
-    sensor_placement: Optional["SensorPlacementArtifact"] = None

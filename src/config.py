@@ -49,8 +49,15 @@ DOCKER_DIR = PROJECT_ROOT / "docker"
 LABELED_DATA_FILE = DATA_RAW / "all_users_data_labeled.csv"
 PROCESSED_SENSOR_FUSED = DATA_PROCESSED / "sensor_fused_50Hz.csv"
 PRETRAINED_MODEL = MODELS_PRETRAINED / "fine_tuned_model_1dcnnbilstm.keras"
+# Submission policy: use the pretrained baseline by default unless a better model
+# has been validated on labeled data and explicitly selected.
+DEFAULT_MODEL_PATH = PRETRAINED_MODEL
 MODEL_INFO_JSON = MODELS_PRETRAINED / "model_info.json"
-SCALER_CONFIG = DATA_PREPARED / "config.json"
+# Canonical, train-users-only scaler (fit on users 1-4). Every runtime path
+# (batch pipeline, API, notebooks) must load from this single file.
+SCALER_CANONICAL = DATA_PREPARED / "scaler_train_only.json"
+# Backward-compatible alias used by older modules.
+SCALER_CONFIG = SCALER_CANONICAL
 
 # Model configuration
 WINDOW_SIZE = 200  # 4 seconds at 50Hz
@@ -75,6 +82,31 @@ ACTIVITY_LABELS = [
 
 # Sensor columns
 SENSOR_COLUMNS = ["Ax_w", "Ay_w", "Az_w", "Gx_w", "Gy_w", "Gz_w"]
+
+# Formal exclusion record for the externally-produced pretrained checkpoint.
+# Consumers (train.py, inference, evaluation, registration) must treat
+# status == "EXCLUDED_*" as a hard gate against using this artifact for any
+# reported-number comparison.
+PRETRAINED_MODEL_STATUS = {
+    "path": "models/pretrained/fine_tuned_model_1dcnnbilstm.keras",
+    "status": "EXCLUDED_UNDOCUMENTED_PROVENANCE",
+    "reported_accuracy": 0.870,
+    "reported_source": "Oleh & Obermaisser, ICTH 2025",
+    "exclusion_reason": (
+        "Forensic analysis confirms model was trained on a different dataset "
+        "than all_users_data_labeled.csv. BN running variance=363.7 encodes "
+        "different activation distribution. Az orientation mismatch: "
+        "training=-7.2, current=-3.53. 20+ preprocessing configurations "
+        "tested, max accuracy 18.5% vs reported 87.0%. Original training "
+        "data and scaler not provided. See PIPELINE_DIAGNOSTIC_CHECKLIST.md "
+        "and docs/pretrained_model_exclusion_report.md for full evidence."
+    ),
+    "investigation_date": "2026-04-24",
+    "investigation_script": "scripts/forensic_investigation.py",
+}
+
+# data/prepared/config.json is retained only as historical evidence of the
+# previous all-users scaler.
 
 # Usage:
 # from src.config import PROJECT_ROOT, PRETRAINED_MODEL, WINDOW_SIZE

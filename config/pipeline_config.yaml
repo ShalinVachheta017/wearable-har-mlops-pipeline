@@ -5,11 +5,11 @@
 # Toggle preprocessing steps on/off with true/false values.
 #
 # RESEARCH PAPER REFERENCE (ICTH_16, Oleh & Obermaisser 2025):
-#   Training pipeline was: milliG -> m/s2 -> StandardScaler -> Window(200,50%)
-#   NO gravity removal was applied during training.
-#   NO filtering was applied during training.
+#   Paper-aligned preprocessing is: milliG -> m/s2 -> Window(200, 50% overlap).
+#   No external StandardScaler, gravity removal, or calibration is documented.
+#   Saved-scaler normalization remains available only for A/B diagnosis.
 #
-# RULE: Production preprocessing MUST match training preprocessing.
+# RULE: Production preprocessing must make the model input space explicit.
 #       Mismatch = domain shift = wrong predictions.
 # ============================================================================
 
@@ -20,36 +20,34 @@ preprocessing:
 
   # Unit Conversion  (milliG -> m/s2)
   # RECOMMENDED: true
-  # WHY: Production data from Garmin is in milliG.
-  #      Training data (all_users_data_labeled) is in m/s2.
-  #      The StandardScaler expects m/s2 input.
-  #      Paper: "Accelerometer data was converted from milli-g to m/s2"
+  # WHY: Raw Garmin accelerometer data can arrive as milliG.
+  #      Stage 3 detects already-converted m/s2 input and avoids double conversion.
   enable_unit_conversion: true
+  unit_conversion_factor: 0.00980665
 
   # Gravity Removal  (Butterworth high-pass filter)
   # RECOMMENDED: false
-  # WHY: Training data has gravity INCLUDED:
-  #      - all_users_data_labeled accel magnitude = 9.83 m/s2 (=1g)
-  #      - ADAMSense wrist magnitude = 0.995 (approx 1g in g-units)
-  #      - Paper says "NO gravity removal mentioned"
-  # CONFIRMED: Scaler was fitted on gravity-included data (Az mean = -3.5289 m/s2).
-  # Keeping this true introduces about +1.09 SD systematic offset on Az in production.
+  # WHY: The paper does not document gravity removal. Keep this only for A/B checks.
   enable_gravity_removal: false
 
   # Domain Calibration  (experimental)
   # RECOMMENDED: false
-  # WHY: Not part of original training pipeline.
-  #      Keep both flags false unless ablation explicitly proves consistent improvement.
+  # WHY: Not part of the documented paper pipeline. Use only for A/B checks.
   enable_calibration: false
   enable_domain_calibration: false
 
-  # Data Normalization  (StandardScaler / RobustScaler z-score)
-  # RECOMMENDED: true
-  # WHY: Model was trained on z-score normalized data.
-  #      Turn OFF only for experiments — accuracy WILL drop without normalization.
+  # Data Normalization  (saved StandardScaler / RobustScaler)
+  # PRODUCTION DEFAULT: false  (raw physical units — paper-aligned inference contract)
+  # WHY: Inference parity analysis confirmed that the defended production model
+  #      was evaluated without a scaler applied. Enabling normalization during
+  #      production inference introduces a feature-space mismatch and is NOT
+  #      part of the documented paper preprocessing path.
+  #      Keep false for all production runs. Enable only for A/B diagnosis.
   #      normalization_variant controls WHICH scaler: "zscore" | "robust" | "none"
-  enable_normalization: true
-  normalization_variant: "zscore"   # zscore | robust | none
+  #      NOTE: scaler_train_only.json must NOT be applied during production inference.
+  enable_normalization: False
+  normalization_variant: "none"  # zscore | robust | none
+  Scaler_path: ""  # intentionally empty — no scaler in production inference
 
   # Gravity removal filter parameters (only used if enable_gravity_removal: true)
   gravity_filter:
@@ -63,16 +61,33 @@ preprocessing:
   resampling:
     enabled: true
     target_hz: 50
-    interpolation_method: linear
+    interpolation_method: mean_aggregation
 
 # Data Validation Settings
+# Threshold rationale (for thesis / audit evidence):
+#   max_missing_ratio      : 5 % is the operational QA threshold adopted from
+#                            wearable-sensor preprocessing practice (e.g., Reyes-Ortiz
+#                            et al. UCI HAR, 2013).  PROJECT_DECISION.
+#   max_acceleration_ms2   : 50 m/s² ≈ 5.1 g covers vigorous human wrist motion.
+#                            This threshold applies AFTER Stage 3 unit conversion
+#                            (milliG → m/s²).  For milliG raw data the equivalent
+#                            is ≈ 5097 milliG.  Sensor datasheet basis: ICM-42688
+#                            ±16 g full scale; 50 m/s² is the plausible-motion QA
+#                            gate, not the sensor ceiling.  PROJECT_DECISION.
+#   max_gyroscope_dps      : 500 deg/s matches the default FS range of wrist-worn
+#                            MEMS gyros (e.g., MPU-6050, ICM-42688 ±500 deg/s
+#                            factory default).  Values above this indicate clipping
+#                            or sensor misconfiguration.  DEVICE_SPEC_BASIS.
+#   sampling_rate_tolerance: 10 % tolerance around 50 Hz (→ 45–55 Hz acceptable).
+#                            Standard engineering QA allowance for consumer-grade
+#                            IMU Bluetooth streaming jitter.  PROJECT_DECISION.
 validation:
   enabled: true
   thresholds:
-    max_missing_ratio: 0.05        # Max 5% missing values allowed
-    max_acceleration_ms2: 50.0     # Max reasonable acceleration (m/s2)
-    max_gyroscope_dps: 500.0       # Max reasonable gyroscope (deg/s)
-    sampling_rate_tolerance: 0.1   # 10% tolerance for sampling rate check
+    max_missing_ratio: 0.05        # Max 5 % missing values per channel
+    max_acceleration_ms2: 50.0     # Max plausible acceleration after unit conversion (m/s²)
+    max_gyroscope_dps: 500.0       # Max gyroscope reading — matches IMU FS range (deg/s)
+    sampling_rate_tolerance: 0.1   # ±10 % deviation from 50 Hz accepted
 
 # Logging Settings
 logging:

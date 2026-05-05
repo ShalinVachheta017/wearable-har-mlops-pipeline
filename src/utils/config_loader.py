@@ -19,7 +19,7 @@ Usage::
 YAML schema (config/pipeline_overrides.yaml)::
 
     monitoring:
-      confidence_warn_threshold: 0.60
+      confidence_warn_threshold: 0.70
       drift_zscore_threshold: 2.0
       max_baseline_age_days: 90
     trigger:
@@ -36,15 +36,15 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+from src.config import PROJECT_ROOT
+
 logger = logging.getLogger(__name__)
 
 # Environment variable that can point to an alternative overrides file
 _OVERRIDES_ENV = "HAR_PIPELINE_OVERRIDES"
 
 # Default path: <project_root>/config/pipeline_overrides.yaml
-_OVERRIDES_DEFAULT: Path = (
-    Path(__file__).resolve().parents[2] / "config" / "pipeline_overrides.yaml"
-)
+_OVERRIDES_DEFAULT: Path = PROJECT_ROOT / "config" / "pipeline_overrides.yaml"
 
 
 def load_yaml_overrides(path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:

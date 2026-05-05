@@ -17,18 +17,20 @@ Usage:
 """
 
 import logging
-from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from src.config import PROJECT_ROOT as CONFIG_PROJECT_ROOT
+from src.utils.common import get_timestamp
+
 # Constants for log configuration
 LOG_DIR = "logs"
-LOG_FILE = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+LOG_FILE = f"{get_timestamp()}.log"
 MAX_LOG_SIZE = 5 * 1024 * 1024  # 5 MB
 BACKUP_COUNT = 3
 
 # Get project root (where run_pipeline.py is)
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(CONFIG_PROJECT_ROOT)
 log_dir_path = PROJECT_ROOT / LOG_DIR
 log_dir_path.mkdir(parents=True, exist_ok=True)
 log_file_path = log_dir_path / LOG_FILE

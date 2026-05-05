@@ -20,27 +20,48 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
+
+from src.utils.common import get_timestamp
 
 logger = logging.getLogger(__name__)
+
+
+def _serialize_for_json(obj: Any) -> Any:
+    """Convert non-JSON-native objects to serializable representations."""
+    if isinstance(obj, Path):
+        return str(obj)
+    if hasattr(obj, "item"):  # numpy scalar types
+        return obj.item()
+    if hasattr(obj, "__dict__"):
+        return str(obj)
+    return str(obj)
 
 
 class ArtifactsManager:
     """Manages experiment artifacts for each pipeline run."""
 
-    def __init__(self, base_dir: str = "artifacts"):
+    def __init__(
+        self,
+        base_dir: Union[str, Path] = "artifacts",
+        run_id: Optional[str] = None,
+        start_time: Optional[str] = None,
+    ):
         """
         Initialize artifacts manager.
 
         Args:
             base_dir: Base directory for all artifacts
+            run_id: Optional externally generated run id for strict run-folder alignment
+            start_time: Optional externally generated start timestamp (ISO)
         """
         self.base_dir = Path(base_dir)
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_dir = self.base_dir / self.timestamp
+        self.run_id = run_id or get_timestamp()
+        self.timestamp = self.run_id  # backward-compatible alias
+        self.run_dir = self.base_dir / self.run_id
 
         # Stage directories
-        self.dirs = {
+        self.dirs: Dict[str, Path] = {
             "data_ingestion": self.run_dir / "data_ingestion",
             "data_transformation": self.run_dir / "data_transformation",
             "validation": self.run_dir / "validation",
@@ -50,13 +71,13 @@ class ArtifactsManager:
             "trigger": self.run_dir / "trigger",
         }
 
-        self.metadata = {
-            "run_id": self.timestamp,
-            "start_time": datetime.now().isoformat(),
+        self.metadata: Dict[str, Any] = {
+            "run_id": self.run_id,
+            "start_time": start_time or datetime.now().isoformat(),
             "stages": {},
         }
 
-    def initialize(self):
+    def initialize(self) -> Path:
         """Create all artifact directories for this run."""
         logger.info(f"Initializing artifacts directory: {self.run_dir}")
 
@@ -72,7 +93,9 @@ class ArtifactsManager:
             raise ValueError(f"Unknown stage: {stage_name}. Available: {list(self.dirs.keys())}")
         return self.dirs[stage_name]
 
-    def save_file(self, source_path: Path, stage_name: str, dest_name: Optional[str] = None):
+    def save_file(
+        self, source_path: Path, stage_name: str, dest_name: Optional[str] = None
+    ) -> Optional[Path]:
         """
         Copy a file to the appropriate stage directory.
 
@@ -83,7 +106,7 @@ class ArtifactsManager:
         """
         if not Path(source_path).exists():
             logger.warning(f"Source file not found: {source_path}")
-            return
+            return None
 
         stage_dir = self.get_stage_dir(stage_name)
         dest_name = dest_name or Path(source_path).name
@@ -91,8 +114,9 @@ class ArtifactsManager:
 
         shutil.copy2(source_path, dest_path)
         logger.debug(f"Saved {source_path.name} to {stage_name}/")
+        return dest_path
 
-    def save_json(self, data: Dict[Any, Any], stage_name: str, filename: str):
+    def save_json(self, data: Dict[str, Any], stage_name: str, filename: str) -> Path:
         """
         Save JSON data to stage directory.
 
@@ -104,22 +128,15 @@ class ArtifactsManager:
         stage_dir = self.get_stage_dir(stage_name)
         filepath = stage_dir / filename
 
-        def json_serializer(obj):
-            """Handle non-serializable types."""
-            if isinstance(obj, Path):
-                return str(obj)
-            if hasattr(obj, "item"):  # numpy types
-                return obj.item()
-            if hasattr(obj, "__dict__"):
-                return str(obj)
-            return str(obj)
-
         with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, default=json_serializer)
+            json.dump(data, f, indent=2, default=_serialize_for_json)
 
         logger.debug(f"Saved JSON to {stage_name}/{filename}")
+        return filepath
 
-    def log_stage_completion(self, stage_name: str, status: str, details: Dict[Any, Any] = None):
+    def log_stage_completion(
+        self, stage_name: str, status: str, details: Optional[Dict[str, Any]] = None
+    ) -> None:
         """
         Log completion of a pipeline stage.
 
@@ -134,16 +151,17 @@ class ArtifactsManager:
             "details": details or {},
         }
 
-    def finalize(self):
+    def finalize(self) -> Path:
         """Save final run metadata."""
         self.metadata["end_time"] = datetime.now().isoformat()
 
         metadata_path = self.run_dir / "run_info.json"
         with open(metadata_path, "w", encoding="utf-8") as f:
-            json.dump(self.metadata, f, indent=2)
+            json.dump(self.metadata, f, indent=2, default=_serialize_for_json)
 
         logger.info(f"Artifacts saved to: {self.run_dir}")
         logger.info(f"Run metadata saved to: {metadata_path}")
+        return metadata_path
 
     def get_latest_run_dir(self) -> Optional[Path]:
         """Get the most recent run directory."""

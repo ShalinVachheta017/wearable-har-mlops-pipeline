@@ -30,6 +30,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from src.utils.common import get_timestamp
+
 logger = logging.getLogger(__name__)
 
 
@@ -376,7 +378,7 @@ class ActiveLearningExporter:
         Returns:
             Path to exported file
         """
-        batch_id = batch_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+        batch_id = batch_id or get_timestamp()
 
         # Create export data with labeling template
         export_data = selected_data.copy()

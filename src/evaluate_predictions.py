@@ -1,4 +1,4 @@
-"""
+﻿"""
 Prediction Evaluation for Mental Health Activity Recognition
 ==============================================================
 
@@ -75,11 +75,13 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from src.entity.config_entity import PostInferenceMonitoringConfig
+from src.utils.common import get_timestamp
 from src.utils.label_mapping import get_activity_classes
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
-from config import DATA_PREPARED, LOGS_DIR, OUTPUTS_DIR
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.config import DATA_PREPARED, LOGS_DIR, OUTPUTS_DIR
 
 # ============================================================================
 # CONFIGURATION
@@ -132,7 +134,7 @@ class EvaluationLogger:
         self.log_dir = log_dir or LOGS_DIR / "evaluation"
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_timestamp()
         self.log_file = self.log_dir / f"evaluation_{timestamp}.log"
 
         # Configure logger — no own handlers, propagates to root logger
@@ -220,8 +222,11 @@ class PredictionAnalyzer:
                 f"⚠️ '{dominant}' dominates ({dominant_pct:.1f}%) - possible imbalance"
             )
 
-        # Structured dominance flag (>95%): informational, does not trigger retraining
-        distribution_dominance_warning = dominant_pct > 95.0
+        # Structured dominance flag: informational, does not trigger retraining.
+        dominance_threshold = (
+            PostInferenceMonitoringConfig.dominant_class_critical_threshold
+        )
+        distribution_dominance_warning = dominant_pct >= dominance_threshold
         if distribution_dominance_warning:
             self.logger.warning(
                 f"⚠️ distribution_dominance_warning=True: '{dominant}' at {dominant_pct:.1f}%"
@@ -582,7 +587,7 @@ class ReportGenerator:
     def __init__(self, config: EvaluationConfig, logger: logging.Logger):
         self.config = config
         self.logger = logger
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.timestamp = get_timestamp()
 
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -686,6 +691,42 @@ class EvaluationPipeline:
                 "uncertainty": analyzer.analyze_uncertainty(df),
                 "temporal": analyzer.analyze_temporal_patterns(df),
             }
+
+            # BUG-2 fix: compute classification metrics when Stage 3 produced labels.
+            # labels_path points to production_y.npy (window-level integer class indices).
+            if self.config.labels_path and Path(self.config.labels_path).exists():
+                try:
+                    labels_file = Path(self.config.labels_path)
+                    y_true = np.load(labels_file).astype(int)
+
+                    # Map predicted activity names → integer class indices
+                    inv_classes = {name: idx for idx, name in ACTIVITY_CLASSES.items()}
+                    y_pred = (
+                        df["predicted_activity"]
+                        .map(inv_classes)
+                        .fillna(-1)
+                        .astype(int)
+                        .values
+                    )
+
+                    n = min(len(y_true), len(y_pred))
+                    if len(y_true) != len(y_pred):
+                        self.logger.warning(
+                            "Label count (%d) ≠ prediction count (%d) — "
+                            "truncating both to %d for metric computation.",
+                            len(y_true), len(y_pred), n,
+                        )
+                    y_true, y_pred = y_true[:n], y_pred[:n]
+
+                    evaluator = ClassificationEvaluator(self.config, self.logger)
+                    results["classification_metrics"] = evaluator.compute_metrics(
+                        y_true, y_pred
+                    )
+                    self.logger.info("LABELED evaluation complete — classification_metrics computed.")
+                except Exception as label_err:
+                    self.logger.warning(
+                        "Labeled evaluation skipped due to error: %s", label_err
+                    )
 
             # Generate reports
             results["output_files"] = {

@@ -37,8 +37,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-sys.path.insert(0, str(Path(__file__).parent))
-from config import MODELS_DIR, PROJECT_ROOT
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.config import MODELS_DIR, PROJECT_ROOT
+from src.utils.common import get_timestamp
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s")
@@ -486,7 +487,7 @@ def main():
             return 1
 
         # Generate version from timestamp
-        version = datetime.now().strftime("%Y%m%d.%H%M%S")
+        version = get_timestamp("%Y%m%d.%H%M%S")
 
         registry.register_model(
             model_path=model_path,

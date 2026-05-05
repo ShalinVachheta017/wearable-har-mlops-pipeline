@@ -73,7 +73,7 @@ Status fields:
 | src/entity/__init__.py | utility/helper | Entity package marker | Indirect | Indirect | Low | Keep |
 | src/entity/artifact_entity.py | canonical runtime logic | Artifact contracts across stages | Indirect | Direct | High | Keep |
 | src/entity/config_entity.py | canonical runtime logic | Config contracts across stages | Indirect | Direct | High | Keep |
-| src/evaluate_predictions.py | canonical runtime logic | Stage 5 evaluation backend | Direct | Direct | High | Keep |
+| src/evaluate_predictions.py | removed | Former Stage 5 backend; logic moved into `src/components/model_evaluation.py` | No | No | Low | Removed |
 | src/exceptions.py | canonical runtime logic | Pipeline exception contracts | Indirect | Direct | Medium | Keep |
 | src/logger/__init__.py | utility/helper | Centralized logging setup | Indirect | No evidence | Medium | Keep |
 | src/mlflow_tracking.py | utility/helper | MLflow tracking wrapper | Indirect | No evidence | Medium | Keep |

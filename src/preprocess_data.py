@@ -5,7 +5,6 @@ Production Data Preprocessing Pipeline (Unlabeled Only)
 - Automatic conversion when needed
 - Comprehensive logging
 - Sliding window creation for inference
-
 Note: Training data preparation is intentionally excluded here. Use the
 archived training pipeline if you need to retrain.
 
@@ -18,22 +17,18 @@ import json
 import logging
 import sys
 from datetime import datetime
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
-from scipy.signal import butter, filtfilt
+from scipy.signal import butter, filtfilt  # type: ignore
 from sklearn.preprocessing import RobustScaler, StandardScaler
 
 # Add src to path for imports
-sys.path.append(str(Path(__file__).parent))
-from config import (
-    ACTIVITY_LABELS,
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.config import (
     DATA_PREPARED,
-    DATA_PROCESSED,
-    DATA_RAW,
     LOGS_DIR,
     OVERLAP,
     PROJECT_ROOT,
@@ -274,7 +269,10 @@ class GravityRemover:
         # Design Butterworth high-pass filter
         nyquist = self.sampling_freq / 2
         normalized_cutoff = self.cutoff_hz / nyquist
-        b, a = butter(self.order, normalized_cutoff, btype="high")
+        b, a = cast(
+            Tuple[np.ndarray, np.ndarray],
+            butter(self.order, normalized_cutoff, btype="high", output="ba"),
+        )
 
         # Log before stats
         self.logger.info(
@@ -325,15 +323,17 @@ class DomainCalibrator:
 
     SENSOR_COLUMNS = ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"]
 
-    def __init__(self, logger: logging.Logger, training_mean: np.ndarray = None):
+    def __init__(self, logger: logging.Logger, training_mean: Optional[np.ndarray] = None):
         self.logger = logger
         # Training data statistics from config.json (scaler was fit on this)
         # These are RAW values in m/s² (before normalization)
         if training_mean is None:
             # Default from all_users_data_labeled.csv training
-            self.training_mean = np.array([3.22, 1.28, -3.53, 0.60, 0.23, 0.09])
+            self.training_mean: np.ndarray = np.array(
+                [3.22, 1.28, -3.53, 0.60, 0.23, 0.09], dtype=np.float64
+            )
         else:
-            self.training_mean = training_mean
+            self.training_mean = np.asarray(training_mean, dtype=np.float64)
 
     def calibrate(self, df: pd.DataFrame, enable: bool = True) -> pd.DataFrame:
         """
@@ -401,8 +401,8 @@ class UnifiedPreprocessor:
         self.overlap = overlap
         self.step_size = int(window_size * (1 - overlap))
         self.scaler = StandardScaler()
-        self.activity_to_label = {}
-        self.label_to_activity = {}
+        self.activity_to_label: Dict[str, int] = {}
+        self.label_to_activity: Dict[int, str] = {}
 
         self.logger.info("Preprocessor initialized:")
         self.logger.info(f"  Window size: {window_size} samples")
@@ -435,6 +435,13 @@ class UnifiedPreprocessor:
             self.logger.error("  ✗ Labeled training data is not supported in this script")
             self.logger.error("  Please use the archived training pipeline for retraining tasks")
             raise ValueError("Training (labeled) data is not supported here")
+        elif has_unlabeled_format and has_activity:
+            # Production CSV that also carries an 'activity' label column (e.g. synthetic data).
+            # Use standard sensor columns but mark as labeled so create_windows extracts y.
+            data_format = "labeled"
+            sensor_cols = unlabeled_sensors
+            self.logger.info("  Format: LABELED-PRODUCTION (standard sensors + activity column)")
+            self.logger.info(f"  Columns: {', '.join(sensor_cols)} + activity + timestamp")
         elif has_unlabeled_format:
             data_format = "unlabeled"
             sensor_cols = unlabeled_sensors
@@ -470,7 +477,8 @@ class UnifiedPreprocessor:
         """
         Normalize sensor values using the scaler that was fit on training data.
 
-        Reads ``normalization_variant`` from ``data/prepared/config.json``:
+        Reads ``normalization_variant`` from the canonical scaler file:
+        ``data/prepared/scaler_train_only.json``.
           - ``"zscore"``  → StandardScaler (default; backward-compatible)
           - ``"robust"``  → RobustScaler (median / IQR)
           - ``"none"``    → passthrough — no amplitude normalization applied
@@ -503,13 +511,19 @@ class UnifiedPreprocessor:
             self.logger.info(f"  After NaN handling: {len(df_normalized):,} samples")
 
         if mode == "transform":
-            # Load scaler config (written by the training pipeline)
-            config_path = DATA_PREPARED / "config.json"
+            # Canonical train-only scaler (fit on users 1-4).
+            from src.utils.scaler import (
+                CANONICAL_SCALER_PATH,
+                assert_scaler_integrity,
+            )
+
+            config_path = CANONICAL_SCALER_PATH
             if not config_path.exists():
                 raise FileNotFoundError(
-                    f"Scaler config not found: {config_path}\n"
-                    "Please run preprocessing on training data first!"
+                    f"Canonical scaler missing: {config_path}. "
+                    "Run scripts/refit_scaler_train_only.py."
                 )
+            assert_scaler_integrity(config_path)
 
             with open(config_path, "r") as f:
                 config = json.load(f)
@@ -566,7 +580,7 @@ class UnifiedPreprocessor:
 
     def create_windows(
         self, df: pd.DataFrame, sensor_cols: List[str], data_format: str
-    ) -> Tuple[np.ndarray, Optional[np.ndarray], List[Dict]]:
+    ) -> Tuple[np.ndarray, Optional[np.ndarray], List[Dict[str, Any]]]:
         """
         Create sliding windows from time series data
 
@@ -616,25 +630,24 @@ class UnifiedPreprocessor:
         X = all_windows[good_idx]
 
         # Build labels if labeled
-        y = []
+        y_array: Optional[np.ndarray] = None
         if data_format == "labeled" and "activity" in df.columns:
-            activities = df["activity"].values
+            activities = df["activity"].astype(str).to_numpy()
+            y_labels: List[int] = []
             for idx in good_idx:
                 s = start_indices[idx]
-                window_acts = activities[s : s + self.window_size]
+                window_acts = np.asarray(activities[s : s + self.window_size], dtype=str)
                 vals, counts = np.unique(window_acts, return_counts=True)
                 majority = vals[counts.argmax()]
-                y.append(self.activity_to_label[majority])
-            y = np.array(y, dtype=np.int32)
-        else:
-            y = None
+                y_labels.append(self.activity_to_label[majority])
+            y_array = np.array(y_labels, dtype=np.int32)
 
         # Build metadata
-        metadata = []
+        metadata: List[Dict[str, Any]] = []
         for j, idx in enumerate(good_idx):
             s = int(start_indices[idx])
             e = s + self.window_size
-            meta = {
+            meta: Dict[str, Any] = {
                 "window_id": j,
                 "start_idx": s,
                 "end_idx": e,
@@ -650,26 +663,26 @@ class UnifiedPreprocessor:
         self.logger.info(f"  Shape: {X.shape}")
         self.logger.info(f"  Memory: {X.nbytes / 1024 / 1024:.2f} MB")
 
-        if y is not None:
-            self.logger.info(f"  Labels shape: {y.shape}")
+        if y_array is not None:
+            self.logger.info(f"  Labels shape: {y_array.shape}")
             self.logger.info("  Label distribution:")
-            for label_id in np.unique(y):
-                count = (y == label_id).sum()
-                activity = self.label_to_activity[label_id]
+            for label_id in np.unique(y_array):
+                count = (y_array == label_id).sum()
+                activity = self.label_to_activity[int(label_id)]
                 self.logger.info(f"    {label_id:2d} ({activity:20s}): {count:5,} windows")
 
         self.logger.info("=" * 80)
 
-        return X, y, metadata
+        return X, y_array, metadata
 
     def split_by_user(
         self,
         X: np.ndarray,
         y: np.ndarray,
-        metadata: List[Dict],
+        metadata: List[Dict[str, Any]],
         train_ratio: float = 0.66,
         val_ratio: float = 0.17,
-    ) -> Dict:
+    ) -> Dict[str, np.ndarray]:
         """
         Split data by user for train/val/test
 
@@ -681,7 +694,7 @@ class UnifiedPreprocessor:
         self.logger.info("=" * 80)
 
         # Get unique users
-        users = np.array([m["user"] for m in metadata])
+        users = np.array([str(m.get("user", "")) for m in metadata], dtype=str)
         unique_users = np.unique(users)
         n_users = len(unique_users)
 
@@ -711,7 +724,7 @@ class UnifiedPreprocessor:
         val_mask = np.isin(users, val_users)
         test_mask = np.isin(users, test_users)
 
-        splits = {
+        splits: Dict[str, np.ndarray] = {
             "train_X": X[train_mask],
             "train_y": y[train_mask],
             "val_X": X[val_mask],
@@ -728,8 +741,12 @@ class UnifiedPreprocessor:
         return splits
 
     def save_data(
-        self, data: Dict, metadata: List[Dict], data_format: str, conversion_applied: bool
-    ):
+        self,
+        data: Dict[str, np.ndarray],
+        metadata: List[Dict[str, Any]],
+        data_format: str,
+        conversion_applied: bool,
+    ) -> None:
         """Save preprocessed production data and metadata"""
         self.logger.info("")
         self.logger.info("=" * 80)
@@ -744,7 +761,7 @@ class UnifiedPreprocessor:
         self.logger.info(f"  Saved: {output_path.name} {data['X'].shape}")
 
         # Save metadata
-        meta = {
+        meta: Dict[str, Any] = {
             "created_date": datetime.now().isoformat(),
             "data_format": data_format,
             "window_size": self.window_size,

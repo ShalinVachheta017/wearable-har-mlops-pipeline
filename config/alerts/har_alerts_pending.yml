@@ -1,5 +1,10 @@
-# HAR Pipeline Alert Rules — PENDING (metrics not yet exported)
+# HAR Pipeline Alert Rules - HISTORICAL / OPTIONAL PENDING BACKLOG
 # ==============================================================
+#
+# Scope decision from the 2026-04-25 audit:
+# Prometheus, Grafana, and alert-rule files are not part of the defended
+# current thesis implementation. This pending-rule file is retained only as
+# historical, optional, and future-work backlog material.
 #
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  THESE RULES WILL NOT FIRE because the referenced metrics are      ║

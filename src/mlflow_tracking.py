@@ -23,7 +23,6 @@ import logging
 import os
 import tempfile
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -33,6 +32,8 @@ import pandas as pd
 import yaml
 from mlflow.models.signature import infer_signature
 from mlflow.tracking import MlflowClient
+
+from src.utils.common import get_timestamp
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -148,7 +149,7 @@ class MLflowTracker:
         """
         # Generate run name if not provided
         if run_name is None:
-            run_name = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            run_name = f"run_{get_timestamp()}"
 
         # Merge default tags with provided tags
         default_tags = self.config.get("run_defaults", {}).get("tags", {})

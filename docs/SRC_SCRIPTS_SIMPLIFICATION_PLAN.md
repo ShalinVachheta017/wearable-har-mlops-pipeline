@@ -30,7 +30,6 @@ Reduce ambiguity between src/ and scripts/ while preserving:
 - src/trigger_policy.py
 - src/preprocess_data.py
 - src/run_inference.py
-- src/evaluate_predictions.py
 - src/data_validator.py
 - src/utils/config_loader.py
 - src/utils/artifacts_manager.py

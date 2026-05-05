@@ -44,8 +44,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent))
-from config import LOGS_DIR, PROJECT_ROOT
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.config import LOGS_DIR, PROJECT_ROOT
+from src.entity.config_entity import PostInferenceMonitoringConfig
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -120,9 +121,6 @@ class TriggerThresholds:
     ks_pvalue_threshold: float = 0.01  # Below this = significant drift
     drift_zscore_warn: float = 2.0  # Above this triggers WARNING  (≈95th pct)
     drift_zscore_critical: float = 3.0  # Above this triggers CRITICAL (≈99.7th pct)
-    wasserstein_warn: float = 0.3  # Above this triggers WARNING
-    wasserstein_critical: float = 0.5  # Above this triggers CRITICAL
-
     # Multi-channel gating
     min_drifted_channels_warn: int = 2  # At least this many for WARNING
     min_drifted_channels_critical: int = 4  # At least this many for CRITICAL
@@ -130,6 +128,13 @@ class TriggerThresholds:
     # Voting thresholds
     min_signals_for_retrain: int = 2  # Require 2+ signals for retraining
     consecutive_warnings_for_trigger: int = 3  # 3 consecutive WARNINGs = trigger
+
+    # Collapse guard thresholds. The 95% critical value is owned by Stage 6
+    # monitoring config so Stage 5/7 do not drift from the dashboard signal.
+    dominant_pct_critical: float = (
+        PostInferenceMonitoringConfig.dominant_class_critical_threshold
+    )
+    dominant_pct_static_high_confidence: float = 90.0
 
 
 @dataclass
@@ -154,15 +159,49 @@ class TriggerDecision:
     metrics_summary: Dict[str, float]
     recommendations: List[str]
     cooldown_active: bool = False
+    # Governance fields — always set explicitly; defaults are the safe production values.
+    auto_retrain: bool = False          # must remain False for unlabeled production data
+    review_required: bool = False       # True when human review is required before any action
+    label_required: bool = False        # True when labels/QA gate must be satisfied first
+    qa_required: bool = False           # True when data QA is required before retraining
+    required_next_steps: List[str] = field(default_factory=list)
+
+    def _decision_label(self) -> str:
+        """Map action+governance fields to a human-readable decision token."""
+        if self.action in (TriggerAction.NONE, TriggerAction.MONITOR):
+            return "HEALTHY"
+        if self.action == TriggerAction.QUEUE_RETRAIN:
+            return "RETRAIN_CANDIDATE_QUEUED"
+        if self.action == TriggerAction.REVIEW:
+            if self.label_required:
+                return "LABEL_QA_REQUIRED"
+            if self.qa_required:
+                return "DATA_QA_REQUIRED"
+            return "REVIEW_REQUIRED"
+        return "REVIEW_REQUIRED"
 
     def to_dict(self) -> Dict:
-        """Convert to dictionary for JSON serialization."""
+        """Convert to dictionary for JSON serialization.
+
+        Key governance contract:
+          should_trigger = False  → no automatic retraining is started
+          auto_retrain = False    → explicit guard against any automated retrain path
+          review_required = True  → human review is mandatory before proceeding
+        These three are independent: review_required=True can coexist with
+        should_trigger=False, making it explicit that a REVIEW case is NOT hidden.
+        """
         return {
             "timestamp": self.timestamp,
+            "decision": self._decision_label(),
             "action": self.action.value,
             "alert_level": self.alert_level.value,
             "should_trigger": self.should_trigger,
+            "auto_retrain": self.auto_retrain,
+            "review_required": self.review_required,
+            "label_required": self.label_required,
+            "qa_required": self.qa_required,
             "reason": self.reason,
+            "required_next_steps": self.required_next_steps,
             "signals": self.signals,
             "metrics_summary": self.metrics_summary,
             "recommendations": self.recommendations,
@@ -188,7 +227,7 @@ class TriggerPolicyEngine:
     to be in WARNING/CRITICAL state:
     - Confidence metrics (mean confidence, entropy, uncertain ratio)
     - Temporal metrics (flip rate, dwell times)
-    - Drift metrics (PSI, KS, Wasserstein across channels)
+    - Drift metrics (z-score per channel vs baseline)
     """
 
     def __init__(
@@ -243,7 +282,7 @@ class TriggerPolicyEngine:
 
         Args:
             monitoring_report: Dictionary with monitoring metrics from
-                              post_inference_monitoring.py
+                              src.monitoring.post_inference_monitor
 
         Returns:
             TriggerDecision with action recommendation
@@ -327,6 +366,10 @@ class TriggerPolicyEngine:
             "channel_metrics": drift_report.get("per_channel_metrics", {}),
             "n_drifted_channels": drift_report.get("n_drifted_channels", 0),
             "aggregate_drift_score": drift_report.get("aggregate_drift_score", 0.0),
+            "drift_detector": drift_report.get("drift_detector", "zscore_mean_shift"),
+            "mmd_score": drift_report.get("mmd_score"),
+            "mmd_threshold": drift_report.get("mmd_threshold"),
+            "mmd_threshold_ratio": drift_report.get("mmd_threshold_ratio"),
             "overall_status": drift_report.get("overall_status", "UNKNOWN"),
         }
 
@@ -336,6 +379,11 @@ class TriggerPolicyEngine:
         """Return REVIEW decision when collapse-like signals indicate data/path issues."""
         collapse = monitoring_report.get("collapse_signals", {}) or {}
 
+        collapse_level = str(collapse.get("collapse_level") or "NONE").upper()
+        low_motion_collapse_risk = self._to_bool(collapse.get("low_motion_collapse_risk", False))
+        low_gyro_motion = self._to_bool(collapse.get("low_gyro_motion", False))
+        g_mag_median = self._to_float(collapse.get("g_mag_median"))
+        gravity_dominant_axis = collapse.get("gravity_dominant_axis")
         dominant_class = collapse.get("dominant_class")
         dominant_pct = self._to_float(collapse.get("dominant_pct"))
         dominance_warning = self._to_bool(collapse.get("dominance_warning", False))
@@ -352,49 +400,125 @@ class TriggerPolicyEngine:
 
         # User-requested REVIEW conditions:
         # 1) dominance warning true
-        # 2) dominant pct >= 95
+        # 2) dominant pct >= configured critical threshold
         # 3) dominant pct >= 90 with zero transition and high confidence
         cond_1 = dominance_warning
-        cond_2 = dominant_pct is not None and dominant_pct >= 95.0
+        cond_2 = (
+            dominant_pct is not None
+            and dominant_pct >= self.thresholds.dominant_pct_critical
+        )
         cond_3 = (
             dominant_pct is not None
-            and dominant_pct >= 90.0
+            and dominant_pct >= self.thresholds.dominant_pct_static_high_confidence
             and transition_rate is not None
             and abs(transition_rate) <= 1e-12
             and mean_confidence is not None
             and mean_confidence >= 0.92
         )
+        cond_4 = collapse_level == "CRITICAL_COLLAPSE"
+        cond_5 = low_motion_collapse_risk
 
-        if not (cond_1 or cond_2 or cond_3):
+        if not (cond_1 or cond_2 or cond_3 or cond_4 or cond_5):
             return None
+
+        # Classify dominance context to distinguish controlled sessions from
+        # uncontrolled production collapse.
+        # Rule: if the session shows high dominance BUT low gyro motion AND low
+        # transition rate, it is likely a controlled/focused single-activity
+        # session (e.g., sustained hand_tapping) — not a model collapse.
+        is_low_motion_session = low_gyro_motion
+        is_low_transition = transition_rate is None or abs(transition_rate) < 5.0
+        is_critical_dominance = (
+            dominant_pct is not None
+            and dominant_pct >= self.thresholds.dominant_pct_critical
+        )
+
+        if is_critical_dominance and is_low_motion_session and is_low_transition:
+            dominance_context = "CONTROLLED_OR_LOW_MOTION_DOMINANCE"
+            collapse_level_tag = "EXPECTED_SINGLE_ACTIVITY_DOMINANCE"
+        elif is_critical_dominance:
+            dominance_context = "UNCONTROLLED_COLLAPSE_REVIEW"
+            collapse_level_tag = "CRITICAL_REVIEW"
+        elif dominant_pct is not None and dominant_pct >= self.thresholds.dominant_pct_static_high_confidence:
+            dominance_context = "DOMINANCE_WARNING"
+            collapse_level_tag = collapse_level
+        elif dominance_warning:
+            dominance_context = "DOMINANCE_WARNING"
+            collapse_level_tag = collapse_level
+        else:
+            dominance_context = "NO_COLLAPSE"
+            collapse_level_tag = collapse_level
 
         matched = []
         if cond_1:
             matched.append("dominance_warning=true")
         if cond_2:
-            matched.append("dominant_pct>=95")
+            matched.append(f"dominant_pct>={self.thresholds.dominant_pct_critical:g}")
         if cond_3:
-            matched.append("dominant_pct>=90 & transition_rate==0 & mean_confidence>=0.92")
+            matched.append(
+                "dominant_pct"
+                f">={self.thresholds.dominant_pct_static_high_confidence:g}"
+                " & transition_rate==0 & mean_confidence>=0.92"
+            )
+        if cond_4:
+            matched.append("collapse_level=CRITICAL_COLLAPSE")
+        if cond_5:
+            matched.append("low_motion_collapse_risk=true")
+
+        # Controlled/low-motion sessions warrant WARNING review, not CRITICAL.
+        # True uncontrolled collapse or critical structural collapse stays CRITICAL.
+        if dominance_context == "CONTROLLED_OR_LOW_MOTION_DOMINANCE":
+            alert_level = AlertLevel.WARNING
+            action = TriggerAction.REVIEW
+            label_req = False
+            qa_req = False
+            decision_note = "CONTROLLED_ACTIVITY_REVIEW"
+        elif cond_4 or cond_5:
+            alert_level = AlertLevel.CRITICAL
+            action = TriggerAction.REVIEW
+            label_req = True
+            qa_req = True
+            decision_note = "REVIEW_REQUIRED"
+        else:
+            alert_level = AlertLevel.WARNING
+            action = TriggerAction.REVIEW
+            label_req = False
+            qa_req = True
+            decision_note = "DATA_QA_REQUIRED"
 
         reason = (
-            "Prediction collapse proxy detected. "
-            f"dominant_class={dominant_class}, dominant_pct={dominant_pct}, "
-            f"transition_rate={transition_rate}, mean_confidence={mean_confidence}. "
-            f"Matched: {', '.join(matched)}. Manual review required; no auto-retrain."
+            f"{decision_note}: collapse proxy detected. "
+            f"dominance_context={dominance_context}, dominant_class={dominant_class}, "
+            f"dominant_pct={dominant_pct}, transition_rate={transition_rate}, "
+            f"mean_confidence={mean_confidence}. "
+            f"collapse_level_tag={collapse_level_tag}, low_gyro_motion={low_gyro_motion}, "
+            f"g_mag_median={g_mag_median}, gravity_dominant_axis={gravity_dominant_axis}. "
+            f"Matched: {', '.join(matched)}. No auto-retrain."
         )
 
         return TriggerDecision(
             timestamp=timestamp,
-            action=TriggerAction.REVIEW,
-            alert_level=AlertLevel.WARNING,
+            action=action,
+            alert_level=alert_level,
             should_trigger=False,
+            auto_retrain=False,
+            review_required=True,
+            label_required=label_req,
+            qa_required=qa_req,
             reason=reason,
             signals={
                 "collapse_guard": {
-                    "level": AlertLevel.WARNING.value,
+                    "level": alert_level.value,
+                    "dominance_context": dominance_context,
+                    "collapse_level_tag": collapse_level_tag,
                     "dominance_warning": dominance_warning,
                     "dominant_class": dominant_class,
                     "dominant_pct": dominant_pct,
+                    "collapse_level": collapse_level,
+                    "low_gyro_motion": low_gyro_motion,
+                    "low_motion_collapse_risk": low_motion_collapse_risk,
+                    "g_mag_median": g_mag_median,
+                    "gravity_dominant_axis": gravity_dominant_axis,
                     "transition_rate": transition_rate,
                     "mean_confidence": mean_confidence,
                     "matched_conditions": matched,
@@ -406,9 +530,15 @@ class TriggerPolicyEngine:
                 "mean_confidence": mean_confidence or 0.0,
             },
             recommendations=[
-                "Inspect preprocessing/calibration path and feature distributions.",
+                "Inspect preprocessing path and feature distributions.",
                 "Collect labels or perform targeted data QA before retraining.",
-                "Keep monitoring active; retraining should remain gated.",
+                "NO_AUTO_RETRAIN: unlabeled retraining blocked until manual review.",
+                "Keep monitoring active; retraining must remain gated.",
+            ],
+            required_next_steps=[
+                f"Review dominance_context={dominance_context} before escalating.",
+                "For CONTROLLED_OR_LOW_MOTION sessions: verify session type before flagging.",
+                "For UNCONTROLLED_COLLAPSE: inspect sensor path and model input space.",
             ],
         )
 
@@ -496,6 +626,27 @@ class TriggerPolicyEngine:
         issues = []
         level = AlertLevel.INFO
 
+        if metrics.get("drift_detector") == "mmd":
+            score = self._to_float(metrics.get("mmd_score"))
+            threshold = self._to_float(metrics.get("mmd_threshold"))
+            ratio = self._to_float(metrics.get("mmd_threshold_ratio"))
+            if threshold > 0 and score > threshold:
+                level = AlertLevel.WARNING
+                issues.append(
+                    f"MMD drift score {score:.6f} exceeds calibrated threshold {threshold:.6f}"
+                )
+            return {
+                "level": level.value,
+                "issues": issues,
+                "reason": "; ".join(issues) if issues else "MMD drift score below calibrated threshold",
+                "metrics": {
+                    "drift_detector": "mmd",
+                    "mmd_score": score,
+                    "mmd_threshold": threshold,
+                    "mmd_threshold_ratio": ratio,
+                },
+            }
+
         n_drifted = metrics.get("n_drifted_channels", 0)
         channel_metrics = metrics.get("channel_metrics", {})
         aggregate_drift = metrics.get("aggregate_drift_score", 0.0)
@@ -505,7 +656,9 @@ class TriggerPolicyEngine:
         drift_zscore_critical_count = 0
 
         for channel, ch_metrics in channel_metrics.items():
-            zscore = ch_metrics.get("psi", 0.0)  # field named 'psi' but holds z-score
+            # `psi` is kept as a one-release compatibility alias. New producers
+            # should emit `drift_zscore` because this metric is not PSI.
+            zscore = ch_metrics.get("drift_zscore", ch_metrics.get("psi", 0.0))
             if zscore > self.thresholds.drift_zscore_critical:
                 drift_zscore_critical_count += 1
             elif zscore > self.thresholds.drift_zscore_warn:
@@ -577,38 +730,55 @@ class TriggerPolicyEngine:
             "total_issues": len(all_reasons),
         }
 
-        # Determine action based on voting
+        # Determine action based on voting.
+        # NO_AUTO_RETRAIN: production inference runs on unlabeled data.
+        # Even CRITICAL signals require human review + label/QA gate before retraining.
         if critical_count > 0:
-            # Any critical signal → trigger retraining
             return TriggerDecision(
                 timestamp=timestamp,
-                action=TriggerAction.TRIGGER_RETRAIN,
+                action=TriggerAction.REVIEW,
                 alert_level=AlertLevel.CRITICAL,
-                should_trigger=True,
-                reason=f"CRITICAL alert: {'; '.join(all_reasons[:3])}",
+                should_trigger=False,
+                auto_retrain=False,
+                review_required=True,
+                label_required=True,
+                qa_required=True,
+                reason=f"REVIEW_REQUIRED: {'; '.join(all_reasons[:3])}",
                 signals=signals,
                 metrics_summary=metrics_summary,
                 recommendations=[
-                    "Immediate retraining recommended",
-                    "Review drift patterns in monitoring dashboard",
-                    "Consider domain adaptation if shift is persistent",
+                    "REVIEW_REQUIRED: Collect labels or perform data QA before any retraining.",
+                    "DATA_QA_REQUIRED: Verify preprocessing path and feature distributions.",
+                    "NO_AUTO_RETRAIN: Unlabeled production data alone does not justify retraining.",
+                ],
+                required_next_steps=[
+                    "Inspect monitoring dashboard for drifted channels.",
+                    "Collect labeled data or perform targeted data QA.",
+                    "Label gate must be satisfied before retraining is queued.",
                 ],
             )
 
         elif warning_count >= self.thresholds.min_signals_for_retrain:
-            # 2+ warnings → queue for retraining
+            # 2+ warnings → queue candidate, but still requires label/QA gate
             return TriggerDecision(
                 timestamp=timestamp,
                 action=TriggerAction.QUEUE_RETRAIN,
                 alert_level=AlertLevel.WARNING,
-                should_trigger=False,  # Not immediate, but queued
-                reason=f"Multiple WARNING signals: {'; '.join(all_reasons[:3])}",
+                should_trigger=False,
+                auto_retrain=False,
+                label_required=True,
+                qa_required=False,
+                reason=f"RETRAIN_CANDIDATE_QUEUED: {'; '.join(all_reasons[:3])}",
                 signals=signals,
                 metrics_summary=metrics_summary,
                 recommendations=[
-                    "Queue data for retraining",
-                    "Monitor for escalation to CRITICAL",
-                    "Review recent data for systematic changes",
+                    "RETRAIN_CANDIDATE_QUEUED: Data flagged for retraining queue.",
+                    "Monitor for escalation to CRITICAL.",
+                    "LABEL_QA_REQUIRED: Provide labels before supervised retraining proceeds.",
+                ],
+                required_next_steps=[
+                    "Review recent data for systematic distribution changes.",
+                    "Provide labels or confirm data quality before queuing retraining.",
                 ],
             )
 
@@ -619,13 +789,14 @@ class TriggerPolicyEngine:
                 action=TriggerAction.MONITOR,
                 alert_level=AlertLevel.WARNING,
                 should_trigger=False,
+                auto_retrain=False,
                 reason=f"Single WARNING signal: {'; '.join(all_reasons)}",
                 signals=signals,
                 metrics_summary=metrics_summary,
                 recommendations=[
-                    "Continue monitoring",
-                    "No immediate action required",
-                    "Watch for additional signals",
+                    "Continue monitoring.",
+                    "No immediate action required.",
+                    "Watch for additional signals before escalating.",
                 ],
             )
 
@@ -636,10 +807,11 @@ class TriggerPolicyEngine:
                 action=TriggerAction.NONE,
                 alert_level=AlertLevel.INFO,
                 should_trigger=False,
-                reason="All metrics within normal ranges",
+                auto_retrain=False,
+                reason="HEALTHY: All metrics within normal ranges.",
                 signals=signals,
                 metrics_summary=metrics_summary,
-                recommendations=["System operating normally", "No action required"],
+                recommendations=["System operating normally.", "No action required."],
             )
 
     def _apply_cooldowns(self, decision: TriggerDecision) -> TriggerDecision:
@@ -683,12 +855,17 @@ class TriggerPolicyEngine:
         else:
             self.state["consecutive_warnings"] = 0
 
-        # Check for consecutive warning trigger
+        # Consecutive warnings escalate to REVIEW — never to automatic retraining.
         if self.state["consecutive_warnings"] >= self.thresholds.consecutive_warnings_for_trigger:
-            decision.should_trigger = True
-            decision.action = TriggerAction.TRIGGER_RETRAIN
+            decision.should_trigger = False
+            decision.action = TriggerAction.REVIEW
+            decision.auto_retrain = False
+            decision.review_required = True
+            decision.label_required = True
+            decision.qa_required = True
             decision.reason = (
-                f"Triggered by {self.state['consecutive_warnings']} consecutive warnings"
+                f"REVIEW_REQUIRED: {self.state['consecutive_warnings']} consecutive warnings — "
+                "label/QA gate required before retraining is queued."
             )
 
         # Cooldown is the final gate and must win over prior escalation paths.

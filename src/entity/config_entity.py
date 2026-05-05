@@ -7,10 +7,10 @@ these at init, and each Component receives only the config it needs.
 Inspired by: vikashishere/YT-MLops-Proj1 (see docs/thesis/production refrencxe/)
 
 Stages:
-     1  Data Ingestion         (Excel/CSV → fused CSV)
+     1  Data Ingestion         (Excel/CSV Ã¢â€ â€™ fused CSV)
      2  Data Validation        (schema + range checks)
-     3  Data Transformation    (CSV → windowed .npy)
-     4  Model Inference        (.npy + model → predictions)
+     3  Data Transformation    (CSV Ã¢â€ â€™ windowed .npy)
+     4  Model Inference        (.npy + model Ã¢â€ â€™ predictions)
      5  Model Evaluation       (confidence / distribution / ECE)
      6  Post-Inference Monitoring (3-layer: confidence, temporal, drift)
      7  Trigger Evaluation     (retraining decision)
@@ -21,11 +21,13 @@ Stages:
 
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-TIMESTAMP: str = datetime.now().strftime("%Y%m%d_%H%M%S")
+from src.config import OVERLAP, PROJECT_ROOT as CONFIG_PROJECT_ROOT, WINDOW_SIZE
+from src.utils.common import get_timestamp
+
+TIMESTAMP: str = get_timestamp()
 
 
 # ============================================================================
@@ -41,16 +43,16 @@ class PipelineConfig:
     artifact_dir: str = os.path.join("artifacts", TIMESTAMP)
     timestamp: str = TIMESTAMP
 
-    # Paths — sensible defaults, override via run_pipeline.py CLI
-    project_root: Path = Path(__file__).resolve().parent.parent.parent
-    data_raw_dir: Path = field(default=None)
-    data_processed_dir: Path = field(default=None)
-    data_prepared_dir: Path = field(default=None)
-    models_dir: Path = field(default=None)
-    models_pretrained_dir: Path = field(default=None)
-    outputs_dir: Path = field(default=None)
-    logs_dir: Path = field(default=None)
-    scripts_dir: Path = field(default=None)
+    # Paths Ã¢â‚¬â€ sensible defaults, override via run_pipeline.py CLI
+    project_root: Path = CONFIG_PROJECT_ROOT
+    data_raw_dir: Optional[Path] = field(default=None)
+    data_processed_dir: Optional[Path] = field(default=None)
+    data_prepared_dir: Optional[Path] = field(default=None)
+    models_dir: Optional[Path] = field(default=None)
+    models_pretrained_dir: Optional[Path] = field(default=None)
+    outputs_dir: Optional[Path] = field(default=None)
+    logs_dir: Optional[Path] = field(default=None)
+    scripts_dir: Optional[Path] = field(default=None)  # legacy CLI-wrapper compatibility path
 
     def __post_init__(self):
         if self.data_raw_dir is None:
@@ -68,17 +70,18 @@ class PipelineConfig:
         if self.logs_dir is None:
             self.logs_dir = self.project_root / "logs"
         if self.scripts_dir is None:
+            # Keep for backward-compatible script wrappers; runtime stages are src-owned.
             self.scripts_dir = self.project_root / "scripts"
 
 
 # ============================================================================
-# Stage 1 – Data Ingestion
+# Stage 1 Data Ingestion
 # ============================================================================
 
 
 @dataclass
 class DataIngestionConfig:
-    """Configuration for raw-sensor-data ingestion (Excel/CSV → fused CSV)."""
+    """Configuration for raw-sensor-data ingestion (Excel/CSV fused CSV)."""
 
     accel_file: Optional[Path] = None  # auto-detect if None
     gyro_file: Optional[Path] = None  # auto-detect if None
@@ -87,9 +90,8 @@ class DataIngestionConfig:
     merge_tolerance_ms: int = 1
     output_dir: Optional[Path] = None
 
-
 # ============================================================================
-# Stage 2 – Data Validation
+# Stage 2 Data Validation
 # ============================================================================
 
 
@@ -98,39 +100,45 @@ class DataValidationConfig:
     """Configuration for data validation."""
 
     sensor_columns: List[str] = field(default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
+    timestamp_columns: List[str] = field(
+        default_factory=lambda: ["true_time", "timestamp", "timestamp_iso", "timestamp_ms"]
+    )
     expected_frequency_hz: float = 50.0
+    sampling_rate_tolerance: float = 0.1
     max_acceleration_ms2: float = 50.0
     max_gyroscope_dps: float = 500.0
     max_missing_ratio: float = 0.05
 
 
 # ============================================================================
-# Stage 3 – Data Transformation (Preprocessing)
+# Stage 3 Ã¢â‚¬â€œ Data Transformation (Preprocessing)
 # ============================================================================
 
 
 @dataclass
 class DataTransformationConfig:
-    """Configuration for preprocessing (CSV → windowed .npy arrays)."""
+    """Configuration for preprocessing (CSV to windowed .npy arrays)."""
 
     input_csv: Optional[Path] = None
-    enable_unit_conversion: bool = True  # milliG → m/s² (MUST match training)
-    enable_gravity_removal: bool = False  # Keep False (training had gravity)
-    enable_calibration: bool = False
-    window_size: int = 200  # 4 seconds at 50 Hz
-    overlap: float = 0.5  # 50 % overlap
+    unit_conversion_factor: float = 0.00980665
+    enable_unit_conversion: bool = True  # milliG to m/s^2 when input is raw Garmin milliG.
+    enable_gravity_removal: bool = False  # Optional A/B only; not part of the paper path.
+    enable_calibration: bool = False  # Optional A/B only; not part of the paper path.
+    window_size: int = WINDOW_SIZE  # 4 seconds at 50 Hz
+    overlap: float = OVERLAP  # 50 % overlap
     sensors: List[str] = field(default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
     output_dir: Optional[Path] = None
-    # Normalization variant — MUST match what was used during training:
-    #   "zscore"  → StandardScaler with training stats (Variant A, default)
-    #   "none"    → no amplitude normalization (Variant B)
-    #   "robust"  → RobustScaler with training stats (Variant C)
-    enable_normalization: bool = True  # toggle ON/OFF (like enable_gravity_removal)
+    # Paper-aligned default is raw physical units. Enable normalization only for A/B checks.
+    #   "zscore" -> StandardScaler with saved stats
+    #   "none"   -> no amplitude normalization
+    #   "robust" -> RobustScaler with saved stats
+    enable_normalization: bool = False
     normalization_variant: str = "zscore"
+    scaler_path: Optional[Path] = None
 
 
 # ============================================================================
-# Stage 4 – Model Inference
+# Stage 4 Model Inference
 # ============================================================================
 
 
@@ -142,12 +150,11 @@ class ModelInferenceConfig:
     input_npy: Optional[Path] = None  # defaults to prepared/production_X.npy
     batch_size: int = 32
     confidence_threshold: float = 0.50
-    mode: str = "batch"  # "batch" or "realtime"
     output_dir: Optional[Path] = None
 
 
 # ============================================================================
-# Stage 5 – Model Evaluation
+# Stage 5 Model Evaluation
 # ============================================================================
 
 
@@ -156,13 +163,13 @@ class ModelEvaluationConfig:
     """Configuration for prediction evaluation."""
 
     predictions_csv: Optional[Path] = None
-    labels_path: Optional[Path] = None  # optional — unlabeled is fine
+    labels_path: Optional[Path] = None  # optional Ã¢â‚¬â€ unlabeled is fine
     output_dir: Optional[Path] = None
     confidence_bins: int = 10
 
 
 # ============================================================================
-# Stage 6 – Post-Inference Monitoring
+# Stage 6 Post-Inference Monitoring
 # ============================================================================
 
 
@@ -176,15 +183,34 @@ class PostInferenceMonitoringConfig:
     model_path: Optional[Path] = None
     output_dir: Optional[Path] = None
 
-    # ── Thresholds (single source of truth — also read by src/api/app.py) ──
-    # Layer 1 — confidence
-    confidence_warn_threshold: float = 0.60  # mean confidence below this → WARNING
-    uncertain_pct_threshold: float = 30.0  # % of low-confidence windows → WARNING
-    uncertain_window_threshold: float = 0.50  # per-window cutoff: max_prob < this → "uncertain"
-    # Layer 2 — temporal
-    transition_rate_threshold: float = 50.0  # % transition rate above this → WARNING
-    # Layer 3 — drift
-    drift_zscore_threshold: float = 2.0  # per-channel z-score above this → WARNING
+    # -- Thresholds (single source of truth; also read by src/api/app.py) --
+    # NOTE: Stage 6 values are intentionally tighter than Stage 7 (TriggerEvaluationConfig):
+    # Stage 6 warns early on unlabeled production data; Stage 7 escalates only under
+    # voting. Do not unify these without reading thesis ch6 Threshold Calibration Gap.
+    # A28 (2026-04-21): tightened from 0.60/30/50/2.0 for unlabeled production data.
+    # Layer 1 -- confidence
+    confidence_warn_threshold: float = 0.70  # mean confidence below this -> WARNING
+    uncertain_pct_threshold: float = 20.0  # % of low-confidence windows -> WARNING
+    uncertain_window_threshold: float = 0.50  # per-window cutoff: max_prob < this -> uncertain
+    # Layer 1b -- dominant-class collapse guard (A27, 2026-04-21)
+    dominant_class_warn_threshold: float = 85.0  # % of windows in one class -> WARNING
+    dominant_class_critical_threshold: float = 95.0  # -> CRITICAL (review, no auto-retrain)
+    # Layer 2 -- temporal
+    transition_rate_threshold: float = 35.0  # % transition rate above this -> WARNING
+    window_duration_seconds: float = 4.0  # 200 samples / 50 Hz
+    prediction_stride_seconds: float = 2.0  # 50% overlap -> 100-sample stride / 50 Hz
+    low_gyro_motion_threshold: float = 1.1  # deg/s median; empirical 28-session collapse separator
+    low_motion_dominance_threshold: float = 70.0  # % dominance plus low G_mag -> collapse risk
+    # Layer 3 -- drift
+    drift_zscore_threshold: float = 1.8  # per-channel z-score above this -> WARNING
+    # Defended runtime default is lightweight z-score mean-shift.
+    # MMD remains available for calibrated offline/experimental audit runs.
+    drift_detector_mode: str = "zscore_mean_shift"  # zscore_mean_shift | mmd
+    mmd_reference_npy: Optional[Path] = None
+    mmd_threshold: Optional[float] = None  # if None, calibrated from reference bootstrap
+    mmd_sample_size: int = 384
+    mmd_bootstrap_iterations: int = 40
+    mmd_random_seed: int = 42
 
     # Temperature-scaling calibration (applied before Layer 1/3 analysis)
     # Set to the temperature T from Stage 11 (CalibrationUncertainty) output;
@@ -198,9 +224,20 @@ class PostInferenceMonitoringConfig:
     # (self-comparison would give artificially low drift scores).
     is_training_session: bool = False
 
+    # Baseline mode — must match the inference preprocessing contract.
+    # Production inference uses raw physical units (no scaler), so the default
+    # is raw_physical.  Changing this to "normalized" without a matching
+    # scaler-enabled pipeline will produce fake critical drift (raw Az ≈ -9.8 m/s²
+    # vs normalized baseline mean ≈ 0).
+    #   "raw_physical"  → use models/raw_physical_baseline.json
+    #   "normalized"    → use models/normalized_baseline.json (A/B only)
+    baseline_mode: str = "raw_physical"
+    raw_baseline_path: Optional[Path] = None       # default: models/raw_physical_baseline.json
+    normalized_baseline_path: Optional[Path] = None  # default: models/normalized_baseline.json
+
 
 # ============================================================================
-# Stage 7 – Trigger Evaluation
+# Stage 7  Trigger Evaluation
 # ============================================================================
 
 
@@ -211,7 +248,7 @@ class TriggerEvaluationConfig:
     confidence_warn: float = 0.65
     confidence_critical: float = 0.50
     # Drift metric is a z-score of mean-shift per channel, NOT PSI.
-    # 2.0σ ≈ 95th percentile (warn), 3.0σ ≈ 99.7th percentile (critical).
+    # 2.0ÃÆ’ Ã¢â€°Ë† 95th percentile (warn), 3.0ÃÆ’ Ã¢â€°Ë† 99.7th percentile (critical).
     drift_zscore_warn: float = 2.0
     drift_zscore_critical: float = 3.0
     temporal_flip_warn: float = 0.35
@@ -221,7 +258,7 @@ class TriggerEvaluationConfig:
 
 
 # ============================================================================
-# Stage 8 – Model Retraining
+# Stage 8 Model Retraining
 # ============================================================================
 
 
@@ -254,7 +291,7 @@ class ModelRetrainingConfig:
 
 
 # ============================================================================
-# Stage 9 – Model Registration
+# Stage 9 Model Registration
 # ============================================================================
 
 
@@ -278,7 +315,7 @@ class ModelRegistrationConfig:
 
 
 # ============================================================================
-# Stage 10 – Baseline Update
+# Stage 10 Model Baseline Update
 # ============================================================================
 
 
@@ -299,7 +336,7 @@ class BaselineUpdateConfig:
 
 
 # ============================================================================
-# Stage 11 – Calibration & Uncertainty Quantification
+# Stage 11 Model Calibration & Uncertainty Quantification
 # ============================================================================
 
 
@@ -327,83 +364,4 @@ class CalibrationUncertaintyConfig:
     # Output
     save_reliability_diagram: bool = True
     temperature_path: Optional[Path] = None
-    output_dir: Optional[Path] = None
-
-
-# ============================================================================
-# Stage 12 – Wasserstein Drift Detection
-# ============================================================================
-
-
-@dataclass
-class WassersteinDriftConfig:
-    """Configuration for Wasserstein-based distribution drift detection."""
-
-    warn_threshold: float = 0.3
-    critical_threshold: float = 0.5
-    min_drifted_channels_warn: int = 2
-    min_drifted_channels_critical: int = 4
-
-    # Change-point detection
-    cpd_window_size: int = 50
-    cpd_threshold: float = 2.0
-
-    # Multi-resolution
-    enable_multi_resolution: bool = True
-
-    sensor_columns: List[str] = field(default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
-    baseline_data_path: Optional[Path] = None
-    output_dir: Optional[Path] = None
-
-
-# ============================================================================
-# Stage 13 – Curriculum Pseudo-Labeling
-# ============================================================================
-
-
-@dataclass
-class CurriculumPseudoLabelingConfig:
-    """Configuration for curriculum-style self-training."""
-
-    initial_confidence_threshold: float = 0.95
-    final_confidence_threshold: float = 0.80
-    n_iterations: int = 5
-    threshold_decay: str = "linear"  # linear or exponential
-
-    max_samples_per_class: int = 20
-    min_samples_per_class: int = 3
-
-    use_teacher_student: bool = True
-    ema_decay: float = 0.999
-
-    # EWC regularization
-    use_ewc: bool = True
-    ewc_lambda: float = 1000.0
-    ewc_n_samples: int = 200
-
-    epochs_per_iteration: int = 10
-    batch_size: int = 64
-    learning_rate: float = 0.0005
-
-    source_data_path: Optional[Path] = None
-    unlabeled_data_path: Optional[Path] = None
-    output_dir: Optional[Path] = None
-
-
-# ============================================================================
-# Stage 14 – Sensor Placement Robustness
-# ============================================================================
-
-
-@dataclass
-class SensorPlacementConfig:
-    """Configuration for sensor placement robustness (hand detection, mirroring)."""
-
-    mirror_axes: List[int] = field(default_factory=lambda: [1, 2, 4, 5])
-    mirror_probability: float = 0.5
-    dominant_accel_threshold: float = 1.2
-
-    sensor_columns: List[str] = field(default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
-    accel_indices: List[int] = field(default_factory=lambda: [0, 1, 2])
-    gyro_indices: List[int] = field(default_factory=lambda: [3, 4, 5])
     output_dir: Optional[Path] = None

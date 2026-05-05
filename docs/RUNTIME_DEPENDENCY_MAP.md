@@ -31,10 +31,11 @@ Stage 1-7 orchestration chain:
   - Stage 7: src/components/trigger_evaluation.py
 
 Stage wrapper -> implementation dependencies:
-- src/components/data_validation.py -> src/data_validator.py
+- src/components/data_validation.py contains the Stage 2 validation implementation
 - src/components/data_transformation.py -> src/preprocess_data.py
-- src/components/model_inference.py -> src/run_inference.py
-- src/components/model_evaluation.py -> src/evaluate_predictions.py
+- src/components/model_inference.py contains the Stage 4 inference implementation
+- src/run_inference.py is a thin CLI wrapper around src/components/model_inference.py
+- src/components/model_evaluation.py contains the Stage 5 evaluation implementation
 - src/components/post_inference_monitoring.py -> scripts/post_inference_monitoring.py
 - src/components/trigger_evaluation.py -> src/trigger_policy.py
 
@@ -57,10 +58,8 @@ Highest criticality (direct Stage 1-7 path):
 - src/components/model_evaluation.py
 - src/components/post_inference_monitoring.py
 - src/components/trigger_evaluation.py
-- src/data_validator.py
 - src/preprocess_data.py
 - src/run_inference.py
-- src/evaluate_predictions.py
 - src/trigger_policy.py
 
 High supporting criticality (contract/config/logging):

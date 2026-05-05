@@ -30,24 +30,28 @@ The result is written into TriggerEvaluationArtifact and persisted in artifacts/
 
 4. If no collapse review, confidence/temporal/drift signals are scored.
 
-5. Signals are aggregated by voting:
-- Any CRITICAL signal -> trigger
-- 2+ WARNING signals -> queue_retrain
-- 1 WARNING signal -> monitor
-- Otherwise -> none
+5. Signals are aggregated by voting (NO_AUTO_RETRAIN policy):
+- Any CRITICAL signal -> REVIEW_REQUIRED (action=review, should_trigger=false, auto_retrain=false)
+- 2+ WARNING signals -> RETRAIN_CANDIDATE_QUEUED (action=queue_retrain, should_trigger=false, label_required=true)
+- 1 WARNING signal -> monitor (should_trigger=false)
+- Otherwise -> HEALTHY (none)
 
-6. Consecutive-warning escalation can promote decision to trigger.
+Unlabeled production data must NOT trigger automatic retraining regardless of signal severity.
+A label/QA gate is required before retraining is queued.
+
+6. Consecutive-warning escalation promotes to REVIEW_REQUIRED (not automatic trigger).
+   should_trigger remains false; label_required and qa_required are set true.
 
 7. Cooldown is applied as the final gate.
-- If cooldown is active, final action is queue_retrain and should_retrain=false.
-- This final gate now has precedence over same-cycle escalation.
+- If cooldown is active, final action is queue_retrain and should_trigger=false.
+- This final gate has precedence over same-cycle escalation.
 
 ## Threshold Sources
 
 Stage 6 monitoring thresholds are defined in PostInferenceMonitoringConfig and passed at runtime into scripts/post_inference_monitoring.py by src/components/post_inference_monitoring.py.
 
 Default Stage 6 thresholds:
-- confidence_warn_threshold: 0.60
+- confidence_warn_threshold: 0.70
 - uncertain_window_threshold: 0.50
 - uncertain_pct_threshold: 30.0
 - transition_rate_threshold: 50.0
@@ -67,6 +71,8 @@ Default Stage 7 thresholds:
 Notes:
 - Stage 6 and Stage 7 are intentionally tiered (monitoring warning is earlier; trigger is stricter governance).
 - Runtime values can be overridden with config/pipeline_overrides.yaml or HAR_PIPELINE_OVERRIDES.
+
+Prometheus/Grafana alerting is not part of the defended current implementation. The defended monitoring evidence comes from offline-first pipeline artifacts, trigger reports, logs, MLflow/DVC evidence, and saved run outputs.
 
 ## Collapse Guard Semantics
 

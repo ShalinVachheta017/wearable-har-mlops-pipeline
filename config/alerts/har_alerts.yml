@@ -1,25 +1,18 @@
-﻿# HAR Pipeline Alert Rules — LIVE RULES ONLY
-# ==============================================
+﻿# HAR Pipeline Alert Rules - HISTORICAL / OPTIONAL ONLY
+# =====================================================
 #
-# ╔══════════════════════════════════════════════════════════════════╗
-# ║  ALL rules in this file reference metrics ACTUALLY exported    ║
-# ║  by src/api/app.py at GET /metrics.                            ║
-# ║                                                                 ║
-# ║  Verified metric inventory (app.py lines 44-76):              ║
-# ║    Counter:   har_api_requests_total                           ║
-# ║    Gauge:     har_confidence_mean                              ║
-# ║    Gauge:     har_entropy_mean                                 ║
-# ║    Gauge:     har_flip_rate                                    ║
-# ║    Gauge:     har_drift_detected  (0.0=PASS, 1.0=WARNING)     ║
-# ║    Gauge:     har_baseline_age_days  (-1 = file missing)      ║
-# ║    Histogram: har_inference_latency_ms  (_bucket/_sum/_count) ║
-# ║                                                                 ║
-# ║  Rules for metrics not yet exported → har_alerts_pending.yml  ║
-# ╚══════════════════════════════════════════════════════════════════╝
+# Scope decision from the 2026-04-25 audit:
+# Prometheus, Grafana, and alert-rule files are not part of the defended
+# current thesis implementation. This file is retained as historical,
+# optional, and future-work material only. Do not cite it as active monitoring
+# evidence for the defended pipeline.
 #
-# Threshold alignment (single source of truth → config_entity.py):
-#   confidence_warn_threshold = 0.60  (PostInferenceMonitoringConfig)
-#   trigger confidence_warn   = 0.65  (TriggerEvaluationConfig — higher tier)
+# Defended monitoring evidence comes from pipeline-generated JSON/CSV
+# artifacts, trigger reports, logs, MLflow/DVC evidence, and saved run outputs.
+#
+# Threshold reference (single source of truth: config_entity.py):
+#   confidence_warn_threshold = 0.70  (PostInferenceMonitoringConfig)
+#   trigger confidence_warn   = 0.65  (TriggerEvaluationConfig higher tier)
 #   entropy_warn              = 1.8   (TriggerThresholds)
 #   flip_rate_warn            = 0.25  (TriggerThresholds — fraction not %)
 #   baseline_max_age_days     = 90    (PostInferenceMonitoringConfig)
@@ -41,7 +34,7 @@ groups:
           team: ml-ops
         annotations:
           summary: "HAR model confidence is low"
-          description: "Mean confidence {{ $value | printf \"%.3f\" }} < 0.65 for 5m. (PostInferenceMonitoringConfig.confidence_warn_threshold=0.60; trigger fires at 0.65)"
+          description: "Mean confidence {{ $value | printf \"%.3f\" }} < 0.65 for 5m. Historical optional rule; pipeline monitoring threshold is 0.70 and trigger warning threshold is 0.65."
           runbook: "Check for data drift or model degradation. Consider --retrain."
 
       - alert: HARHighEntropy

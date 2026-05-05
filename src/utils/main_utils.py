@@ -18,13 +18,13 @@ Usage:
 
 import logging
 import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
+from src.config import PROJECT_ROOT
 from src.utils.common import (
     ensure_dir,
     get_timestamp,
@@ -177,9 +177,7 @@ def load_config_from_yaml(
         Parsed configuration dictionary.
     """
     if path is None:
-        # Resolve relative to this file → project root
-        project_root = Path(__file__).resolve().parent.parent.parent
-        path = project_root / "config" / "pipeline_config.yaml"
+        path = PROJECT_ROOT / "config" / "pipeline_config.yaml"
     return read_yaml(path)
 
 

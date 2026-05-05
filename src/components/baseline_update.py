@@ -1,7 +1,5 @@
-"""    
+"""
 Component 10 – Baseline Update
-
-Wraps:  scripts/build_training_baseline.py  →  BaselineBuilder
 """
 
 import logging
@@ -15,6 +13,7 @@ from src.entity.artifact_entity import (
     ModelRetrainingArtifact,
 )
 from src.entity.config_entity import BaselineUpdateConfig, PipelineConfig
+from src.utils.common import get_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +37,7 @@ class BaselineUpdate:
         logger.info("STAGE 10 — Baseline Update")
         logger.info("=" * 60)
 
-        import sys
-
-        scripts_dir = str(self.pipeline_config.scripts_dir)
-        if scripts_dir not in sys.path:
-            sys.path.insert(0, scripts_dir)
-
-        from build_training_baseline import BaselineBuilder
+        from src.monitoring.baseline_builder import BaselineBuilder
 
         builder = BaselineBuilder()
 
@@ -84,7 +77,7 @@ class BaselineUpdate:
             logger.info("Normalised baseline PROMOTED to shared path: %s", save_normalized_path)
 
             # Versioned archive (e.g. training_baseline_20260219_130000.json)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts = get_timestamp()
             versioned_dir = save_baseline_path.parent / "baseline_versions"
             versioned_dir.mkdir(parents=True, exist_ok=True)
             for src_p, dst_name in [

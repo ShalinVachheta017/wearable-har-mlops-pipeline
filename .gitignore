@@ -138,6 +138,7 @@ research_papers/
 # ============================================================================
 # Miscellaneous cleanup docs (not core to repo)
 # ============================================================================
+docs/thesis/EXTERNAL_*.md
 CLEANUP_SUMMARY_2026-02-13.md
 COMPREHENSIVE_VALIDATION_REPORT.md
 PIPELINE_VERIFICATION_COMPLETE.md
@@ -183,6 +184,9 @@ thesis/*.fdb_latexmk
 thesis/*.synctex.gz
 thesis/chapters/*.aux
 
+# Private thesis dashboard app (local-only)
+thesis/handbook-dashboard/
+
 # Root-level audit artifacts
 REPOSITORY_*.md
 INTERNAL_SUMMARY_*.md
@@ -193,3 +197,39 @@ docs/images/pipeline/generated/
 # Local workspace and notes
 .claude/
 qna_30 march to ask google scholor.txt
+
+# Local archive — not for git, move to separate folder later
+_archive/
+
+# thesis (chapters, notes, drafts)
+thesis/
+
+# Large datasets / raw sensor files
+data/raw/
+data/processed/
+data/prepared/
+*.csv
+*.xlsx
+*.npy
+*.npz
+*.joblib
+*.pkl
+
+# Notebook-generated artifacts
+nb/inference_outputs/
+nb/model_artifacts/
+notebooks/synthetic_labeled.csv
+27 april meet/
+
+# Runtime/evidence outputs
+artifacts/
+outputs/
+reports/inference_parity_all_*/
+evidence/inference_parity_all_*/
+
+# MLflow local runs
+mlruns/
+
+# Large model binaries unless tracked by DVC/LFS
+*.keras
+*.h5

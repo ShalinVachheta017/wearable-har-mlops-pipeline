@@ -146,13 +146,25 @@ class ContainerBuilder:
             required_files = [
                 "config.py",
                 "run_inference.py",
-                "post_inference_monitoring.py",
-                "prometheus_metrics.py",
             ]
             for f in required_files:
                 src_file = src_dir / f
                 if src_file.exists():
                     shutil.copy(src_file, src_dest / f)
+
+            # Copy runtime packages used by the thin inference CLI.
+            for package_name in ("components", "entity", "utils"):
+                package_src = src_dir / package_name
+                package_dest = src_dest / package_name
+                if package_src.exists():
+                    import shutil as _shutil
+                    _shutil.copytree(package_src, package_dest)
+
+            # Copy monitoring package
+            monitoring_src = src_dir / "monitoring"
+            if monitoring_src.exists():
+                import shutil as _shutil
+                _shutil.copytree(monitoring_src, src_dest / "monitoring")
 
             # Copy requirements
             req_file = Path("config/requirements.txt")
