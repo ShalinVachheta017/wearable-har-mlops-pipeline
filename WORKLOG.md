@@ -68,6 +68,8 @@ Detailed bug narratives, full file lists, and deep forensics stay below the quic
 
 Starting tomorrow, cleanup should proceed folder-by-folder and should not be only deletion. Every folder/file decision should answer: keep as active evidence, update because it is stale, archive as historical, or remove only after a second check.
 
+Report-writing rule for tomorrow's historical analysis: if past work reveals something that improves the written report, add or revise it in the main thesis report only. The main report targets are `thesis/main.tex` and `thesis/chapters/*.tex`. Do not put new thesis conclusions into `thesis/april_report/` unless explicitly requested; that folder is historical April-report material.
+
 Current branch state checked on 2026-05-06:
 
 | Item | State |
@@ -94,7 +96,7 @@ Tomorrow's cleanup/evidence checklist:
 | Data and labels | training data, mentor production data, self-recorded User 7 labels, unit conversion, transition exclusion | Keep evaluation claims defensible |
 | CI/CD and tests | test counts, focused tests, workflow scope, release-image smoke if available | Separate real CI evidence from future CD claims |
 | Security/privacy | local/offline-first positioning, no cloud deployment claim, no unnecessary personal data in final package | Important for wearable and mental-health framing |
-| Writing | Chapter 5/6/7 integration, Chapter 8 limitations, defense slide anchors, claim-evidence table | Most important next deliverable is thesis text, not more code |
+| Writing | Main report only: Chapter 5/6/7 integration, Chapter 8 limitations, defense slide anchors, claim-evidence table | Most important next deliverable is thesis text, not more code |
 
 Possible missed items to remember: figure/table cross-references, bibliography consistency, final package `.gitignore` hygiene, branch consolidation plan, screenshots or command-output evidence for demos, and a final "do not retrain yet" wording sweep.
 
