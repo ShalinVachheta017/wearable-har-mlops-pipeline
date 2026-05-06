@@ -24,6 +24,249 @@ From 2026-04-16 onward, each day should start with a compact scan block before d
 
 Detailed bug narratives, full file lists, and deep forensics stay below the quick block as evidence.
 
+## 2026-05-06 - Mentor Contract Forensics And Clean Model Training Handoff
+
+### Today in 5 lines
+
+- Root cause direction changed from "bad data only" to a proven training-serving contract mismatch plus questionable legacy checkpoint behavior.
+- Mentor notebooks train/evaluate with hidden behavior: full-dataset `StandardScaler`, non-standard channel-major reshape, and random stratified window splits.
+- Current production pipeline uses normal row-wise `(time, channel)` windows and physical units, so the deployed mentor checkpoint sees a different internal tensor meaning even though the shape is still `(200, 6)`.
+- A clean defendable notebook now exists at `nb/production_contract_adamsense_finetune.ipynb` for ADAMSense pretraining, Garmin `all_users` fine-tuning, and held-out User 7 external testing.
+- Next session should continue improving the clean model under the fixed production contract, not silently switch production to the mentor legacy layout.
+
+### Done Today
+
+- Investigated mentor notebooks:
+  - `6th may/anxiety1 - CNNBiLSTM.ipynb`
+  - `6th may/anxiety1 - finetuning.ipynb`
+  - `nb/model_checkpoint_sanity_check.ipynb`
+- Confirmed mentor base notebook behavior:
+  - Selects wrist channels `Ax_w, Ay_w, Az_w, Gx_w, Gy_w, Gz_w`.
+  - Fits `StandardScaler()` on the full six-channel dataframe before windowing.
+  - Builds windows by appending six channel arrays, then calling `np.asarray(windows).reshape(-1, 200, 6)`.
+  - Splits windows with random stratified `train_test_split`, not user/session/group holdout.
+  - Reports roughly `0.8957` evaluation accuracy under that notebook contract.
+- Confirmed mentor fine-tuning notebook behavior:
+  - Concatenates fine-tuning CSVs.
+  - Fits a fresh full-data `StandardScaler()` before split.
+  - Uses the same mentor `get_window` channel-major reshape.
+  - Uses random stratified window split.
+  - Reports `Validation Accuracy: 0.8821` under the mentor notebook contract.
+- Confirmed mentor inference behavior:
+  - Fits a new scaler on the whole inference file.
+  - This is batch-dependent and not stable production MLOps behavior.
+- Created/used diagnostics under `diagnostics/model_contract_debug/`, especially:
+  - `16_tensor_layout_forensic.md`
+  - `17_scaler_contract_forensic.md`
+  - `18_paper_notebook_pipeline_contract_matrix.md`
+  - `20_mentor_vs_pipeline_dataset_comparison.md`
+
+### Key Evidence
+
+Mentor-style contract versus current production contract:
+
+| Contract | Scaler | Tensor layout | Split/eval meaning | Result pattern |
+|---|---|---|---|---|
+| Current production | none by default | normal row-wise `(time, channel)` | real pipeline style | deployed checkpoint collapses near `7-10%` |
+| Current + scaler | full or train-only variants tested diagnostically | normal row-wise | still not mentor layout | does not recover mentor accuracy |
+| Legacy mentor | full-dataset scaler before windowing | channel-major reshape hidden inside `(200, 6)` | notebook-compatible, optimistic | `all_users` about `90.78%`, User 7 about `43.78%` |
+| Clean thesis model notebook | none or train-only scaler only | normal row-wise | defendable MLOps contract | lower so far, but honest/generalization-oriented |
+
+Important interpretation:
+
+- Same shape does not mean same data. Both pipelines produce `(200, 6)`, but the mentor model was trained on a different internal memory layout.
+- The mentor `90%` is not automatic deployment proof because it uses full-data scaling and random window splits.
+- The paper supports six wrist channels, 50 Hz, window size 200, stride 100, and 1D-CNN-BiLSTM. It does not clearly support the hidden full-dataset scaler or the channel-major reshape.
+- The legacy mentor layout should be named explicitly as `legacy_mentor_tensor_layout` if used anywhere. Do not describe it as normal row-wise time-series.
+
+### Current Clean Notebook State
+
+Primary notebook:
+
+- `nb/production_contract_adamsense_finetune.ipynb`
+
+Current structure:
+
+| Cell | Purpose |
+|---|---|
+| 1 | imports, paths, seeds |
+| 2 | fixed production contract and dataset paths |
+| 3 | label/feature/group helpers |
+| 4 | load ADAMSense, all_users, User 7 |
+| 5 | label cleaning, feature detection, unit/range audit |
+| 6 | controlled ADAMSense accelerometer unit conversion |
+| 7 | common schema: `Ax, Ay, Az, Gx, Gy, Gz, label_name, label, group` |
+| 8 | clean row-wise segment-aware windows |
+| 9 | group-aware train/validation splits |
+| 10 | optional scaler, currently clean train-only scaler support |
+| 11 | model architecture, augmentation, evaluation helpers |
+| 12 | ADAMSense pretraining |
+| 13 | Garmin `all_users` fine-tuning with freeze/unfreeze |
+| 14 | User 7 final external evaluation, default should stay `False` during model selection |
+| 15 | unlabeled production monitoring |
+| 16 | save model package, contract, provenance |
+| 17 | write training report |
+
+Current important choices:
+
+- Clean tensor contract: normal row-wise `(time, channel)`.
+- No mentor legacy reshape.
+- `SCALER_MODE = "train_only_standard"` in the notebook at last check.
+- Augmentation enabled: mild noise, magnitude scaling, and time shift on training windows only.
+- Freeze/unfreeze fine-tuning present:
+  - pretrain on ADAMSense,
+  - freeze feature extractor and train Garmin head,
+  - unfreeze all layers and fine-tune with small LR.
+- User 7 external evaluation cell defaults to skip mode to protect final evidence.
+
+### Metrics Already Seen
+
+Older clean no-scaler run:
+
+| Stage | Accuracy | Macro F1 |
+|---|---:|---:|
+| ADAMSense validation | about `0.3258` | about `0.2675` |
+| Garmin all_users validation after fine-tuning | about `0.1970` | about `0.1645` |
+| User 7 external | about `0.2885` | about `0.2532` |
+
+Clean train-only scaler plus regularization run:
+
+| Stage | Accuracy | Macro F1 | Notes |
+|---|---:|---:|---|
+| ADAMSense validation after pretraining | `0.3107` | `0.2857` | predicted all 11 classes |
+| Garmin all_users validation after fine-tuning | `0.2621` | `0.2478` | predicted all 11 classes |
+| User 7 external | `0.5000` | `0.4515` | useful evidence, but should not be used for more tuning decisions |
+
+Artifact from that run:
+
+- `models/production_contract/clean_contract_train_only_standard_20260506_211658`
+- `diagnostics/model_contract_debug/clean_production_contract_training_report.md`
+
+Caveat:
+
+- User 7 has already been viewed during experimentation. From thesis-purity perspective, do not keep tuning against it. Treat later User 7 use as confirmation only, or be transparent that it became a known external reference after this diagnostic run.
+
+### Notebook Patch Plan For Next Session
+
+The next notebook improvement should be a minimal notebook-only patch. Do not modify production code.
+
+Patch target:
+
+- `nb/production_contract_adamsense_finetune.ipynb`
+
+Planned changes:
+
+1. Add `GroupShuffleSplit` to the main Cell 1 import, even though Cell 9 currently imports it locally.
+2. Add explicit experiment fields in Cell 2:
+   - `MODEL_VARIANT`
+   - `MODEL_SELECTION_RULE`
+   - allowed variants:
+     - `small_cnn_bilstm`
+     - `small_1dcnn_gap`
+     - `cnn_gru`
+     - `mentor_like_cnn_bilstm_arch`
+3. Replace Cell 11 with a small model registry:
+   - keep augmentation and evaluation helpers,
+   - add `MODEL_VARIANT_REGISTRY`,
+   - add builders for:
+     - small CNN-BiLSTM,
+     - small 1D-CNN + GlobalAveragePooling,
+     - CNN-GRU,
+     - mentor-like architecture under clean row-wise layout only.
+4. Update Cell 12 run names and saved histories to include `MODEL_VARIANT` and `SCALER_MODE`.
+5. Update Cell 13 run names and saved histories to include `MODEL_VARIANT` and `SCALER_MODE`.
+6. Update Cell 16 saved package metadata:
+   - model variant,
+   - hyperparameters,
+   - model selection rule,
+   - training strategy,
+   - scaler fit scope,
+   - augmentation config.
+7. Update Cell 17 report:
+   - model variant,
+   - hyperparameters,
+   - experiment plan,
+   - reminder that User 7 is not for model choice.
+8. Add optional Cell 18, default `RUN_OPTIONAL_MODEL_COMPARISON = False`, for quick Garmin-only clean-contract baselines:
+   - `small_1dcnn_gap`,
+   - `cnn_gru`.
+
+Implementation note:
+
+- A previous attempted large inline Python patch failed before applying because Windows returned `CreateProcessAsUserW failed: 206` from command length. No production code was changed by that failed attempt.
+- Next time, use a short helper script file under `diagnostics/model_contract_debug/` or smaller `apply_patch` edits instead of one huge inline command.
+
+### Recommended Modeling Direction
+
+Keep this order:
+
+1. Fixed clean contract:
+   - six wrist channels,
+   - m/s2 accelerometer target,
+   - gyro unchanged,
+   - window size 200,
+   - stride 100,
+   - normal row-wise `(time, channel)`,
+   - fixed 11-class order.
+2. Compare only clean scaler choices:
+   - `none`,
+   - `train_only_standard`.
+3. Pretrain on ADAMSense.
+4. Fine-tune on `data/all_users_data_labeled.csv`.
+5. Use group-aware Garmin validation for model choice.
+6. Keep User 7 out of training/scaler/model choice.
+7. Compare model simplicity:
+   - current CNN-BiLSTM,
+   - smaller CNN-BiLSTM,
+   - 1D-CNN + GAP,
+   - CNN-GRU,
+   - RandomForest summary baseline as a sanity reference.
+8. Only after final model choice is frozen, run/report User 7.
+
+### Thesis Framing
+
+Defendable statement:
+
+> The mentor checkpoint was compatible with a hidden notebook contract, not with the clean production tensor contract. For the MLOps pipeline, I made the model contract explicit and trained a new deployable model package under the same contract used at inference.
+
+Do not say:
+
+> The mentor was wrong.
+
+Better wording:
+
+> The mentor notebook contract was useful for reproducing the provided checkpoint, but it is not the same as the paper-level or production-serving contract. I therefore separated legacy compatibility evidence from the clean deployable MLOps model.
+
+### Current Risks
+
+- Clean model accuracy is still not high enough for a strong final ML claim.
+- User/session-aware validation is much harder than the mentor random split and should be explained clearly.
+- User 7 has already been used diagnostically; avoid further tuning against it.
+- `src/pipeline/production_pipeline.py` is currently modified in the worktree from earlier work; do not overwrite or revert it without checking ownership.
+- `diagnostics/`, `6th may/`, and `models/production_contract/` are currently untracked or partly untracked; decide later what belongs in Git versus local evidence.
+
+### Next Session Start Point
+
+Start with:
+
+```powershell
+git status --short
+@'
+import json
+from pathlib import Path
+p = Path('nb/production_contract_adamsense_finetune.ipynb')
+nb = json.loads(p.read_text(encoding='utf-8'))
+print('cells', len(nb['cells']))
+for i, c in enumerate(nb['cells']):
+    src = ''.join(c.get('source', []))
+    print(i, c.get('cell_type'), src.strip().splitlines()[0] if src.strip() else '')
+'@ | python -
+```
+
+Then patch the notebook using a short helper script, run syntax validation only, and do not start long training until the notebook cell changes are reviewed.
+
+---
+
 ## 2026-05-06 - Self-Recorded Garmin External Evaluation And Thesis Defense Package
 
 ### Today in 5 lines
