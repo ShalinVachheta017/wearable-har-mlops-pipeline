@@ -53,14 +53,14 @@ This keeps the baseline production story and adaptation experiments separated.
 
 ## 5) Default Model, Input Contract, and Promotion Gate
 
-### 5.1 Canonical Sentence (Locked 2026-05-05)
+### 5.1 Canonical Sentence (Updated 2026-05-08)
 
-> **Defended runtime model and input contract:** `models/pretrained/fine_tuned_model_1dcnnbilstm.keras` (1D-CNN-BiLSTM, 11 activity classes, 499 131 parameters, 200x6 input window). Final production inference uses raw physical IMU units: accelerometer values are converted from milli-g to m/s^2 when needed, gyroscope values remain in deg/s, sampling is 50 Hz, window size is 200 samples, stride is 100 samples, normalization is disabled, no external StandardScaler is applied, and gravity removal/calibration are disabled. Stage 6 compares against `models/raw_physical_baseline.json`; normalized/scaler artifacts remain training, legacy, or A-B diagnostic evidence only. Retraining is implemented as a **governance mechanism** that produces candidate artifacts (`models/retrained/`); promotion is label-gated and requires review, QA, labels, and demonstrated improvement on a labeled holdout. The production data stream is unlabeled, so drift/collapse/low confidence can require review but must not automatically replace the defended model.
+> **Defended runtime model and input contract:** `models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras` (ADAMSense-pretrained CNN-BiLSTM, 11 activity classes, 200x6 input window). Final production inference uses row-wise wrist IMU windows: accelerometer values are converted from milli-g to m/s^2 when needed, gyroscope values remain in deg/s, sampling is 50 Hz, window size is 200 samples, stride is 100 samples, and the saved Garmin train-only StandardScaler is applied from `models/production_contract/model_a_final_20260508/garmin_train_scaler.json`. Gravity removal/calibration remain disabled. Stage 6 compares against `models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json`. Retraining remains a **governance mechanism** that produces candidate artifacts; promotion is label-gated and requires review, QA, labels, and demonstrated improvement on a labeled holdout.
 
 ### 5.2 Rules
 
-- Default runtime model is the supervisor-provided pretrained baseline: `models/pretrained/fine_tuned_model_1dcnnbilstm.keras`.
-- Default production input is raw physical IMU units, not z-score-normalized tensors.
+- Default runtime model is Model A: `models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras`.
+- Default production input is the final Model A scaled contract: physical units after unit conversion, then Garmin train-only z-score scaling.
 - Retrained artifacts under `models/retrained/` are research candidates, never automatic defaults.
 - Promotion is label-gated. Without a labeled production sample confirming improvement, no candidate is promoted.
 - If a candidate is equal or worse on the chosen metric, the current default is kept.

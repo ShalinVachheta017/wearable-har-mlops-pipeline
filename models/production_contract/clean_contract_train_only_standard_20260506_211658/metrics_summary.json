@@ -1,0 +1,35 @@
+{
+  "pretrain_val_metrics": {
+    "dataset": "ADAMSense validation after pretraining",
+    "accuracy": 0.31070889894419307,
+    "macro_f1": 0.28567868462225526,
+    "weighted_f1": 0.2848905395912719,
+    "mean_confidence": 0.5619941353797913,
+    "median_confidence": 0.5007553100585938,
+    "n_predicted_classes": 11,
+    "dominant_class": "nail_biting",
+    "dominant_class_pct": 0.2933634992458522
+  },
+  "garmin_val_metrics": {
+    "dataset": "Garmin all_users validation after fine-tuning",
+    "accuracy": 0.2621127879269261,
+    "macro_f1": 0.24776619542229214,
+    "weighted_f1": 0.2511198277528902,
+    "mean_confidence": 0.7318846583366394,
+    "median_confidence": 0.7541555166244507,
+    "n_predicted_classes": 11,
+    "dominant_class": "standing",
+    "dominant_class_pct": 0.2509928514694202
+  },
+  "user7_final_metrics": {
+    "dataset": "User 7 external final evaluation",
+    "accuracy": 0.5,
+    "macro_f1": 0.4514738832141667,
+    "weighted_f1": 0.4516713310213671,
+    "mean_confidence": 0.6141453981399536,
+    "median_confidence": 0.5472782850265503,
+    "n_predicted_classes": 11,
+    "dominant_class": "knuckles_cracking",
+    "dominant_class_pct": 0.2464065708418891
+  }
+}

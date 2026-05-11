@@ -28,12 +28,12 @@ __pycache__
 *.egg
 MANIFEST
 
-# Virtual environments
-venv
-.venv
-env
-.env
-.conda
+# Virtual environments (directories only — not a .env secrets file, which does not exist in this repo)
+venv/
+.venv/
+env/
+.env/
+.conda/
 
 # IDE
 .idea
@@ -86,3 +86,70 @@ tests/
 Thumbs.db
 *.bak
 *.tmp
+
+# ============================================================================
+# Additions 2026-05-08 — observed in the current repo state
+# ============================================================================
+
+# ---- Historical / heavy folders at repo root ----
+27 april meet/
+6th may/
+_archive/
+recording/
+main/
+internal/
+notes/
+diagnostics/
+
+# ---- Pipeline run outputs (regenerated; never bake into image) ----
+artifacts/
+outputs/
+evidence/
+
+# ---- Local pytest workspaces (Windows ACL workaround dirs) ----
+stage6_pytest_work/
+stage7_pytest_work/
+tmp_run3/
+.pytest_tmp/
+.tmp_pytest/
+
+# ---- Notebooks folder contents (extends *.ipynb to siblings such as keras/json/csv) ----
+nb/
+notebooks/
+
+# ---- Office files and locks (xlsx already excluded under Data) ----
+*.docx
+*.doc
+*.xls
+~$*
+
+# ---- PDFs and built thesis byproducts ----
+*.pdf
+thesis/
+*.aux
+*.bbl
+*.blg
+*.toc
+*.lof
+*.lot
+*.out
+*.synctex.gz
+
+# ---- Coverage / mypy / tox ----
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+
+# ---- Compressed dumps ----
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# ---- Stray top-level scratch files ----
+temp.txt
+reasoningtxt.txt
+pt.md

@@ -1,13 +1,13 @@
 ﻿"""
 =============================================================================
-HAR MLOps â€” Production Pipeline Orchestrator
+HAR MLOps Production Pipeline Orchestrator
 =============================================================================
 
 10 Active Stages:
-    1  Data Ingestion           (Excel/CSV â†’ fused CSV)
+    1  Data Ingestion           (Excel/CSV -> fused CSV)
     2  Data Validation          (schema + range checks)
-    3  Data Transformation      (CSV â†’ windowed .npy)
-    4  Model Inference          (.npy + model â†’ predictions)
+    3  Data Transformation      (CSV -> windowed .npy)
+    4  Model Inference          (.npy + model -> predictions)
     5  Model Evaluation         (confidence / distribution / ECE)
     6  Post-Inference Monitoring (3-layer: confidence, temporal, drift)
     7  Trigger Evaluation       (retraining decision)
@@ -125,7 +125,7 @@ class ProductionPipeline:
         Parameters
         ----------
         stages : list[str], optional
-            Subset of stages to run.  Default â†’ stages 1-7;
+            Subset of stages to run.  Default stages 1-7;
             add "retraining" etc. for the retrain cycle.
         skip_ingestion : bool
             Skip stage 1.
@@ -140,7 +140,7 @@ class ProductionPipeline:
         update_baseline : bool
             When True, promote the rebuilt baseline to the shared models/ path
             that monitoring reads.  Default False: baseline is written only as
-            an MLflow artifact (safe governance default â€” no silent overwrites).
+            an MLflow artifact (safe governance default: no silent overwrites).
         """
         result = PipelineResult(
             run_id=self.pipeline_config.timestamp,
@@ -186,7 +186,7 @@ class ProductionPipeline:
                 try:
                     handler = _DISPATCH.get(stage)
                     if handler is None:
-                        logger.warning("Unknown stage '%s' â€” skipped.", stage)
+                        logger.warning("Unknown stage '%s': skipped.", stage)
                         continue
                     sig = handler(result, ctx)
                     if sig == "BREAK":
@@ -195,13 +195,13 @@ class ProductionPipeline:
                         result.stages_skipped.append(stage)
                     else:
                         result.stages_completed.append(stage)
-                        logger.info("âœ“ Stage '%s' completed.", stage)
+                        logger.info("Stage '%s' completed.", stage)
                         if mlflow_tracker:
                             self._log_stage_to_mlflow(mlflow_tracker, stage, result)
                 except DataValidationError:
                     raise
                 except Exception as e:
-                    logger.error("âœ— Stage '%s' FAILED: %s", stage, e)
+                    logger.error("Stage '%s' FAILED: %s", stage, e)
                     logger.debug(traceback.format_exc())
                     result.stages_failed.append(stage)
                     if not continue_on_failure:
@@ -363,7 +363,7 @@ class ProductionPipeline:
     def _run_evaluation(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         inference_art = ctx["inference_art"]
         if inference_art is None:
-            raise ValueError("No inference artifact â€” run inference first.")
+            raise ValueError("No inference artifact: run inference first.")
         import dataclasses
         from src.components.model_evaluation import ModelEvaluation
         eval_cfg = self.evaluation_config
@@ -376,7 +376,7 @@ class ProductionPipeline:
         ):
             eval_cfg = dataclasses.replace(eval_cfg, labels_path=transformation_art.production_y_path)
             logger.info(
-                "Stage 5: auto-detected labels from Stage 3 â€” "
+                "Stage 5: auto-detected labels from Stage 3; "
                 "switching to LABELED evaluation (production_y.npy)."
             )
         art = ModelEvaluation(
@@ -407,7 +407,7 @@ class ProductionPipeline:
     def _run_monitoring(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         inference_art = ctx["inference_art"]
         if inference_art is None:
-            raise ValueError("No inference artifact â€” run inference first.")
+            raise ValueError("No inference artifact: run inference first.")
         from src.components.post_inference_monitoring import PostInferenceMonitoring
         art = PostInferenceMonitoring(
             self.pipeline_config, self.monitoring_config,
@@ -544,7 +544,7 @@ class ProductionPipeline:
     def _run_trigger(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         monitoring_art = ctx["monitoring_art"]
         if monitoring_art is None:
-            raise ValueError("No monitoring artifact â€” run monitoring first.")
+            raise ValueError("No monitoring artifact: run monitoring first.")
         from src.components.trigger_evaluation import TriggerEvaluation
         art = TriggerEvaluation(
             self.pipeline_config, self.trigger_config, monitoring_art
@@ -579,7 +579,7 @@ class ProductionPipeline:
         unlabeled_supported = {"adabn", "tent", "adabn_tent", "pseudo_label"}
         if not ctx["dataset_has_labels"] and adaptation_method not in unlabeled_supported:
             logger.info(
-                "Stage 8 SKIPPED â€” dataset is UNLABELED and supervised retraining is blocked. "
+                "Stage 8 SKIPPED: dataset is UNLABELED and supervised retraining is blocked. "
                 "Provide --labels for supervised retraining, or use --adapt one of: %s.",
                 ", ".join(sorted(unlabeled_supported)),
             )
@@ -598,7 +598,7 @@ class ProductionPipeline:
             ctx["trigger_art"] is None or not ctx["trigger_art"].should_retrain
         ):
             logger.info(
-                "Stage 8 SKIPPED â€” trigger decision is REVIEW with should_retrain=False. "
+                "Stage 8 SKIPPED: trigger decision is REVIEW with should_retrain=False. "
                 "Unlabeled production data requires human review before retraining. "
                 "Stages 9-10 will also skip (no retraining artifact). "
                 "Stage 11 (calibration) will continue if requested."
@@ -633,7 +633,7 @@ class ProductionPipeline:
 
     def _run_registration(self, result: PipelineResult, ctx: Dict[str, Any]):
         if ctx["retraining_art"] is None:
-            logger.info("Stage 9 SKIPPED â€” no retraining artifact.")
+            logger.info("Stage 9 SKIPPED: no retraining artifact.")
             return "SKIP"
         from src.components.model_registration import ModelRegistration
         art = ModelRegistration(
@@ -645,7 +645,7 @@ class ProductionPipeline:
 
     def _run_baseline_update(self, result: PipelineResult, ctx: Dict[str, Any]):
         if ctx["retraining_art"] is None:
-            logger.info("Stage 10 SKIPPED â€” no retraining artifact.")
+            logger.info("Stage 10 SKIPPED: no retraining artifact.")
             return "SKIP"
         self.baseline_config.promote_to_shared = ctx["update_baseline"]
         from src.components.baseline_update import BaselineUpdate
@@ -658,7 +658,7 @@ class ProductionPipeline:
     def _run_calibration(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         inference_art = ctx["inference_art"]
         if inference_art is None:
-            raise ValueError("No inference artifact â€” run inference first.")
+            raise ValueError("No inference artifact: run inference first.")
         from src.components.calibration_uncertainty import CalibrationUncertainty
         art = CalibrationUncertainty(
             self.pipeline_config, self.calibration_config, inference_art
@@ -806,7 +806,7 @@ class ProductionPipeline:
             json.dump(_convert(data), f, indent=2, default=str)
         logger.info("Pipeline result saved: %s", path)
 
-    # â”€â”€ MLflow helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # MLflow helpers
     def _init_mlflow(self, run_id: str):
         return self.mlflow_logger.init_run(run_id)
 

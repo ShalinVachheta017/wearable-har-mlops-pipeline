@@ -544,6 +544,32 @@ class ModelInference:
                 report["collapse_level"],
             )
 
+            # Log human-readable class distribution and confidence summary
+            results_df = response.results_df
+            if not results_df.empty:
+                logger.info("")
+                logger.info("-" * 60)
+                logger.info("PREDICTED ACTIVITY DISTRIBUTION (unlabeled profile)")
+                logger.info("-" * 60)
+
+                # Calculate aggregate stats
+                res = results_df.groupby('predicted_activity').agg(
+                    Count=('window_id', 'count'),
+                    Mean_Confidence=('confidence', 'mean')
+                ).sort_values('Count', ascending=False)
+
+                res['Percentage'] = (res['Count'] / len(results_df)) * 100
+                res['Mean_Confidence'] = (res['Mean_Confidence'] * 100).map('{:.1f}%'.format)
+                res['Percentage'] = res['Percentage'].map('{:.1f}%'.format)
+
+                # Print formatted table to logs
+                logger.info(f"{'Activity':<25} | {'Count':<8} | {'% of Total':<12} | {'Avg Confidence':<15}")
+                logger.info("-" * 60)
+                for activity, row in res.iterrows():
+                    logger.info(f"{activity:<25} | {row['Count']:<8} | {row['Percentage']:<12} | {row['Mean_Confidence']:<15}")
+                logger.info("-" * 60)
+                logger.info("")
+
             return ModelInferenceArtifact(
                 predictions_csv_path=response.output_files["csv"],
                 predictions_npy_path=response.output_files["predictions_npy"],

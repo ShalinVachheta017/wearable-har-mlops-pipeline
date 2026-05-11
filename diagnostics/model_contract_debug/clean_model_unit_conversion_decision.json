@@ -1,0 +1,11 @@
+{
+  "target_accelerometer_unit": "m/s^2",
+  "target_gyroscope_unit": "unchanged",
+  "adamsense_accelerometer_original_unit_estimate": "g",
+  "adamsense_accelerometer_conversion_factor": 9.80665,
+  "adamsense_robust_abs_range_p01_p99": 1.08,
+  "adamsense_raw_abs_range_min_max": 2.0,
+  "garmin_all_users_conversion": "none",
+  "user7_conversion": "none",
+  "note": "ADAMSense accel converted only if its range indicates g or milli-g. Garmin all_users and User 7 are treated as already preprocessed/reference-style."
+}

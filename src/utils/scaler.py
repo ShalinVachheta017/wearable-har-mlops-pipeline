@@ -1,8 +1,8 @@
 """Canonical scaler loading and integrity assertions.
 
-All runtime code paths (train, preprocess, API, monitoring) must go through
-`load_canonical_scaler()` or `assert_scaler_integrity()` so that the scaler
-used to normalize inputs is provably the same everywhere.
+The final Model A runtime uses the Garmin train-only scaler packaged under
+models/production_contract/model_a_final_20260508. Legacy scalers under
+data/prepared remain historical/A-B evidence.
 """
 from __future__ import annotations
 
@@ -14,7 +14,11 @@ import numpy as np
 
 
 CANONICAL_SCALER_PATH = (
-    Path(__file__).resolve().parents[2] / "data" / "prepared" / "scaler_train_only.json"
+    Path(__file__).resolve().parents[2]
+    / "models"
+    / "production_contract"
+    / "model_a_final_20260508"
+    / "garmin_train_scaler.json"
 )
 
 LEGACY_ALL_USERS_PATH = (
@@ -33,12 +37,13 @@ def assert_scaler_integrity(scaler_path: Path | str) -> bool:
     with open(scaler_path) as f:
         cfg = json.load(f)
 
-    if "fit_users" not in cfg:
+    fit_rule = str(cfg.get("fit_rule", "")).lower()
+    if "fit_users" not in cfg and "train-only" not in fit_rule:
         raise AssertionError(
-            f"{scaler_path} missing required field 'fit_users'. "
-            "Refit with scripts/refit_scaler_train_only.py."
+            f"{scaler_path} missing train-only provenance. "
+            "Expected either fit_users or a train-only fit_rule."
         )
-    if cfg["fit_users"] != [1, 2, 3, 4]:
+    if "fit_users" in cfg and cfg["fit_users"] != [1, 2, 3, 4]:
         raise AssertionError(
             f"{scaler_path} fit_users={cfg['fit_users']} — expected [1,2,3,4]. "
             "Using a leaky scaler fit on test users will inflate metrics."
@@ -58,7 +63,7 @@ def assert_scaler_integrity(scaler_path: Path | str) -> bool:
 
 
 def load_canonical_scaler() -> Tuple[np.ndarray, np.ndarray, Dict]:
-    """Load the canonical train-only scaler after integrity check.
+    """Load the final Model A train-only scaler after integrity check.
 
     Returns:
         mean (6,), scale (6,), full config dict.

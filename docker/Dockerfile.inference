@@ -10,7 +10,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    MODEL_PATH=/app/models/pretrained/fine_tuned_model_1dcnnbilstm.keras \
+    MODEL_PATH=/app/models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras \
+    SCALER_CONFIG_PATH=/app/models/production_contract/model_a_final_20260508/garmin_train_scaler.json \
+    BASELINE_PATH=/app/models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json \
     CONFIG_PATH=/app/config/pipeline_config.yaml \
     # /app and /app/src both on PYTHONPATH so `from src.api.app import app` works
     PYTHONPATH=/app:/app/src
@@ -22,11 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python deps first (layer cache-friendly)
-COPY config/requirements.txt /app/requirements.txt
+# Install python deps first (layer cache-friendly).
+# Uses requirements-runtime.txt (NOT requirements.txt) so dev tooling
+# (jupyterlab, pytest, black, mypy) and training-side packages (mlflow, dvc,
+# matplotlib, seaborn) stay out of the inference image. tensorflow-cpu also
+# avoids ~900 MB of CUDA libraries that the inference path never loads.
+COPY config/requirements-runtime.txt /app/requirements.txt
 RUN python -m pip install --upgrade pip && \
-    pip install -r /app/requirements.txt && \
-    pip install "uvicorn[standard]"
+    pip install -r /app/requirements.txt
 
 # Copy application source
 # After src/ refactor: API lives at src/api/app.py, domain code at src/*/

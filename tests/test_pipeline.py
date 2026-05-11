@@ -96,12 +96,15 @@ class TestSkipAndContinue:
         assert "ingestion" in result.stages_skipped
 
     def test_continue_on_failure(self):
+        # Scope to ingestion only so we do not trip the validation hard-stop gate
+        # (DataValidationError raises regardless of continue_on_failure — see
+        # tests/test_validation_gate.py for the invariant).
         cfg = PipelineConfig()
         pipeline = ProductionPipeline(cfg)
         with patch("src.pipeline.production_pipeline.ProductionPipeline._init_mlflow", return_value=None):
             with patch("src.components.data_ingestion.DataIngestion") as mock_ing:
                 mock_ing.return_value.initiate_data_ingestion.side_effect = Exception("boom")
-                result = pipeline.run(continue_on_failure=True)
+                result = pipeline.run(stages=["ingestion"], continue_on_failure=True)
         assert "ingestion" in result.stages_failed
         assert result.overall_status in ("PARTIAL", "FAILED")
 

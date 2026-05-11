@@ -302,11 +302,13 @@ def test_trigger_uses_stage6_dominance_when_no_stage5_collapse(monkeypatch):
 
         def evaluate(self, report):
             captured["report"] = report
+
             class _Decision:
                 should_trigger = False
                 action = "none"
                 alert_level = "INFO"
                 recommendations = []
+
             return _Decision()
 
     monkeypatch.setattr("src.trigger_policy.TriggerPolicyEngine", _FakeEngine)
@@ -419,11 +421,13 @@ def test_stage6_thresholds_pass_through_to_runtime_monitor(monkeypatch, tmp_path
 
         def run(self, **kwargs):
             captured["run_kwargs"] = kwargs
+
             class _Report:
                 overall_status = "PASS"
                 layer1_confidence = {"status": "PASS"}
                 layer2_temporal = {"status": "PASS"}
                 layer3_drift = {"status": "SKIPPED"}
+
             return _Report()
 
     monkeypatch.setitem(
@@ -472,3 +476,106 @@ def test_stage6_thresholds_pass_through_to_runtime_monitor(monkeypatch, tmp_path
     assert init_kwargs["dominant_class_critical_threshold"] == pytest.approx(94.0)
     assert init_kwargs["calibration_temperature"] == pytest.approx(1.3)
     assert artifact.overall_status == "PASS"
+
+
+# ── Ported from removed test_trigger_policy.py (2026-05-08 cleanup) ───────────
+
+
+class TestCollapseGuardForcesReview:
+    """Stage 4 / Stage 6 collapse signals must directly block automatic retraining."""
+
+    def test_collapse_level_critical_forces_review(
+        self, temp_state_file, sample_monitoring_report
+    ):
+        """Stage 4 CRITICAL_COLLAPSE must directly block automatic retraining."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = json.loads(json.dumps(sample_monitoring_report))
+        report["collapse_signals"] = {
+            "collapse_level": "CRITICAL_COLLAPSE",
+            "dominant_class": "hand_tapping",
+            "dominant_pct": 88.0,
+            "mean_confidence": 0.90,
+            "transition_rate": 4.0,
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.should_trigger is False
+        assert decision.alert_level == AlertLevel.CRITICAL
+        matched = decision.signals["collapse_guard"].get("matched_conditions", [])
+        assert "collapse_level=CRITICAL_COLLAPSE" in matched
+
+    def test_low_motion_collapse_risk_forces_review(
+        self, temp_state_file, sample_monitoring_report
+    ):
+        """Stage 6 low-motion collapse risk must block automatic retraining."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        report = json.loads(json.dumps(sample_monitoring_report))
+        report["collapse_signals"] = {
+            "low_motion_collapse_risk": True,
+            "low_gyro_motion": True,
+            "g_mag_median": 0.545,
+            "gravity_dominant_axis": "Az",
+            "dominant_class": "hand_tapping",
+            "dominant_pct": 78.0,
+            "mean_confidence": 0.91,
+            "transition_rate": 5.0,
+        }
+
+        decision = engine.evaluate(report)
+
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.should_trigger is False
+        assert decision.alert_level == AlertLevel.CRITICAL
+        guard = decision.signals["collapse_guard"]
+        assert "low_motion_collapse_risk=true" in guard["matched_conditions"]
+        assert guard["g_mag_median"] == 0.545
+        assert guard["gravity_dominant_axis"] == "Az"
+
+
+class TestCooldownPrecedence:
+    """Regression test ported 2026-05-08 from removed test_trigger_policy.py."""
+
+    def test_cooldown_wins_over_consecutive_warning_escalation(self, temp_state_file):
+        """A cooldown-active run must not end with immediate retrain after escalation."""
+        engine = TriggerPolicyEngine(state_file=temp_state_file)
+
+        previous_retrain = datetime.now().isoformat()
+        engine.state["last_retrain_timestamp"] = previous_retrain
+        engine.state["consecutive_warnings"] = (
+            engine.thresholds.consecutive_warnings_for_trigger - 1
+        )
+        engine._save_state()
+
+        warning_report = {
+            "confidence_report": {
+                "metrics": {
+                    "mean_confidence": 0.60,
+                    "mean_entropy": 1.0,
+                    "uncertain_ratio": 0.10,
+                }
+            },
+            "temporal_report": {
+                "metrics": {
+                    "flip_rate": 0.10,
+                }
+            },
+            "drift_report": {
+                "per_channel_metrics": {},
+                "n_drifted_channels": 0,
+                "aggregate_drift_score": 0.0,
+            },
+        }
+
+        decision = engine.evaluate(warning_report)
+
+        # Governance: consecutive warnings → REVIEW + should_trigger=False.
+        # Cooldown is irrelevant here since auto-retrain never fires.
+        assert decision.should_trigger is False
+        assert decision.auto_retrain is False
+        assert decision.action == TriggerAction.REVIEW
+        assert decision.review_required is True
+        assert engine.state["last_retrain_timestamp"] == previous_retrain

@@ -93,8 +93,9 @@ har-pipeline
 
 Expected core files include:
 
-- [models/pretrained/fine_tuned_model_1dcnnbilstm.keras](models/pretrained/fine_tuned_model_1dcnnbilstm.keras)
-- [models/raw_physical_baseline.json](models/raw_physical_baseline.json)
+- [models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras](models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras)
+- [models/production_contract/model_a_final_20260508/garmin_train_scaler.json](models/production_contract/model_a_final_20260508/garmin_train_scaler.json)
+- [models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json)
 - one accel/gyro pair in [data/raw](data/raw)
 
 If DVC-tracked assets are missing:
@@ -105,25 +106,27 @@ dvc pull
 
 ### Defended Model Lineage
 
-The default runtime uses the pretrained baseline model
-[models/pretrained/fine_tuned_model_1dcnnbilstm.keras](models/pretrained/fine_tuned_model_1dcnnbilstm.keras).
-Any retrained model should be selected only after labeled-data evaluation
-demonstrates it is better than the pretrained baseline.
+The default runtime now uses the final clean-contract Model A package:
+[models/production_contract/model_a_final_20260508](models/production_contract/model_a_final_20260508).
+The older mentor/vendor pretrained model remains historical and forensic
+evidence only, because its strong legacy metrics depend on a different scaler
+and tensor-layout contract.
 
 ### Model Promotion Policy
 
 Hard rule for this repository:
-- Default model for pipeline/API/Docker is the mentor-provided pretrained model.
+- Default model for pipeline/API/Docker is the final clean-contract Model A package.
 - Drift/monitoring alerts alone do not justify promotion.
 - Retraining/fine-tuning can run only when labeled data is available for evaluation.
-- Promotion to new default is allowed only if labeled comparison proves better performance than the current default model under defined acceptance criteria.
-- If the candidate is equal or worse, keep the current default model.
+- Promotion away from Model A is allowed only if labeled comparison proves a candidate is better under the same clean production contract.
+- If the candidate requires a hidden scaler/layout contract, keep it as forensic evidence only.
 
 Canonical policy document: [docs/MODEL_PROMOTION_POLICY.md](docs/MODEL_PROMOTION_POLICY.md)
 
 ### Defended Inference Contract
 
-The final production inference contract uses raw physical IMU units:
+The final production inference contract uses physical IMU units followed by the
+packaged Garmin train-only StandardScaler:
 
 - accelerometer: converted from milli-g to m/s^2 when needed
 - gyroscope: retained in deg/s
@@ -132,14 +135,14 @@ The final production inference contract uses raw physical IMU units:
 - stride: 100 samples
 - model input shape: `(N, 200, 6)`
 - model output shape: 11 classes
-- normalization: disabled
-- external StandardScaler: not applied during final production inference
+- normalization: Garmin train-only z-score scaler from the Model A package
+- validation/User 7/production input is never used to fit the scaler
 - gravity removal and calibration: disabled
 
 The current Stage 6 runtime baseline is
-[models/raw_physical_baseline.json](models/raw_physical_baseline.json). The
-older normalized baseline remains useful for legacy/A-B diagnostics, but it is
-not the default production drift reference.
+[models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json).
+Older raw or normalized baselines remain useful for legacy/A-B diagnostics, but
+they are not the default production drift reference.
 
 Detailed notes: [docs/INFERENCE_PARITY_FIX.md](docs/INFERENCE_PARITY_FIX.md)
 and [docs/MONITORING_AND_TRIGGER_POLICY.md](docs/MONITORING_AND_TRIGGER_POLICY.md).

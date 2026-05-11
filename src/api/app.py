@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from src.utils.label_mapping import get_activity_classes
 from src.config import (
     DEFAULT_MODEL_PATH as _DEFAULT_MODEL_PATH,
+    FINAL_MODEL_A_SCALER_JSON as _FINAL_MODEL_A_SCALER_JSON,
     OVERLAP as _OVERLAP,
     PROJECT_ROOT as _PROJECT_ROOT,
     WINDOW_SIZE as _WINDOW_SIZE,
@@ -88,7 +89,13 @@ logger = logging.getLogger("har_api")
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = _PROJECT_ROOT
 MODEL_PATH = Path(os.environ.get("MODEL_PATH", str(_DEFAULT_MODEL_PATH)))
-BASELINE_PATH = PROJECT_ROOT / "models" / "raw_physical_baseline.json"
+SCALER_CONFIG_PATH = Path(os.environ.get("SCALER_CONFIG_PATH", str(_FINAL_MODEL_A_SCALER_JSON)))
+BASELINE_PATH = Path(
+    os.environ.get(
+        "BASELINE_PATH",
+        str(PROJECT_ROOT / "models" / "production_contract" / "model_a_final_20260508" / "garmin_train_scaled_baseline.json"),
+    )
+)
 WINDOW_SIZE = _WINDOW_SIZE
 OVERLAP = _OVERLAP
 STEP_SIZE = int(WINDOW_SIZE * (1 - OVERLAP))
@@ -113,6 +120,7 @@ GYRO_PATTERNS = {
 _model = None
 _model_info: Dict = {}
 _baseline: Optional[Dict] = None
+_scaler_config: Optional[Dict] = None
 _start_time = datetime.now()
 
 
@@ -133,7 +141,7 @@ def _load_model():
         logger.warning("Model file not found: %s", MODEL_PATH)
         return
     logger.info("Loading model from %s …", MODEL_PATH)
-    _model = tf.keras.models.load_model(str(MODEL_PATH))
+    _model = tf.keras.models.load_model(str(MODEL_PATH), compile=False)
     _model_info = {
         "name": "1D-CNN-BiLSTM HAR",
         "version": "1.0.0",
@@ -148,13 +156,29 @@ def _load_model():
 
 
 def _load_baseline():
-    """Load the raw physical-unit baseline JSON (once)."""
+    """Load the final Model A scaled baseline JSON (once)."""
     global _baseline
     if _baseline is not None or not BASELINE_PATH.exists():
         return
     with open(BASELINE_PATH) as f:
         _baseline = json.load(f)
     logger.info("Baseline loaded from %s", BASELINE_PATH)
+
+
+def _load_scaler_config() -> Dict:
+    """Load the final Model A Garmin train-only scaler JSON."""
+    global _scaler_config
+    if _scaler_config is not None:
+        return _scaler_config
+    if not SCALER_CONFIG_PATH.exists():
+        raise RuntimeError(f"Scaler config not found: {SCALER_CONFIG_PATH}")
+    cfg = json.loads(SCALER_CONFIG_PATH.read_text(encoding="utf-8"))
+    mean = cfg.get("scaler_mean")
+    scale = cfg.get("scaler_scale")
+    if not isinstance(mean, list) or not isinstance(scale, list) or len(mean) != 6 or len(scale) != 6:
+        raise RuntimeError(f"Scaler config has invalid dimensions: {SCALER_CONFIG_PATH}")
+    _scaler_config = cfg
+    return cfg
 
 
 def _detect_columns(df: pd.DataFrame) -> List[str]:
@@ -265,16 +289,21 @@ def _maybe_convert_accel_units(df: pd.DataFrame, sensor_cols: List[str]) -> Tupl
     return out, False
 
 
-def _preserve_raw_physical_units(values: np.ndarray) -> Tuple[np.ndarray, Dict]:
-    """Return raw physical-unit values; final production inference applies no external scaler."""
+def _apply_final_model_scaler(values: np.ndarray) -> Tuple[np.ndarray, Dict]:
+    """Apply the final Model A Garmin train-only StandardScaler."""
+    cfg = _load_scaler_config()
+    mean = np.asarray(cfg["scaler_mean"], dtype=np.float32)
+    scale = np.asarray(cfg["scaler_scale"], dtype=np.float32)
+    safe_scale = np.where(scale == 0, 1.0, scale)
+    scaled = (values.astype(np.float32) - mean) / safe_scale
     info = {
-        "normalization_applied": False,
-        "normalization_variant": "none",
-        "scaler_config": None,
-        "model_input_space": "raw_physical_units_ms2_dps",
-        "note": "API upload path preserves raw physical units after accelerometer unit conversion.",
+        "normalization_applied": True,
+        "normalization_variant": cfg.get("normalization_variant", "zscore"),
+        "scaler_config": str(SCALER_CONFIG_PATH),
+        "model_input_space": "zscore_scaled_garmin_train_only",
+        "note": "API upload path applies the final Model A Garmin train-only scaler after accelerometer unit conversion.",
     }
-    return values.astype(np.float32), info
+    return scaled.astype(np.float32), info
 
 
 def _create_windows(values: np.ndarray) -> np.ndarray:
@@ -475,7 +504,7 @@ async def upload_csv(
 
     The API will:
     1. Auto-detect or fuse sensor columns
-    2. Apply production unit conversion and preserve raw physical model input units
+    2. Apply production unit conversion and the final Model A Garmin scaler
     3. Create sliding windows (200 samples, 50 % overlap)
     4. Run inference (1D-CNN-BiLSTM)
     5. Run 3-layer monitoring (confidence, temporal, drift)
@@ -541,10 +570,10 @@ async def upload_csv(
             f"for one window.",
         )
 
-    # --- Unit conversion + raw physical-unit inference contract ---
+    # --- Unit conversion + final Model A scaler contract ---
     df, unit_conversion_applied = _maybe_convert_accel_units(df, sensor_cols)
     raw_values = df[sensor_cols].values.astype(np.float32)
-    values, scaler_info = _preserve_raw_physical_units(raw_values)
+    values, scaler_info = _apply_final_model_scaler(raw_values)
     preprocessing_info = {
         "unit_conversion_applied": unit_conversion_applied,
         **scaler_info,

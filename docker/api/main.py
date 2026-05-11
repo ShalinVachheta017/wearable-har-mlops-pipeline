@@ -45,8 +45,7 @@ logger = logging.getLogger(__name__)
 
 MODEL_PATH = os.environ.get(
     "MODEL_PATH",
-    "models/pretrained/fine_tuned_model_1dcnnbilstm.keras",
-    "D:\study apply\ML Ops\MasterArbeit_MLops\models\pretrained\fine_tuned_model_1dcnnbilstm.keras"
+    "models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras",
 )
 CONFIG_PATH = os.environ.get(
     "CONFIG_PATH",

@@ -1,0 +1,11 @@
+{
+  "dataset": "Garmin all_users validation after fine-tuning",
+  "accuracy": 0.2621127879269261,
+  "macro_f1": 0.24776619542229214,
+  "weighted_f1": 0.2511198277528902,
+  "mean_confidence": 0.7318846583366394,
+  "median_confidence": 0.7541555166244507,
+  "n_predicted_classes": 11,
+  "dominant_class": "standing",
+  "dominant_class_pct": 0.2509928514694202
+}

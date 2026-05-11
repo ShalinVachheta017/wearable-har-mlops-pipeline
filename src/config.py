@@ -20,6 +20,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 # Model directories
 MODELS_DIR = PROJECT_ROOT / "models"
 MODELS_PRETRAINED = MODELS_DIR / "pretrained"
+MODEL_A_FINAL_DIR = MODELS_DIR / "production_contract" / "model_a_final_20260508"
 
 # API
 API_DIR = PROJECT_ROOT / "api"
@@ -48,16 +49,19 @@ DOCKER_DIR = PROJECT_ROOT / "docker"
 # Specific file paths (commonly used)
 LABELED_DATA_FILE = DATA_RAW / "all_users_data_labeled.csv"
 PROCESSED_SENSOR_FUSED = DATA_PROCESSED / "sensor_fused_50Hz.csv"
-PRETRAINED_MODEL = MODELS_PRETRAINED / "fine_tuned_model_1dcnnbilstm.keras"
-# Submission policy: use the pretrained baseline by default unless a better model
-# has been validated on labeled data and explicitly selected.
-DEFAULT_MODEL_PATH = PRETRAINED_MODEL
+LEGACY_PRETRAINED_MODEL = MODELS_PRETRAINED / "fine_tuned_model_1dcnnbilstm.keras"
+FINAL_MODEL_A_PATH = MODEL_A_FINAL_DIR / "fine_tuned_clean_model.keras"
+FINAL_MODEL_A_SCALER_JSON = MODEL_A_FINAL_DIR / "garmin_train_scaler.json"
+FINAL_MODEL_A_SCALER_JOBLIB = MODEL_A_FINAL_DIR / "garmin_train_scaler.joblib"
+
+# Submission policy after the 2026-05-08 A/B/C decision: use the clean-contract
+# Model A package by default. The legacy pretrained model remains evidence only.
+PRETRAINED_MODEL = FINAL_MODEL_A_PATH
+DEFAULT_MODEL_PATH = FINAL_MODEL_A_PATH
 MODEL_INFO_JSON = MODELS_PRETRAINED / "model_info.json"
-# Canonical, train-users-only scaler (fit on users 1-4). This artifact remains
-# available for training, A/B diagnostics, and legacy transformed baselines.
-# The defended production inference contract uses raw physical units and does
-# not apply an external scaler in the batch pipeline or API upload path.
-SCALER_CANONICAL = DATA_PREPARED / "scaler_train_only.json"
+# Final Model A uses a Garmin train-only StandardScaler. Older train-users-only
+# scalers under data/prepared remain legacy/A-B evidence.
+SCALER_CANONICAL = FINAL_MODEL_A_SCALER_JSON
 # Backward-compatible alias used by older modules.
 SCALER_CONFIG = SCALER_CANONICAL
 

@@ -28,6 +28,10 @@
 #   max_baseline_age_days: 90              # warn if baseline file > this many days old
 #   calibration_temperature: 1.0           # temperature scaling T from Stage 11 output
 
+monitoring:
+  baseline_mode: normalized
+  normalized_baseline_path: "models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json"
+
 # Stage 7 - Trigger Evaluation thresholds
 # (src/entity/config_entity.py:TriggerEvaluationConfig)
 # trigger:

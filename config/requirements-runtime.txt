@@ -1,0 +1,37 @@
+# ============================================================================
+# Runtime requirements for the HAR Inference API only.
+# ============================================================================
+# Used exclusively by docker/Dockerfile.inference.
+#
+# This is NOT the full development install. Dev tooling (jupyterlab, pytest,
+# black, isort, mypy, flake8) and training-side packages (mlflow, dvc,
+# matplotlib, seaborn) are intentionally absent because the API never imports
+# them.
+#
+# Verified 2026-05-08 by running `from src.api.app import app` inside the
+# container and inspecting sys.modules: the only top-level packages loaded
+# are numpy, pandas, scipy, sklearn, tensorflow, fastapi, pydantic, uvicorn,
+# pyyaml, python-multipart, plus stdlib + their transitive deps.
+#
+# For full dev environment / retraining, use config/requirements.txt instead.
+# ============================================================================
+
+# ===== Core data wrangling =====
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+
+# ===== Deep Learning Framework (CPU-only — no CUDA in inference image) =====
+tensorflow-cpu>=2.14
+
+# ===== Metrics =====
+scikit-learn>=1.3
+
+# ===== API & Serving =====
+fastapi>=0.109
+uvicorn[standard]>=0.27
+pydantic>=2.5
+python-multipart>=0.0.6
+
+# ===== Utilities (used by config loading + general I/O) =====
+pyyaml>=6.0.1

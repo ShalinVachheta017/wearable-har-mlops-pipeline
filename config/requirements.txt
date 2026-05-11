@@ -10,9 +10,13 @@ pandas>=2.0
 scipy>=1.10
 
 # ===== Deep Learning Framework =====
-# TensorFlow/Keras for model loading and training
-tensorflow>=2.14  # For CPU
-# For GPU: tensorflow-gpu>=2.14 (if CUDA is available)
+# TensorFlow/Keras for model loading and training.
+# Pinned to tensorflow-cpu: no GPU is available in either the inference or
+# the full-pipeline Docker image, so the GPU build only adds ~300 MB of CUDA
+# libraries that are never loaded. Same import path (`import tensorflow as tf`).
+# For local GPU training, install tensorflow (without -cpu) into the dev env;
+# Docker builds always use the slim CPU build.
+tensorflow-cpu>=2.14
 
 # ===== PyTorch (Optional - your model is Keras) =====
 # Uncomment below for GPU support
