@@ -70,6 +70,25 @@ Building on the threats above, the implemented system has explicit scope limitat
 
 These limitations are treated as explicit scope boundaries rather than hidden assumptions. They mark the edge of what can be defended from the evidence produced by the current artifact set.
 
+\section{Scope Boundaries and Non-Claims}
+\label{sec:scope_boundaries}
+
+The contribution defended in this thesis is narrower than what a casual reading of the artifact set might suggest. To prevent overclaiming, the following items are recorded as explicit non-claims tied to the evidence register \path{docs/FINAL_THESIS_CLAIMS_2026-06.md}.
+
+\begin{itemize}
+    \item \textbf{No claim of clinical diagnosis, population-level generalisation, or production-grade deployment.} The system is an offline-first wearable HAR engineering artefact. The defended runtime is a proof-of-concept runtime candidate, not a production deployment, and not a diagnostic device.
+    \item \textbf{Model~A is a defended clean proof-of-concept runtime candidate, frozen as the A1 baseline.} It is not claimed to be a robust or fully generalising model. Its reproducible external accuracy on the User~7 labeled set is 37.6\% accuracy with macro F1 of 34.1\% (Section~\ref{sec:abc_comparison}); this is the honest accuracy ceiling under the defended contract on a single external participant.
+    \item \textbf{Confidence calibration is not solved.} On the User~7 external set, mean confidence is 0.359 and the uncertain-window rate is 80.5\%. The calibration stage (Stage~11) remains an optional extension, not a defended runtime property.
+    \item \textbf{External generalisation is not solved.} The external evaluation involves one external participant (User~7) and one unlabeled Garmin session. Subject-independent deployment behaviour is bounded by these two comparisons; broader cross-user evaluation would be required to characterise the deployment generalisation ceiling.
+    \item \textbf{Model~B is a diagnostic reference only; this is not data leakage.} Its 47-percentage-point internal-to-external gap (90.8\% on the all\_users diagnostic, 43.8\% on User~7) is consistent with its non-persisted, full-evaluation-dataframe StandardScaler and legacy channel-major tensor layout limiting transferability outside the native diagnostic context. Model~B is retained as a forensic reference, not as a competing runtime candidate.
+    \item \textbf{Model~C is checkpoint-contract mismatch evidence.} Loading the same checkpoint as Model~B under the clean row-wise layout with no scaler collapses accuracy to 7.6\% on User~7 with predictions concentrated in only 4 of 11 classes. Model~C is retained to document the lesson that a checkpoint without the matching preprocessing contract is not a runnable runtime artefact.
+    \item \textbf{Automated retraining is not a live feature.} \texttt{auto\_retrain=false} is a deliberate governance policy on both defended evidence runs; retraining requires labeled data and explicit human review. It is not a missing feature or implementation gap.
+    \item \textbf{CRITICAL monitoring severity does not mean automatic retraining.} CRITICAL is the monitoring severity (observed risk above the warning threshold). The governance outcome on both defended evidence runs is \texttt{action=review} with \texttt{should\_retrain=false}; severity and mutation decision are two separate fields, by design.
+    \item \textbf{Stages~8--11 are optional/gated extensions, not defended live runtime features.} The defended runtime path is Stages 1--7. Stages 8--10 (retraining-related mutation) and Stage~11 (calibration) execute only when the corresponding runtime flag is set, and are therefore presented as governed extension paths rather than as production properties of the defended runtime.
+\end{itemize}
+
+These items are scope boundaries, not residual gaps to be quietly closed before the defense; the supported claim is narrower because the evidence is narrower.
+
 \section{Future Work}
 \label{sec:future_work}
 
@@ -90,6 +109,8 @@ Sixth, cloud-based multi-user deployment. The present system is explicitly offli
 \section{Closing Remarks}
 
 The central conclusion is narrow but defensible: operational reliability for wearable HAR depends on lifecycle engineering discipline at least as much as on model accuracy. A reproducible, inspectable, and governance-aware MLOps process provides the structure needed to observe degradation, distinguish routing changes from true quality gains, and make retraining a deliberated action rather than an automatic reflex. The calibrated MMD branch experiments strengthen this conclusion: better drift visibility did not automatically translate into better retraining decisions, so drift-monitor sophistication and governance quality must be evaluated separately. The thesis does not claim a clinically validated system. It claims a defensible offline-first governance architecture in which monitoring signals, trigger policy, and retraining conditions are linked by an audit trail that can be reproduced from archived artifacts.
+
+\paragraph{Final contribution statement.} The pipeline is not broken; it executes end-to-end, detects uncertainty, and routes risk to REVIEW. The remaining limitation is model confidence, calibration, and external generalisation. The defended contribution is therefore a reproducible, auditable, and governance-aware offline-first MLOps lifecycle for wearable HAR, with Model~A as its frozen proof-of-concept runtime candidate, Model~B and Model~C retained as diagnostic and contract-mismatch evidence respectively, and a documented review-first trigger policy in which CRITICAL severity routes to human review rather than to automatic retraining.
 
 \begin{figure}[htbp]
 \centering
