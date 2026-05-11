@@ -38,7 +38,7 @@ The remaining sections follow this evidence map. Each experiment is presented wi
 
 \textbf{Purpose.} This experiment establishes the labeled reference point for the retained deployment model. The question is not whether the thesis achieves a novel benchmark, but whether later production-style failure modes should be interpreted relative to a competent baseline.
 
-\textbf{Data and setup.} The retained model is the retrained 1D-CNN + BiLSTM artifact \texttt{har\_model\_20260327\_223917.keras}. Its stored training report recorded 92.2\% final accuracy and 92.2\% macro F1 under the configured offline training procedure. For the thesis-facing reference evaluation, the same model was then run end-to-end through the pipeline evaluation stage on a labeled set containing 3{,}852 windows across all eleven classes.
+\textbf{Data and setup.} The model used here is the pre-sprint retrained 1D-CNN + BiLSTM artifact \texttt{har\_model\_20260327\_223917.keras}, which served as the original labeled baseline before the May 2026 model sprint. This model is \emph{not} Model~A (the defended proof-of-concept runtime candidate selected in the May sprint). It is used here specifically to establish a labeled-set reference baseline and to provide context for later production-style sensitivity experiments. Model~A's actual defended numbers --- 42.4\% accuracy on the all\_users diagnostic and 37.6\% on User~7 --- are reported in the ABC comparison (Section~\ref{sec:abc_comparison}). The pre-sprint model's stored training report recorded 92.2\% final accuracy and 92.2\% macro F1 under the configured offline training procedure; the thesis-facing reference evaluation ran the same model end-to-end through the pipeline evaluation stage on a labeled set containing 3{,}852 windows across all eleven classes.
 
 \textbf{Method.} The pipeline was executed without changing the retained model or evaluation logic. Predictions were generated for the labeled reference set, and the resulting JSON artifact was used to compute standard classification metrics together with confidence and temporal summary statistics.
 
@@ -78,7 +78,7 @@ Windows & Accuracy (\%) & Macro F1 (\%) & Mean confidence (\%) & Uncertain rate 
 
 \textbf{Metrics.} Accuracy and macro F1 remain useful where labels exist, but the central monitoring metrics here are mean confidence, uncertain rate, and transition rate. These matter because they remain observable even when production labels are unavailable. A full calibration study would additionally require dedicated metrics such as ECE; that is not the aim of this comparison.
 
-\textbf{Results.} The actual labeled set produced 98.9\% accuracy, 98.9\% macro F1, 98.6\% mean confidence, 0.18\% uncertain windows, and a transition rate of 0.032. Under the same evaluation path, Synth Codex dropped to 70.4\% accuracy and 71.1\% macro F1, with 86.8\% mean confidence, 6.5\% uncertain windows, and a transition rate of 0.285. Synth Other behaved similarly, with 69.7\% accuracy, 70.5\% macro F1, 86.7\% mean confidence, 5.9\% uncertain windows, and a transition rate of 0.287. Figure~\ref{fig:actual_vs_synthetic} and Table~\ref{tab:actual_vs_synth} summarize the comparison.
+\textbf{Results.} The actual labeled set produced 98.9\% accuracy, 98.9\% macro F1, 98.6\% mean confidence, 0.18\% uncertain windows, and a transition rate of 0.032. Under the same evaluation path, Synth Codex dropped to 70.4\% accuracy and 71.1\% macro F1, with 86.8\% mean confidence, 6.5\% uncertain windows, and a transition rate of 0.285. Synth Other showed substantially stronger degradation, with 34.6\% accuracy and 31.7\% macro F1, while mean confidence decreased to 77.7\% and uncertain windows increased to 14.5\%, with a transition rate of 0.282. Figure~\ref{fig:actual_vs_synthetic} and Table~\ref{tab:actual_vs_synth} summarize the comparison.
 
 \begin{figure}[htbp]
 \centering
@@ -100,14 +100,14 @@ Dataset & Accuracy (\%) & Macro F1 (\%) & Mean confidence (\%) & Uncertain rate 
 \hline
 Actual labeled & 98.9 & 98.9 & 98.6 & 0.18 & 0.032 \\
 Synth Codex & 70.4 & 71.1 & 86.8 & 6.5 & 0.285 \\
-Synth Other & 69.7 & 70.5 & 86.7 & 5.9 & 0.287 \\
+Synth Other & 34.6 & 31.7 & 77.7 & 14.5 & 0.282 \\
 \hline
 \end{tabular}
 }
 }
 \end{table}
 
-\textbf{Interpretation.} The comparison supports the narrower claim that confidence-based and uncertainty-based monitoring signals respond directionally to realism degradation. Relative to the actual labeled reference, both synthetic datasets show a drop of roughly 12 percentage points in mean confidence, a rise from almost no uncertain windows to about 6\%, and nearly an order-of-magnitude increase in temporal switching. This matters for RQ1 because it indicates that the pipeline can surface problematic behavior even when a production session is unlabeled. It should not be interpreted as proof that synthetic data is uniformly poor; rather, it shows that the monitoring layer is sensitive to the realism of what it receives \cite{gal2016dropout,guo2017calibration}.
+\textbf{Interpretation.} The comparison supports the narrower claim that confidence-based and uncertainty-based monitoring signals respond directionally to realism degradation. Relative to the actual labeled reference, the two synthetic datasets show degradation at different severity levels, and the monitoring signals scale with that difference. Synth Codex shows a drop of approximately 12 percentage points in mean confidence (98.6\% to 86.8\%) and a rise in uncertain windows from 0.18\% to 6.5\%. Synth Other shows substantially stronger degradation: accuracy falls to 34.6\% compared to Synth Codex's 70.4\%, mean confidence drops a further 9 percentage points to 77.7\%, and uncertain windows rise to 14.5\%. This gradient matters for RQ1 because it indicates that the monitoring layer can surface problematic behavior even when production labels are unavailable, and that the signals scale with the severity of the distributional mismatch rather than triggering uniformly. It should not be interpreted as proof that synthetic data is uniformly poor; rather, it shows that the monitoring layer is sensitive to the degree of realism degradation \cite{gal2016dropout,guo2017calibration}.
 
 \textbf{Limitation.} This is not a full calibration study, and it does not establish universal out-of-distribution detection. The comparison only shows directional movement of confidence, uncertainty, and temporal instability under the tested synthetic conditions.
 
