@@ -456,6 +456,20 @@ def git_status(paths: List[str]) -> Dict[str, Any]:
         }
 
 
+def git_current_head() -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=PROJECT_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip() if completed.returncode == 0 else "unknown"
+    except Exception:
+        return "unknown"
+
+
 def write_dry_run_outputs(verification: Dict[str, Any]) -> None:
     write_json(OUTPUT_DIR / "contract_runtime_verification.json", verification)
 
@@ -757,6 +771,34 @@ def apply_json_scaler(values: Any, scaler: Dict[str, Any], np_module: Any) -> An
     return ((values.astype("float32") - mean) / safe_scale).astype("float32")
 
 
+def check_model_a_scaler_parity(json_scaler: Dict[str, Any], joblib_path: Optional[Path]) -> Dict[str, Any]:
+    if joblib_path is None or not joblib_path.exists():
+        return {
+            "status": "skipped_joblib_not_found",
+            "path": repo_rel(joblib_path) if joblib_path else None,
+        }
+    try:
+        import joblib as _jl  # type: ignore
+        import numpy as _np  # type: ignore
+
+        sk = _jl.load(str(joblib_path))  # type: ignore[no-untyped-call]
+        jm = _np.asarray(json_scaler["scaler_mean"], dtype="float64")
+        js = _np.asarray(json_scaler["scaler_scale"], dtype="float64")
+        km = _np.asarray(sk.mean_, dtype="float64")
+        ks = _np.asarray(sk.scale_, dtype="float64")
+        mean_diff = float(_np.max(_np.abs(jm - km)))
+        scale_diff = float(_np.max(_np.abs(js - ks)))
+        return {
+            "status": "checked",
+            "joblib_path": repo_rel(joblib_path),
+            "json_vs_joblib_mean_max_abs_diff": mean_diff,
+            "json_vs_joblib_scale_max_abs_diff": scale_diff,
+            "parity_ok": mean_diff < 1e-6 and scale_diff < 1e-6,
+        }
+    except Exception as exc:
+        return {"status": "check_failed", "error": f"{type(exc).__name__}: {exc}"}
+
+
 def window_starts(n_samples: int, window_size: int, stride: int, legacy_layout: bool, np_module: Any) -> Any:
     stop = n_samples - window_size if legacy_layout else n_samples - window_size + 1
     if stop <= 0:
@@ -796,6 +838,27 @@ def build_window_labels(
         y_names.append(majority_label)
         y_ids.append(label_to_id.get(majority_label, -1))
     return np_module.asarray(y_ids, dtype="int64"), y_names
+
+
+def count_mixed_label_windows(
+    labels: Any,
+    window_size: int,
+    stride: int,
+    legacy_layout: bool,
+    np_module: Any,
+) -> Dict[str, Any]:
+    starts = window_starts(len(labels), window_size, stride, legacy_layout, np_module).tolist()
+    mixed = 0
+    for start in starts:
+        if len(set(str(v) for v in labels[start : start + window_size])) > 1:
+            mixed += 1
+    total = len(starts)
+    return {
+        "window_label_policy": "majority_label_with_lexicographic_tiebreak",
+        "total_windows": total,
+        "mixed_label_window_count": mixed,
+        "mixed_label_window_pct": round(100.0 * mixed / total, 2) if total > 0 else 0.0,
+    }
 
 
 def preprocess_for_contract(
@@ -866,6 +929,44 @@ def preprocess_for_contract(
         y_ids = y_ids[valid_mask]
         y_names = [name for name, keep in zip(y_names, valid_mask.tolist()) if keep]
 
+    # Dataset validation
+    ts_col = next((c for c in ["timestamp", "Timestamp", "time", "Time"] if c in df.columns), None)
+    ts_monotonic = None
+    ts_duplicate_count = None
+    if ts_col is not None:
+        try:
+            ts_series = pd.to_datetime(df[ts_col])
+            ts_monotonic = bool(ts_series.is_monotonic_increasing)
+            ts_duplicate_count = int(ts_series.duplicated().sum())
+        except Exception:
+            pass
+    sensor_missing = int(df[sensor_cols].isnull().sum().sum())
+    label_distribution = None
+    mixed_label_window_count = None
+    mixed_label_window_pct = None
+    if label_col is not None:
+        label_distribution = {str(k): int(v) for k, v in df[label_col].value_counts().items()}
+        mixed_info = count_mixed_label_windows(df[label_col].values, window_size, stride, legacy_layout, np)
+        mixed_label_window_count = mixed_info["mixed_label_window_count"]
+        mixed_label_window_pct = mixed_info["mixed_label_window_pct"]
+    dataset_validation: Dict[str, Any] = {
+        "path": repo_rel(dataset["path"]),
+        "rows": int(len(df)),
+        "sensor_columns_found": sensor_cols,
+        "timestamp_column": ts_col,
+        "timestamp_monotonic": ts_monotonic,
+        "timestamp_duplicate_count": ts_duplicate_count,
+        "sensor_missing_value_count": sensor_missing,
+        "accelerometer_unit_detected": unit_info["accelerometer_detected_unit"],
+        "unit_conversion_applied": unit_info["unit_conversion_applied"],
+        "label_column": label_col,
+        "label_distribution": label_distribution,
+        "window_count": int(len(X)),
+        "window_label_policy": "majority_label_with_lexicographic_tiebreak",
+        "mixed_label_window_count": mixed_label_window_count,
+        "mixed_label_window_pct": mixed_label_window_pct,
+    }
+
     return {
         "X": X,
         "y_ids": y_ids,
@@ -878,6 +979,8 @@ def preprocess_for_contract(
         "n_rows": int(len(df)),
         "n_windows": int(len(X)),
         "feature_columns": sensor_cols,
+        "window_label_policy": "majority_label_with_lexicographic_tiebreak",
+        "dataset_validation": dataset_validation,
     }
 
 
@@ -914,8 +1017,16 @@ def load_monitoring_thresholds() -> Dict[str, Any]:
 
     mon = PostInferenceMonitoringConfig()
     trig = TriggerEvaluationConfig()
+    pipeline_config_exists = (PROJECT_ROOT / "config" / "pipeline_config.yaml").exists()
+    overrides_config_exists = (PROJECT_ROOT / "config" / "pipeline_overrides.yaml").exists()
     return {
         "source": "src/entity/config_entity.py defaults; config/pipeline_overrides.yaml source discovered separately",
+        "threshold_verification": {
+            "runner_threshold_source": "src/entity/config_entity.py defaults",
+            "pipeline_config_checked": pipeline_config_exists,
+            "pipeline_overrides_checked": overrides_config_exists,
+            "same_as_final_pipeline": "pending_manual_review",
+        },
         "monitoring": {
             "confidence_warn_threshold": mon.confidence_warn_threshold,
             "uncertain_pct_threshold": mon.uncertain_pct_threshold,
@@ -1094,6 +1205,7 @@ def labeled_metrics(
         "balanced_accuracy": float(deps["balanced_accuracy_score"](y_true, pred_ids)),
         "macro_f1": float(deps["f1_score"](y_true, pred_ids, average="macro", zero_division=0)),
         "weighted_f1": float(deps["f1_score"](y_true, pred_ids, average="weighted", zero_division=0)),
+        "per_class_precision": {label_order[i]: float(precision[i]) for i in labels},
         "per_class_recall": {label_order[i]: float(recall[i]) for i in labels},
         "per_class_f1": {label_order[i]: float(f1[i]) for i in labels},
         "per_class_support": {label_order[i]: int(support[i]) for i in labels},
@@ -1161,8 +1273,36 @@ def run_evaluation(include_all_users: bool = False) -> Dict[str, Any]:
     thresholds = load_monitoring_thresholds()
     output_dirs = ensure_output_dirs()
     runtime_environment = capture_runtime_environment()
+
+    # Fresh Keras load checks for all three models
+    tf_available, tf_module, _ = tensorflow_module()
+    fresh_load_checks: Dict[str, Any] = {}
+    for mid, cnt in contracts.items():
+        expected_input = cnt.get("architecture_contract", {}).get("input_shape")
+        expected_output = cnt.get("architecture_contract", {}).get("output_shape")
+        mpath = resolve_repo_path(cnt.get("artifact_identity", {}).get("model_path"))
+        fresh_load_checks[mid] = fresh_keras_load_check(
+            mpath, expected_input, expected_output, tf_available, tf_module
+        )
+    all_loaded = all(v.get("status") == "loaded" for v in fresh_load_checks.values())
+    runtime_environment["fresh_model_load_verified"] = all_loaded
+    runtime_environment["fresh_model_load_checks"] = fresh_load_checks
+
+    # Model A JSON vs joblib scaler parity
+    scaler_parity: Dict[str, Any] = {"status": "not_applicable"}
+    ma_ident = contracts.get("model_a", {}).get("artifact_identity", {})
+    if ma_ident.get("scaler_path"):
+        json_spath = resolve_repo_path(ma_ident["scaler_path"])
+        joblib_spath = resolve_repo_path(ma_ident.get("scaler_joblib_path"))
+        if json_spath and json_spath.exists():
+            try:
+                scaler_parity = check_model_a_scaler_parity(read_scaler_json(json_spath), joblib_spath)
+            except Exception as exc:
+                scaler_parity = {"status": "check_failed", "error": f"{type(exc).__name__}: {exc}"}
+
     rows: List[Dict[str, Any]] = []
     summaries: Dict[str, Any] = {}
+    dataset_validations: Dict[str, Any] = {}
 
     for model_id, contract in contracts.items():
         label_order = label_order_from_contract(contract)
@@ -1176,6 +1316,9 @@ def run_evaluation(include_all_users: bool = False) -> Dict[str, Any]:
         }
         for dataset in evaluation_datasets(include_all_users):
             prepared = preprocess_for_contract(dataset, contract, deps)
+            ds_id = dataset["dataset_id"]
+            if ds_id not in dataset_validations and "dataset_validation" in prepared:
+                dataset_validations[ds_id] = prepared["dataset_validation"]
             probs = run_model_predictions(contract, prepared["X"], deps)
             np = deps["np"]
             pred_ids = np.argmax(probs, axis=1)
@@ -1265,11 +1408,29 @@ def run_evaluation(include_all_users: bool = False) -> Dict[str, Any]:
             }
             rows.append(row)
 
-    result = {
+    result: Dict[str, Any] = {
         "mode": "evaluate",
         "created_at": datetime.now().isoformat(timespec="seconds"),
+        "registry_commit_metadata": {
+            "registry_contract_base_commit": "5b7d537",
+            "registry_contract_cleanup_commit": "071a8e8",
+            "runner_commit": git_current_head(),
+            "note": "Both commits reference the frozen registry contracts under models/model_registry/",
+        },
         "runtime_environment": runtime_environment,
         "thresholds": thresholds,
+        "model_a_scaler_parity": scaler_parity,
+        "model_b_clean_pipeline_compatibility": {
+            "model_id": "model_b",
+            "contract_mode": "clean_pipeline",
+            "status": "unsupported_not_run",
+            "reason": (
+                "no persisted legacy scaler and legacy tensor layout mismatch; "
+                "Model B requires a non-persisted full-evaluation StandardScaler "
+                "and legacy channel-major tensor layout incompatible with the "
+                "clean production pipeline contract"
+            ),
+        },
         "datasets": [
             {
                 "dataset_id": item["dataset_id"],
@@ -1279,6 +1440,7 @@ def run_evaluation(include_all_users: bool = False) -> Dict[str, Any]:
             }
             for item in evaluation_datasets(include_all_users)
         ],
+        "dataset_validations": dataset_validations,
         "models": summaries,
         "rows": rows,
         "safety_guards": {
@@ -1297,6 +1459,13 @@ def run_evaluation(include_all_users: bool = False) -> Dict[str, Any]:
 def write_evaluation_outputs(result: Dict[str, Any], rows: List[Dict[str, Any]], output_dirs: Dict[str, Any]) -> None:
     write_json(OUTPUT_DIR / "abc_results.json", {"mode": "evaluate", "rows": rows})
     write_json(OUTPUT_DIR / "contract_runtime_verification.json", result)
+    write_json(
+        OUTPUT_DIR / "dataset_validation_summary.json",
+        {
+            "created_at": result["created_at"],
+            "datasets": result.get("dataset_validations", {}),
+        },
+    )
     summary = build_evaluation_summary(result, rows, output_dirs)
     write_json(OUTPUT_DIR / "comparison_summary.json", summary)
     write_results_csv(OUTPUT_DIR / "abc_results.csv", rows)
@@ -1383,7 +1552,13 @@ def build_evaluation_summary(
             "model_b": "forensic_reference_only_native_mode_not_production_safe",
             "model_c": "historical_baseline_contract_mismatch_risk",
         },
+        "model_b_clean_pipeline_compatibility": result.get("model_b_clean_pipeline_compatibility"),
+        "model_a_scaler_parity": result.get("model_a_scaler_parity"),
+        "registry_commit_metadata": result.get("registry_commit_metadata"),
         "notes": [
+            "Model B has the best native diagnostic User 7 score, but is forensic only and not production-safe.",
+            "Model A is the best clean production-contract candidate.",
+            "Model C is a weak historical baseline with checkpoint-contract mismatch risk.",
             "Model B native mode is diagnostic only because it fits a StandardScaler on the evaluation dataframe.",
             "Model C uses the same checkpoint as Model B but under the previous row-wise no-scaler contract.",
             "Registry contracts were not rewritten by evaluation mode.",
@@ -1455,6 +1630,15 @@ def build_evaluation_markdown(summary: Dict[str, Any], rows: List[Dict[str, Any]
         )
     lines.extend(
         [
+            "",
+            "## Model B Clean Pipeline Compatibility",
+            "",
+            "Model B was **not evaluated under the clean_pipeline contract** because:",
+            "",
+            "- No persisted legacy scaler exists (it requires a full-evaluation fitted StandardScaler).",
+            "- Legacy channel-major tensor layout is incompatible with the clean production pipeline contract.",
+            "",
+            "Model B native diagnostic score is therefore forensic reference only and not production-safe.",
             "",
             "## Provisional Status",
             "",
