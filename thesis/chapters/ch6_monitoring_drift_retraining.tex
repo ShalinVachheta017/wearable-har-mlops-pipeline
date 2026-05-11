@@ -15,6 +15,15 @@ Stage 6 evaluates model behavior using three signal groups:
 	\item drift indicators derived from baseline comparisons.
 \end{itemize}
 
+Figure~\ref{fig:ch6_monitoring_governance} gives a compact view of the complete post-inference governance chain from Stage~5 metrics through Stage~6 signal assessment to the Stage~7 action decision.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.97\textwidth]{fig_ch6_monitoring_governance.png}
+\caption{Post-inference monitoring and governance flow covering Stages~5--7. Stage~5 computes session-level metrics; Stage~6 assesses three signal groups (confidence/uncertainty, temporal transitions, drift) each rated \textsc{healthy}, \textsc{warning}, or \textsc{critical}; Stage~7 applies a two-of-three voting policy, a collapse guard, and a cooldown gate to produce a single governance action. The callout records the joint outcome on both defended evidence runs: \texttt{alert\_level=CRITICAL} with \texttt{should\_retrain=false} and \texttt{action=review}.}
+\label{fig:ch6_monitoring_governance}
+\end{figure}
+
 The monitoring layer is intentionally warning-oriented. In the final submitted defaults, Stage~6 warns at 0.70 mean confidence, 20\% uncertain windows, 35\% transition rate, 1.8 drift z-score, and 85\% dominant-class share, with a 95\% dominant-class critical band. These values are not treated as universal thresholds; they are engineering defaults for this repository that make the monitoring layer more sensitive than the downstream mutation gate.
 
 Before Stage~6 consumes those signals, the preceding Stage~4--5 contract now records the evidence needed to make collapse analysis auditable. Stage~4 inference is owned by \path{src/components/model_inference.py}, which persists the prediction CSV, class-index NPY, probability NPY, metadata JSON, and \path{inference_report.json}. Stage~5 evaluation is owned by \path{src/components/model_evaluation.py} and handles unlabeled production batches by reporting distribution, confidence, entropy, top-two margin, and dominant-class concentration without fabricating accuracy. The verification run \texttt{20260502\_224950} produced 1814 predictions with probability tensor shape $(1814,11)$, confirmed that saved class indices match the CSV predictions, and surfaced \texttt{hand\_tapping} dominance at 100\% with mean confidence 0.998. This result is therefore treated as an operational collapse signal entering monitoring, not as an artifact-writing failure or label-mapping error.

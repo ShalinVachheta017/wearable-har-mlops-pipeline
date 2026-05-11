@@ -421,6 +421,13 @@ Model C & all\_users (diagnostic) & 10.6 & 3.6 & 7 & 0.767 & REVIEW & false \\
 }
 \end{table}
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.97\textwidth]{fig_ch7_abc_comparison.png}
+\caption{ABC model comparison across two evaluation datasets. Left: accuracy (\%) with classes-used annotations; right: mean confidence. Model~A shows consistent but modest accuracy on both datasets (37.6\% external, 42.4\% diagnostic) and low mean confidence (0.359), which is the honest external accuracy and calibration ceiling. Model~B shows a 47-percentage-point gap between its internal diagnostic score (90.8\%) and its User~7 external score (43.8\%), consistent with its non-persisted full-evaluation scaler limiting transferability. Model~C collapses to 7.6\% accuracy on User~7 using only 4 of 11 classes, directly demonstrating that a checkpoint without its matching preprocessing contract is not a runnable runtime artefact.}
+\label{fig:abc_comparison}
+\end{figure}
+
 \textbf{Interpretation.} The interpretation is structured around the six claims this section is intended to support.
 
 \emph{Cross-user generalisation gap on User~7.} Model~A's drop to 37.6\% accuracy on a single external participant is the honest external accuracy ceiling under the defended contract. The retained model is not subject-independent; the User~7 score should be read as evidence of weak cross-user generalisation and domain shift, not as a pipeline failure.
