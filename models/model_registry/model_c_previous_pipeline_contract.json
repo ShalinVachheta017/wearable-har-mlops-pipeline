@@ -13,7 +13,9 @@
     "label_map_source": "data/prepared/config.json and src/utils/label_mapping.py canonical fallback",
     "label_map_sha256": "not_verified",
     "git_branch": "feature/inference-parity-gpt-no-scaler",
-    "git_commit": "510eeedae75725b0505277383da4a3dde5f8b744"
+    "git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+    "artifact_git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+    "registry_contract_commit": "5b7d537"
   },
   "source_fields": {
     "threshold_source": "config/pipeline_config.yaml or config/pipeline_overrides.yaml",
@@ -115,6 +117,13 @@
     "scaler_applied_to": [],
     "scaler_not_applied_to": ["Ax", "Ay", "Az", "Gx", "Gy", "Gz", "timestamp", "activity", "label", "metadata"],
     "production_safe": "not_selected_yet_pending_abc"
+  },
+  "monitoring_baseline_contract": {
+    "baseline_required": "pending_abc_runner",
+    "baseline_path": "not_verified",
+    "baseline_sha256": "not_verified",
+    "baseline_scope": "previous raw/no-scaler baseline not verified",
+    "baseline_compatible_with_model_contract": "pending_abc_runner"
   },
   "preprocessing_order": [
     "load_raw_input",
@@ -219,7 +228,7 @@
       "same checkpoint is linked to Model B legacy preprocessing",
       "previous no-scaler contract showed severe contract mismatch in diagnostics",
       "reduced class usage under prior clean row-wise/no-scaler evaluation",
-      "not selected for final runtime unless ABC evidence contradicts prior diagnostics"
+      "prior diagnostics suggest this contract is unlikely to be selected for final runtime; ABC comparison will verify"
     ],
     "safety_position": "included as a previous/default baseline to show why final selection cannot rely on checkpoint path alone"
   },
@@ -227,7 +236,7 @@
     "same checkpoint as Model B but without native legacy preprocessing",
     "severe contract mismatch under previous clean row-wise/no-scaler evaluation",
     "prior diagnostics show low macro F1 and reduced class usage",
-    "not selected for final runtime"
+    "prior diagnostics suggest this contract is unlikely to be selected for final runtime; ABC comparison will verify"
   ],
   "native_mode_supported": true,
   "clean_pipeline_mode_supported": true,
@@ -241,6 +250,7 @@
     "output_shape_verified": true,
     "scaler_verified": true,
     "label_order_verified": true,
+    "label_order_verification_method": "canonical_fallback_value_verified_but_source_hash_not_computed",
     "input_tensor_layout_documented": true,
     "runtime_environment_verified": false,
     "fresh_keras_load_verified": false,

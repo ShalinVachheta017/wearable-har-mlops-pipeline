@@ -14,7 +14,9 @@
     "monitoring_baseline_path": "models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json",
     "monitoring_baseline_sha256": "951C569C1D1E3B2291A9806CBA076E4B30777FBE1F131CBC5A030E49242264A7",
     "git_branch": "feature/inference-parity-gpt-no-scaler",
-    "git_commit": "510eeedae75725b0505277383da4a3dde5f8b744"
+    "git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+    "artifact_git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+    "registry_contract_commit": "5b7d537"
   },
   "source_fields": {
     "threshold_source": "config/pipeline_config.yaml or config/pipeline_overrides.yaml",
@@ -85,7 +87,7 @@
     "feature_order": ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"],
     "flattening_before_reshape": false,
     "legacy_channel_major_reshape": false,
-    "scaling_position": "after unit conversion and before windowing/inference according to the verified Model A contract",
+    "scaling_position": "after unit conversion, exactly once, applied to Ax, Ay, Az, Gx, Gy, Gz feature values before model prediction; dataframe path applies before windowing, API/window path must not apply a second scaler",
     "model_receives": "3D tensor with shape batch_size x 200_timesteps x 6_channels",
     "sequence_axis_used_by_model": "time_axis",
     "contract_risk": "low_pending_abc_runner"
@@ -116,6 +118,13 @@
     "scaler_applied_to": ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"],
     "scaler_not_applied_to": ["timestamp", "activity", "label", "metadata"],
     "production_safe": "true_pending_abc_runtime_verification"
+  },
+  "monitoring_baseline_contract": {
+    "baseline_required": true,
+    "baseline_path": "models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json",
+    "baseline_sha256": "951C569C1D1E3B2291A9806CBA076E4B30777FBE1F131CBC5A030E49242264A7",
+    "baseline_scope": "Garmin train scaled baseline for Model A clean contract",
+    "baseline_compatible_with_model_contract": "true_pending_abc_runner"
   },
   "preprocessing_order": [
     "load_raw_input",
