@@ -60,6 +60,41 @@ This explicit command style is used to ensure the exact stages and inputs are vi
 
 Implementation outputs are persisted in run-scoped artifact directories and pipeline result logs. Experiment metadata is tracked through MLflow configuration under \path{config/mlflow_config.yaml} \cite{zaharia2018mlflow}. Together, these outputs provide the evidence backbone used by Chapters 6 and 7.
 
+\section{Defended Runtime Model A and Contract Verification}
+\label{sec:defended_runtime_contract}
+
+The implementation chapter would be incomplete without recording which model artifact the runtime actually loads, under what input contract, and how that contract is verified before being treated as the defended runtime path. This section records those facts so that later monitoring, evaluation, and governance claims can be traced to a single frozen artifact package rather than to an implicit model state.
+
+\subsection{Model A as the Defended Proof-of-Concept Runtime Candidate}
+
+The runtime model is \path{models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras}, referred to throughout the thesis as Model~A. Model~A is selected as the defended clean proof-of-concept runtime candidate and is frozen as the A1 baseline; it is not presented as a production-grade or deployable system. Two contrast models are retained in the registry as evidence rather than as runtime alternatives. Model~B (legacy/native diagnostic reference, \path{models/pretrained/fine_tuned_model_1dcnnbilstm.keras}, 499{,}131 parameters) is retained as a diagnostic reference only. Model~C uses the same checkpoint as Model~B but under the clean row-wise layout with no scaler, and is retained as checkpoint-contract mismatch evidence only. The full decision rationale is documented in \path{docs/MODEL_DECISION_2026-05.md} and cross-referenced in \path{docs/MODEL_ABC_MENTOR_BRIEF_2026-05.md}.
+
+\subsection{Input and Preprocessing Contract}
+
+Model~A's input contract is fixed and recorded in \path{model_contract.json}. The model accepts row-wise time-major windows of shape \((\text{batch}, 200, 6)\): 200 samples per window, 6 wrist-IMU channels in the order \(\langle \text{Ax}, \text{Ay}, \text{Az}, \text{Gx}, \text{Gy}, \text{Gz}\rangle\), at a 50~Hz sampling rate, with stride 100 (50\% overlap). The accelerometer unit is \(\mathrm{m/s^2}\) (with Garmin milliG conversion applied at ingest when needed); the gyroscope unit is \(\mathrm{deg/s}\). The contract explicitly disables the legacy mentor reshape (\texttt{legacy\_mentor\_reshape=false}, \texttt{row\_wise\_windows=true}) and disables runtime gravity removal and runtime calibration. The 11-class label order is fixed and persisted in \path{label_order.json}, and is SHA-256 verified at runtime.
+
+\subsection{Train-Only Scaler with Persisted Verification}
+
+The Model~A scaler is a StandardScaler fit on Garmin training-set windows only; validation and the User~7 external set are excluded from the fit. The scaler is persisted in two redundant forms, \path{garmin_train_scaler.json} (mean and scale constants) and \path{garmin_train_scaler.joblib} (joblib copy), and JSON/joblib parity is verified at evaluation time with a maximum absolute difference of \(0.0\) across both \texttt{mean} and \texttt{scale}. The model, scaler, label-order, and monitoring-baseline artefacts are verified through the registry contract at \path{models/model_registry/model_a_clean_contract.json}, so that the runtime loads exactly the artefacts that the defended evidence was generated from.
+
+\subsection{Same Tensor Shape Is Not Enough: ABC Contract Diagnostics}
+\label{sec:abc_contract_diagnostics}
+
+A single fact justifies the heavy emphasis on contract verification: all three models load with the same nominal Keras input shape \((\text{batch}, 200, 6)\), yet they produce materially different behaviour because their tensor semantics, scaler policy, and layout differ. Model~B accepts a legacy channel-major reshape and fits a StandardScaler on the entire evaluation dataframe at run time; Model~C uses the same checkpoint as Model~B but under the clean row-wise layout with no scaler at all. On the User~7 external set, Model~C collapses to 7.6\% accuracy with predictions concentrated in only 4 of 11 classes, while Model~B reaches 43.8\% in its native diagnostic mode; the full ABC numbers are reported in Chapter~\ref{chap:experiments}, Section~\ref{sec:abc_comparison}. Tensor shape parity is therefore a necessary but not sufficient runtime condition: tensor semantics, scaler, and layout must match end-to-end. Model~B remains a diagnostic reference only because its non-persisted full-evaluation scaler and legacy native setup limit transferability; Model~C remains direct evidence that a checkpoint without the matching preprocessing contract is not a runnable runtime artifact.
+
+\subsection{Legacy Pretrained Model Gating}
+
+The historical undocumented-provenance pretrained model is structurally prevented from being loaded as the runtime model. In \path{src/config.py}, the entry \verb|PRETRAINED_MODEL_STATUS["status"] = "EXCLUDED_UNDOCUMENTED_PROVENANCE"| marks the legacy artifact as excluded; the runtime default model path is set to the frozen Model~A package, and the legacy pretrained path is not selected by default. This is a runtime-code-level governance gate, not a documentation note: changing the default model requires an explicit code edit, not only a configuration override.
+
+\subsection{API and Batch Inference Parity on User 7}
+
+The same Model~A artifact is loaded through two execution paths: the API endpoint and the batch-pipeline path. To verify that the two paths agree, both were run on the User~7 labeled session (989 windows). All 989 window-level predictions matched (100\% prediction agreement), and the maximum absolute difference between the two paths' softmax probability vectors was \(1.9 \times 10^{-6}\). API and batch parity is therefore not an implementation assumption; it is a verified property of the defended runtime, recorded in \path{reports/FINAL_RUNTIME_RUN_SUMMARY_2026-05-09.md}.
+
+\section{End-to-End Stage 1--7 Evidence Runs}
+\label{sec:end_to_end_evidence_runs}
+
+The defended runtime path was exercised end-to-end on two real sessions whose artifacts are kept under \path{artifacts/} as primary thesis evidence. The first run consumed a real unlabeled Garmin session (\path{artifacts/20260508_235323/}; 130{,}500 rows, 1{,}304 windows, 50~Hz, with milliG-to-\(\mathrm{m/s^2}\) conversion applied at ingest). The second run consumed the User~7 labeled external session (\path{artifacts/20260508_235356/}; 99{,}017 rows, 989 windows, 50~Hz, no unit conversion). On both runs, all stages 1--7 completed with status \texttt{SUCCESS} as recorded in the per-run \path{run_info.json}. The corresponding \path{trigger_decision.json} files report \texttt{action=review} and \texttt{should\_retrain=false} on both runs. These are the runtime-side facts; the monitoring-severity interpretation and the trigger-policy reasoning are presented in Chapter~\ref{chap:monitoring}, and the cross-user accuracy interpretation is presented in Chapter~\ref{chap:experiments}.
+
 \section{Batch Ingestion Design and Rationale}
 \label{sec:batch_ingestion}
 
@@ -88,4 +123,4 @@ Level 2 extends Level 1 with fully automated continuous training loops, CI/CD pi
 
 This chapter mapped the architecture claims from Chapter~\ref{chap:architecture} to concrete implementation anchors. The operational path is explicit: stages 1--7 run by default, while stages 8--10 and stage 11 are guarded behind runtime flags so that state-mutating actions remain deliberate.
 
-Configuration layering, run-scoped artifact persistence, and session-bounded batch ingestion together provide the reproducibility substrate for later evidence. This implementation substrate is what enables Chapters~\ref{chap:monitoring} and~\ref{chap:experiments} to interpret monitoring and retraining behavior as auditable system outcomes rather than as isolated script effects.
+Configuration layering, run-scoped artifact persistence, the frozen Model~A contract package and its SHA-256-verified scaler (Section~\ref{sec:defended_runtime_contract}), the Stage 1--7 evidence runs on Garmin and User~7 (Section~\ref{sec:end_to_end_evidence_runs}), and session-bounded batch ingestion together provide the reproducibility substrate for later evidence. This implementation substrate, together with the structural gating of the legacy pretrained model path, is what enables Chapters~\ref{chap:monitoring} and~\ref{chap:experiments} to interpret monitoring and retraining behavior as auditable system outcomes rather than as isolated script effects.
