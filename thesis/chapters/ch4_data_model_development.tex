@@ -31,8 +31,9 @@ The thesis does not rely on a single homogeneous evidence source. Later chapters
 \hline
 \textbf{Data block} & \textbf{Participants} & \textbf{Session / block structure} & \textbf{Labels} & \textbf{Primary role} & \textbf{Important difference} \\
 \hline
-Labeled development corpus & 6 & One fused CSV preserving 66 contiguous user-activity recording blocks & Yes & Model development and matched labeled reference evaluation & Explicit session identifiers are not retained after fusion; this is the canonical supervised source used by the training pipeline \\
-Production-style replay pool & Not preserved in filenames & 26 paired accelerometer/gyroscope sessions; 25 also include a \texttt{record.csv} file & No & Replay, preprocessing ablation, trigger evaluation, and governance experiments & One legacy session uses \texttt{.xlsx} sensor files; one session failed in the paired intervention comparison because of a corrupted accelerometer file \\
+Garmin all\_users labeled corpus & 6 & One fused CSV preserving 66 contiguous user-activity recording blocks (385{,}326 rows; 3{,}852 windows) & Yes & Model~A training source; reported as the internal diagnostic in the Chapter~\ref{chap:experiments} ABC comparison & Same data family as Model~A's training source; treated as an internal diagnostic and not as primary external evidence \\
+User~7 external labeled session & 1 (external) & Single 50~Hz self-recorded labeled session (99{,}017 rows; 989 windows) & Yes & Primary external evaluation in the ABC comparison and the User~7 Stage~1--7 evidence run & One external participant; bounds the cross-user generalisation gap and is not a population-level proof \\
+Production-style replay pool & Not preserved in filenames & 26 paired accelerometer/gyroscope sessions; 25 also include a \texttt{record.csv} file & No & Replay, preprocessing ablation, trigger evaluation, and governance experiments & One legacy session uses \texttt{.xlsx} sensor files; one session failed in the paired intervention comparison; one session (\path{fused_2025_07_16_21_03_13_50Hz.csv}, 130{,}500 rows, 1{,}304 windows) is reused as the Garmin unlabeled Stage~1--7 evidence run \\
 Synthetic realism-stress sets & None & Two generated evaluation sets, each containing 3,852 windows & Yes, by construction & Controlled comparison of monitoring behavior under degraded realism & Not used for model training and not evidence of real deployment performance \\
 \hline
 \end{tabular}
@@ -41,6 +42,8 @@ Synthetic realism-stress sets & None & Two generated evaluation sets, each conta
 \end{table}
 
 Within the fused labeled corpus, participant contributions range from 60,712 to 68,352 raw samples per user. This spread is moderate rather than extreme, so the supervised corpus is not dominated by a single participant. The current training code creates user-isolated windows and grouped validation folds, while the full-corpus sequential window count is retained as a reproducible reference for pipeline-level comparisons.
+
+Two evidence-stage roles are added on top of these data blocks. First, the Garmin all\_users labeled corpus is reused as an \emph{internal diagnostic} dataset in the Chapter~\ref{chap:experiments} ABC comparison; it is treated as a diagnostic reference rather than as primary external evidence, because it is drawn from the same labeled population used to train Model~A. Second, the single self-recorded User~7 labeled session is added as the \emph{primary external evaluation} dataset for the ABC comparison and as the labeled run in the Stage~1--7 evidence runs (Section~\ref{sec:end_to_end_evidence_runs}); with one external participant, it bounds the cross-user generalisation gap but does not establish population-level generalisation. The architectural family used by all three model candidates (A, B, and C) traces back to the ADAMSense pretrained 1D-CNN-BiLSTM checkpoint discussed in Section~\ref{sec:architecture}~\cite{khan2021adamsense}; ADAMSense itself is the architectural-provenance reference, not a thesis-collected dataset.
 
 The dataset covers eleven activity classes. Eight classes represent anxiety-related repetitive body-focused behaviors: ear rubbing, forehead rubbing, hair pulling, hand scratching, hand tapping, knuckle cracking, nail biting, and nape rubbing. Three additional classes capture baseline postural and non-anxiety activities: sitting, standing, and smoking. This class structure was motivated by the ADAM-sense study~\cite{khan2021adamsense}, which established that anxiety-displaying behaviors can be recognized from motion data with sufficient discriminative accuracy when combined with a suitable deep learning architecture. Table~\ref{tab:activity_classes} lists the full class inventory.
 
@@ -411,7 +414,61 @@ The same design does not support broad claims about subject-independent or real-
 
 The thesis baseline assumes that a single trained model --- produced from the training pipeline described above --- is used as the fixed inference model for all downstream pipeline experiments. This design decision is intentional: the primary thesis contribution is not hyperparameter optimization or model redesign, but the operationalization of a reproducible offline MLOps pipeline around a stable model. Repeated retraining with varying configurations would make it impossible to cleanly evaluate monitoring behavior, drift detection performance, and retraining governance --- all of which require a consistent model as the reference point.
 
-Concretely, the defended runtime uses the mentor-provided pretrained artifact \path{models/pretrained/fine_tuned_model_1dcnnbilstm.keras} as the default inference model. Retrained artifacts are treated as candidate models and are promoted only after labeled evaluation demonstrates improvement over the current default. Pseudo-label fine-tuning is evaluated later as a controlled negative-result path that illustrates collapse risk under unlabeled shift; it is not the defended runtime default.
+Concretely, the defended runtime uses the frozen Model~A artefact \path{models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras} as its inference model and is referred to throughout the thesis as Model~A (87{,}083 trainable parameters; train-only persisted StandardScaler; row-wise time-major layout). The legacy mentor-provided pretrained artefact \path{models/pretrained/fine_tuned_model_1dcnnbilstm.keras} (499{,}131 trainable parameters; the architecture documented in Table~\ref{tab:model_arch}) is retained in the registry as Model~B as a diagnostic reference only; the same checkpoint is also retained as Model~C in a deliberately mismatched no-scaler configuration to document checkpoint-contract mismatch risk. Their roles are summarised in the next subsection. Retrained artifacts are treated as candidate models and are promoted only after labeled evaluation demonstrates improvement over the current defended runtime. Pseudo-label fine-tuning is evaluated later as a controlled negative-result path that illustrates collapse risk under unlabeled shift; it is not the defended runtime default.
+
+\subsection{Model Candidate Roles: A, B, and C}
+\label{sec:model_candidate_roles}
+
+The Chapter~\ref{chap:experiments} ABC comparison evaluates three model candidates that share the same nominal Keras input shape $(\text{batch}, 200, 6)$ and the same architectural family (ADAMSense-pretrained 1D-CNN + BiLSTM), but differ in trained variant, scaler policy, and tensor-layout semantics. Their roles are recorded in Table~\ref{tab:ch4_model_candidates}, and the runtime input contract that Model~A actually loads is recorded in Table~\ref{tab:ch4_runtime_input_contract}. Tensor-shape parity across the three candidates is necessary but not sufficient on its own; the supporting evidence is presented in Chapter~\ref{chap:implementation}, Section~\ref{sec:abc_contract_diagnostics}.
+
+Model~A is the defended clean proof-of-concept runtime candidate, frozen as the A1 baseline. It uses a smaller variant of the architectural family with 87{,}083 trainable parameters --- approximately $5.7\times$ smaller than the legacy 499{,}131-parameter variant retained as Model~B. This capacity gap is recorded as a possible contributing factor to Model~A's lower external accuracy ceiling on the User~7 set; it is not presented as a proven cause, because Model~B's 43.8\% on User~7 in its native diagnostic mode is itself only modestly higher and was obtained under a non-persisted full-evaluation scaler that limits transferability outside the native diagnostic context.
+
+Model~A was fine-tuned on the Garmin all\_users training split only, in a weak-class recovery configuration (focal loss with $\gamma = 0.5$, dead-class oversampling, no augmentation; 5{,}023 training windows), with the User~7 external session excluded from both fitting and selection. The Model~A scaler is a StandardScaler fit on Garmin training-set windows only; it is persisted as both a JSON file (mean and scale constants) and a joblib copy, and JSON/joblib parity is verified at evaluation time with a maximum absolute difference of $0.0$. Model~B uses a different scaler policy: a non-persisted StandardScaler fit on the entire evaluation dataframe at run time, used only in its native diagnostic mode. Model~C deliberately uses no scaler under the clean row-wise layout, which is why it is retained as checkpoint-contract mismatch evidence rather than as a competing candidate.
+
+\begin{table}[htbp]
+\centering
+\caption{Model candidate roles in the Chapter~\ref{chap:experiments} ABC comparison. All three share the architectural family described in Section~\ref{sec:architecture}.}
+\label{tab:ch4_model_candidates}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{p{1.4cm}p{2.6cm}p{1.6cm}p{3.4cm}p{2.6cm}p{2.8cm}}
+\hline
+\textbf{Model} & \textbf{Role} & \textbf{Parameters} & \textbf{Scaler policy} & \textbf{Tensor layout} & \textbf{Status} \\
+\hline
+A & Defended clean proof-of-concept runtime candidate & 87{,}083 & Train-only StandardScaler, persisted (JSON/joblib parity 0.0) & Row-wise time-major $(200, 6)$ & Frozen as A1 baseline; $\sim$$5.7\times$ smaller than B/C \\
+B & Diagnostic reference only & 499{,}131 & Non-persisted, full-evaluation-dataframe fit; native diagnostic mode only & Legacy channel-major reshape & Forensic reference; not a runtime candidate \\
+C & Checkpoint-contract mismatch evidence & 499{,}131 (same checkpoint as B) & None & Clean row-wise time-major (mismatched against B's native scaler/layout) & Retained as evidence that a checkpoint without the matching contract is not runnable \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Runtime input contract for the defended Model~A. The same nominal shape is shared by Model~B and Model~C, but those candidates differ in scaler policy and tensor layout (Table~\ref{tab:ch4_model_candidates}).}
+\label{tab:ch4_runtime_input_contract}
+{\setlength{\tabcolsep}{5pt}
+\small
+\begin{tabular}{p{4.0cm}p{8.0cm}}
+\hline
+\textbf{Property} & \textbf{Value} \\
+\hline
+Tensor shape & $(\text{batch}, 200, 6)$ \\
+Layout & Row-wise time-major (\texttt{row\_wise\_windows=true}, \texttt{legacy\_mentor\_reshape=false}) \\
+Channel order & $\langle A_x, A_y, A_z, G_x, G_y, G_z\rangle$ \\
+Sampling rate & 50~Hz \\
+Window length & 200 samples (4~s) \\
+Stride & 100 samples (50\% overlap) \\
+Accelerometer unit & m\,s$^{-2}$ (Garmin milliG converted at ingest when needed) \\
+Gyroscope unit & deg\,s$^{-1}$ \\
+Scaler & StandardScaler fit on Garmin training-set windows only; persisted as JSON and joblib (parity $0.0$); SHA-256 verified through the registry contract \\
+Output classes & 11 (fixed label order persisted in \path{label_order.json}, SHA-256 verified) \\
+\hline
+\end{tabular}
+}
+\end{table}
 
 \begin{table}[htbp]
 \centering
