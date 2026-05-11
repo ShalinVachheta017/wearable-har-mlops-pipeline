@@ -1,709 +1,447 @@
-# DEFENSE Q&A — Anticipated Examiner Questions
+# DEFENSE Q&A — Final Thesis Story
 
-> **Purpose**: Pre-loaded answers for every "why" question an examiner might ask during your Master's thesis defense.
-> Each answer cites the exact repo location and evidence type.
-> Generated from a complete scan of the MasterArbeit_MLops repository.
-
----
-
-## 0. Defended Runtime Model (locked 2026-04-26)
-
-### Q: "Which model is your defended runtime model?"
-
-**A:** The defended runtime model is `models/pretrained/fine_tuned_model_1dcnnbilstm.keras` — a 1D-CNN-BiLSTM architecture (Ordóñez and Roggen, 2016) with 11 activity classes, 200×6 input windows, and 499 131 parameters. The model was provided by my supervisor; it was pretrained on a research-grade IMU dataset and fine-tuned on the project's wearable IMU dataset. Inference loads the corresponding scaler from `data/prepared/config.json`.
-
-**Evidence:**
-
-- `src/api/app.py` — runtime default points to this `.keras` file.
-- `models/pretrained/model_info.json` — architecture metadata (200×6 input, 11 classes, 499 131 parameters).
-- `docs/THESIS_CONSISTENCY_NOTES.md` §5 — canonical sentence and locked decision.
-- `EVIDENCE_LEDGER.md` EV-009 — marked **DEFENDED RUNTIME MODEL**.
-
-### Q: "If you have a retraining pipeline, why is the defended model still the pretrained one?"
-
-**A:** Retraining is implemented as a **governance mechanism**, not an automatic deployment loop. The retraining stage produces candidate artifacts (eighteen `.keras` files exist under `models/retrained/`, including supervised retraining, AdaBN configs A–D, TENT, and a pseudo-label experiment), but promotion to defended status is gated by `is_better=True` on a labeled holdout. The production data stream is **unlabeled**, so no candidate has yet satisfied the gate. The model registry confirms this: `models/registry/model_registry.json` reports `current_version: null`. This is the intended behavior — the governance design protects the deployed baseline from unjustified replacement, following the principle articulated in Sculley et al. (2015), *Hidden Technical Debt in Machine Learning Systems*.
-
-**Evidence:**
-
-- `models/retrained/` — 18 candidate artifacts, including `pseudo_label_model.keras`, `adabn_adapted_model_configA-D_*.keras`, `adabn_tent_adapted_model.keras`, `retrained_model.keras`, `har_model_*.keras`.
-- `models/registry/model_registry.json` — `current_version: null`, `status: "archived"`.
-- `models/retrained/training_report_20260327_223917.json` — example candidate with val_accuracy 0.922 (comparable to baseline; not promoted because no labeled production confirmation exists).
-- `src/components/model_retraining.py` — implements `--adapt {adabn, tent, pseudo_label, none}` modes.
-
-### Q: "Are stages 12, 13, and 14 part of the defended pipeline?"
-
-**A:** No. The defended pipeline is the eleven-stage pipeline defined in `src/pipeline/production_pipeline.py:53-65` (`ALL_STAGES`). Stage 12 (Wasserstein drift), Stage 13 (curriculum + advanced pseudo-labeling), and Stage 14 (sensor placement information gain) appear in early planning documents and have stand-alone test files, but they are **not** wired into `ALL_STAGES` and are documented as **future work**, not as defended pipeline stages. Note: candidate-mode pseudo-labeling exists separately as a Stage 8 retraining mode (`--adapt pseudo_label`), governed by Stage 9 promotion — that is distinct from "Stage 13 curriculum pseudo-labeling," which is the unimplemented future-work item.
-
-**Evidence:**
-
-- `src/pipeline/production_pipeline.py:53-65` — `ALL_STAGES` lists eleven stages only.
-- `EVIDENCE_LEDGER.md` EV-415, EV-416, EV-417 — annotated as **FUTURE-WORK**.
-- `docs/THESIS_CONSISTENCY_NOTES.md` §5.4 — pipeline scope clarification.
+> **Purpose**: Defense-ready spoken answers for every examiner question.
+> Built from complete thesis scan, May 2026.
+> Follow the wording rules exactly: never say "data leakage" about Model B, never say "auto-retraining", never claim clinical diagnosis or population-level generalization.
 
 ---
 
-## Table of Contents
+## 0. Numbers You Must Know Cold
 
-1. [Pipeline Architecture](#1-pipeline-architecture)
-2. [Data & Preprocessing](#2-data--preprocessing)
-3. [Windowing & Features](#3-windowing--features)
-4. [Model Architecture](#4-model-architecture)
-5. [Training & Cross-Validation](#5-training--cross-validation)
-6. [DVC — Data Versioning](#6-dvc--data-versioning)
-7. [MLflow — Experiment Tracking](#7-mlflow--experiment-tracking)
-8. [Docker — Containerization](#8-docker--containerization)
-9. [CI/CD — GitHub Actions](#9-cicd--github-actions)
-10. [Monitoring — Prometheus + Grafana](#10-monitoring--prometheus--grafana)
-11. [Alerting — Alertmanager](#11-alerting--alertmanager)
-12. [Trigger Policy & Retraining](#12-trigger-policy--retraining)
-13. [Domain Adaptation](#13-domain-adaptation)
-14. [Calibration & Uncertainty](#14-calibration--uncertainty)
-15. [Model Governance — Registration & Baseline](#15-model-governance--registration--baseline)
-16. [Testing Strategy](#16-testing-strategy)
-17. [Threshold Governance](#17-threshold-governance)
-18. [Training–Inference Parity](#18-traininginference-parity)
-19. [Security & Rollback](#19-security--rollback)
-
----
-
-## 1. Pipeline Architecture
-
-### Q: "Why 11 stages instead of a single training script?"
-
-**A:** The defended pipeline decomposes the ML lifecycle into 11 independent, auditable stages defined by `ALL_STAGES` in `src/pipeline/production_pipeline.py`. Each stage has a single responsibility: ingestion, validation, transformation/windowing, inference, evaluation, monitoring, trigger evaluation, retraining, registration, baseline update, and calibration. Earlier planning notes mentioned Stages 12-14, but those are not wired into `ALL_STAGES` and are treated as future work.
-
-**Evidence:**
-- Google MLOps Level 2 maturity model requires separable, rerunnable pipeline stages (`[REF_GOOGLE_MLOPS]`)
-- Each stage can be run independently: `python run_pipeline.py --stages monitoring trigger`
-- Stages 1-7 are the default inference/evidence path; stages 8-10 are retrain-dependent; stage 11 is optional advanced calibration.
-
-**Why this matters:** A monolithic script provides no partial re-execution, no stage-level failure isolation, and no audit trail. With 11 stages, if windowing parameters change, only the affected downstream stages need re-running; the ingested data is preserved.
-
-**Risks if different:** Monolithic = no partial re-run, debugging requires full pipeline execution, CI can't test stages independently.
+| Item | Value |
+| --- | --- |
+| Model A params | 87,083 |
+| Model B / C params | 499,131 |
+| Model A — User 7 external accuracy | 37.6% (macro F1 34.1%) |
+| Model A — all\_users diagnostic | 42.4% (macro F1 39.5%) |
+| Model A — mean confidence on User 7 | 0.359 |
+| Model A — mean confidence on Garmin (unlabeled) | 0.393 |
+| Model B — User 7 external | 43.8% (mean conf 0.775) |
+| Model B — all\_users diagnostic | 90.8% (mean conf 0.930) |
+| Model B — internal-to-external gap | ~47 pp |
+| Model C — User 7 accuracy | 7.6%, only 4/11 classes |
+| two\_of\_three trigger policy precision | 0.9878 |
+| two\_of\_three false alarm rate | 0.0069 |
+| single\_signal false alarm rate | 0.1389 |
+| 24h cooldown episode recall | 0.875 (misses 2/16 episodes) |
+| Negative result: mean confidence before/after | 0.8578 / 0.8578 (unchanged) |
+| Garmin run: windows / trigger / auto\_retrain | 1,304 / REVIEW / false |
+| User 7 run: windows | 989 |
+| API-batch parity: prediction match | 989/989 (max softmax diff 1.9×10⁻⁶) |
+| Garmin training population | all_users training split (6 participants); User 7 excluded from Model A scaler fit and external evaluation |
+| Stage 6 confidence threshold | 0.70 |
+| Stage 6 uncertain-window threshold | 20% |
+| Stage 6 transition-rate threshold | 35% |
+| Stage 6 drift z-score | 1.8 |
+| Stage 6 dominant-class share threshold | 85% |
 
 ---
 
-### Q: "Why does the pipeline have a `continue_on_failure` flag?"
+## 1. Thesis Motivation
 
-**A:** `ProductionPipeline.__init__()` at `src/pipeline/production_pipeline.py:84` accepts `continue_on_failure`. When True, a failing stage is logged but the pipeline advances to the next stage.
+### Q: "What problem does this thesis solve?"
 
-**Evidence:**
-- `production_pipeline.py:140-160` — try/except per stage with `self.failed_stages.append(stage_name)`
-- This enables best-effort runs during development and CI
+**Short answer:** It builds the lifecycle engineering that standard HAR papers skip: what happens after the model is trained — how does it behave operationally, when should it be retrained, and how do you know the preprocessing is still correct?
 
-**Why this matters:** In production, you want fail-fast (default: `continue_on_failure=False`). In CI integration tests, you may want to see which stages pass even if an early stage has issues with test data.
+**Explanation:** Most wearable HAR papers deliver offline accuracy on a held-out test set and stop. The model is trained, evaluated once, and the paper is written. What they do not address is what happens when that model is used with different data, slightly different preprocessing, or on a user not in the training set. This thesis answers that question by building a governed 7-stage inference-and-monitoring lifecycle in which preprocessing decisions are traceable, monitoring signals are multi-dimensional, trigger policy is explainable, and no retraining happens without justified human review. The contribution is not a new classifier — it is the operational layer that makes a classifier defensible over time.
 
----
-
-### Q: "How does stage orchestration work? Is there a DAG?"
-
-**A:** The pipeline uses a linear stage list, not a DAG. Stages execute sequentially in the order defined by `ALL_STAGES` at `production_pipeline.py:54-68`. The user selects which stages to run via `--stages` CLI arg (`run_pipeline.py:156-180`), and `ProductionPipeline.run()` iterates through only the requested stages in order.
-
-**Evidence:**
-- `production_pipeline.py:117-180` — `run()` method iterates `self.stages`
-- No inter-stage dependency graph — each stage reads from disk artifacts written by previous stages
-
-**Trade-off acknowledged:** A DAG (e.g., Airflow, Prefect) would enable parallel stage execution and explicit dependency tracking. The linear approach was chosen because the thesis focuses on MLOps practices, not workflow engine evaluation. A `P0 gap` exists for DAG migration.
+**What not to say:** Do not say "I solved wearable HAR" or "the system is production-ready." The claim is: a lifecycle can be built such that operational risk is observable and acted on conservatively.
 
 ---
 
-## 2. Data & Preprocessing
+### Q: "Why anxiety-related behaviors as the application domain?"
 
-### Q: "Why convert milliG to m/s² and not leave raw values?"
+**Short answer:** They are a well-defined engineering target — observable wrist movements that a wrist-worn IMU can capture — while also being clinically relevant as behavioral proxies associated with anxiety and distress.
 
-**A:** The model expects m/s² inputs because the training data from the WISDM dataset uses that unit. If inference data arrives in milliG (which some Garmin watches emit), predictions are nonsensical.
+**Explanation:** Body-focused repetitive behaviors (BFRBs) — hand tapping, hand scratching, nail biting, hair pulling, skin picking, hand rubbing — are expressed as short, repeated wrist and hand movements. That makes them tractable for wrist-worn IMU recognition without requiring any physiological sensor beyond accelerometer and gyroscope. At the same time, they are studied in the mental-health literature as behaviors associated with anxiety or distress states, which gives the recognition target clinical relevance without requiring me to claim that recognizing them constitutes clinical diagnosis. The literature supports recognition of these behaviors from wrist motion; it does not support unrestricted inference about internal anxiety state.
 
-**Evidence:**
-- `config/pipeline_config.yaml:27-31` — `unit_conversion: enabled: true, source_unit: milliG, target_unit: m_per_s2`
-- `src/preprocess_data.py:60` — `UnitDetector` class with heuristic-based detection (values > 100 likely milliG)
-- `[REF_SENSOR_SPEC]` — Garmin sensor documentation
-
-**Why this matters:** A model trained on m/s² data receiving milliG data sees values ~100× larger, making all predictions garbage. Auto-detection prevents silent scale mismatch.
+**What not to say:** Do not say "my system diagnoses anxiety" or "it monitors anxiety in real time." Say: it recognizes observable behavioral proxies that are associated with anxiety-related contexts.
 
 ---
 
-### Q: "Why is gravity removal disabled?"
+### Q: "What are the four research questions?"
 
-**A:** `config/pipeline_config.yaml:37-44` sets `gravity_removal: enabled: false` with an inline comment: the CNN-BiLSTM model from `[REF_PAPER_CNN_BILSTM]` was trained with gravity included. Removing it would introduce a domain shift vs. the original training regime.
+**Short answer:** RQ1: can the pipeline detect operational risk without labels? RQ2: how much do preprocessing decisions change runtime inference behavior? RQ3: can governed trigger policy improve safety over single-signal triggering? RQ4: how much of prediction collapse is driven by model choice versus input data?
 
-**Evidence:**
-- `config/pipeline_config.yaml:37-44` — explicit rationale in config comments
-- `src/entity/config_entity.py:110` — `gravity_removal` field in `PreprocessingConfig` dataclass
-
-**Risks:** If someone enables gravity removal without retraining, the model sees different input distributions. The config comment serves as a guard rail.
+**Evidence:** All four are answered in Chapter 7 and summarized in Table 8.2. Each answer is bounded: RQ1 is "yes, partially — monitoring signals respond directionally but cannot recover label-level accuracy." RQ2 is "strongly and non-monotonically — gravity removal alone worsened collapse." RQ3 is "yes within scope — two-of-three voting dominates single-signal." RQ4 is "materially attributable to model choice — the same input produced different collapse with different models."
 
 ---
 
-### Q: "Why z-score normalization and not min-max?"
+## 2. Data and Mental-Health Scope
 
-**A:** StandardScaler (z-score) is used because the reference paper `[REF_PAPER_CNN_BILSTM]` employs it, ensuring reproducibility. Z-score also handles outliers better than min-max for accelerometer data which can have spikes.
+### Q: "What data did you use?"
 
-**Evidence:**
-- `src/entity/config_entity.py:108` — `normalization_method` defaults to zscore
-- `src/preprocess_data.py:320` — StandardScaler application
+**Short answer:** Garmin Venu 3 wrist-sensor sessions (accelerometer + gyroscope at 50 Hz) collected from the project participants, with 11 activity classes derived from the ADAMSense behavioral activity taxonomy.
 
----
+**Explanation:** The primary training data is from Garmin Venu 3 wrist sensor recordings exported as CSV files through Garmin Connect. The sensor streams are accelerometer (three axes, milliG or m/s²) and gyroscope (three axes, deg/s) at 50 Hz. The 11 activity classes are a subset of the ADAMSense behavioral taxonomy: the model was trained on labeled windowed sessions from project participants. The labeled external evaluation uses User 7, an external participant whose data was not in the training set. The Garmin production-style unlabeled run uses a real wrist sensor session without labels. There is no hospital data, no EEG, no clinical dataset.
 
-## 3. Windowing & Features
-
-### Q: "Why window size = 200 (4 seconds at 50Hz)?"
-
-**A:** This is both a **literature-driven** and **empirically validated** choice. The reference CNN-BiLSTM paper uses window_size=200. We ran an ablation study to verify.
-
-**Evidence:**
-- `src/config.py:67` — `WINDOW_SIZE = 200`
-- `config/pipeline_config.yaml:74` — `window_size: 200`
-- `reports/ABLATION_WINDOWING.csv` — 6 configurations tested (ws=50,100,128,200,256,512). Window=200 yields F1=0.685 and flip_rate_median=0.239
-- `reports/WINDOWING_JUSTIFICATION.md` — full rationale document
-
-**Trade-off:** ws=256 actually achieves higher F1 (0.731) — but ws=200 was chosen for paper-compatibility and sufficient temporal context. This trade-off is documented.
-
-**Counter-argument ready:** "If ws=256 gives better F1, why not use it?" → Because reproducibility against the reference paper matters more for a thesis. The 4.6pp F1 gap is acknowledged, and the ablation proves awareness.
+**What not to say:** Do not say "population-level generalisation" — the training set is 6 participants, and the external evaluation is one external participant.
 
 ---
 
-### Q: "Why 50% overlap and not 75% or 25%?"
+### Q: "Why only 6 participants? Is that enough?"
 
-**A:** 50% overlap balances decision density (predictions per second) vs. computational cost.
+**Short answer:** The available Garmin labeled corpus is sufficient to build and evaluate a governed proof-of-concept lifecycle, but not enough to claim subject-independent or population-level generalisation. The thesis explicitly states this as a scope boundary.
 
-**Evidence:**
-- `src/config.py:68` — `OVERLAP = 0.5`
-- `reports/ABLATION_WINDOWING.csv` — flip_rate_median=0.239 at 50% overlap; higher overlap increases compute without flip-rate benefit at ws=200
+**Explanation:** The thesis claim is an engineering and governance contribution, not a generalisation claim. The all_users corpus (6 participants, 3,852 windows) provides enough labeled data to train a baseline classifier, run a preprocessing ablation, evaluate monitoring signals, and compare trigger policies. It does not establish that the model generalizes across the population. Chapter 8 records this explicitly: external validity is limited to one external participant (User 7) and one unlabeled Garmin session. A larger multi-participant evaluation would be needed before characterizing the deployment generalization ceiling.
 
-**Risks:** 25% overlap loses temporal resolution; 75% nearly doubles compute for marginal stability gain.
+**What not to say:** Do not say "six is enough for real deployment" or "the model is subject-independent." The claim is specifically bounded.
 
 ---
 
-## 4. Model Architecture
+### Q: "Is this a clinical system? Does it diagnose anxiety?"
 
-### Q: "Why 1D-CNN + BiLSTM and not a Transformer or pure CNN?"
+**Short answer:** No. This thesis does not diagnose mental health conditions. It treats anxiety-related repetitive activities as observable behavioral proxies and uses them to study the engineering problem of building a reproducible, monitored, offline-first MLOps pipeline for wearable sensor models.
 
-**A:** The CNN-BiLSTM architecture is established for time-series HAR. CNNs extract local spatial features from sensor channels; BiLSTM captures temporal dependencies in both directions.
+**Explanation:** The system recognizes motor behaviors from wrist IMU data. Recognizing that someone is performing a hand-tapping motion is a behavior-recognition task, not a clinical assessment. Whether that behavior is clinically significant in a given context is a question for a clinician using multiple sources of information — not for a wrist sensor model. Chapter 8 records this explicitly as a non-claim. The mental-health literature motivates why these behaviors are worth recognizing; it does not authorize clinical inference from recognition results alone.
 
-**Evidence:**
-- `src/train.py:235-350` — `HARModelBuilder.build_model()` defines the architecture: Conv1D layers → BiLSTM → Dense
-- Input shape: `(None, 200, 6)` — 200 timesteps, 6 sensor channels (Ax, Ay, Az, Gx, Gy, Gz)
-- Output shape: `(None, 11)` — 11 activity classes (softmax)
-- `[REF_PAPER_CNN_BILSTM]` — Reference paper establishing this architecture for WISDM data
-
-**Counter-argument ready:** "Transformers achieve SOTA on some HAR benchmarks" → True, but Transformers require more data and compute. This thesis focuses on MLOps infrastructure, not pushing SOTA accuracy. The CNN-BiLSTM is a well-understood, reproducible baseline that lets the MLOps framework be the contribution.
+**What not to say:** Do not use the words "diagnoses," "clinical assessment," "anxiety detection system," or "mental health monitoring" without immediately qualifying that the claim is behavioral recognition, not clinical inference.
 
 ---
 
-### Q: "How many parameters does the model have?"
+### Q: "How were the activity windows labeled?"
 
-**A:** The model definition is in `src/train.py:235-350`. The exact parameter count depends on the Conv1D filters and LSTM units configured in `src/entity/config_entity.py` (TrainingConfig dataclass). Typical configuration: 2 Conv1D layers (64, 128 filters) + BiLSTM (128 units) + Dense(11). Approximate parameter count: ~500K-1M, lightweight enough for edge-adjacent deployment.
+**Short answer:** Pre-annotated session files with majority-label-with-lexicographic-tiebreak windowing policy. Mixed-label windows exist: 2.02% on User 7 (20 of 989 windows), 3.35% on all\_users.
 
----
-
-## 5. Training & Cross-Validation
-
-### Q: "Why 5-fold cross-validation?"
-
-**A:** `src/train.py` — `HARTrainer` class implements stratified 5-fold CV. 5-fold is the standard for moderate-sized datasets — it balances bias-variance tradeoff in performance estimation.
-
-**Evidence:**
-- `src/train.py:400-600` — 5-fold CV with stratification
-- Each fold is logged to MLflow as a child run
-- Final metrics are mean ± std across folds
-
-**Counter-argument ready:** "Why not leave-one-subject-out?" → Valid critique. LOSO is more realistic for HAR (test on unseen users). This is a known gap documented in `reports/EVIDENCE_PACK_INDEX.md`. The thesis scope prioritized MLOps infrastructure over perfect evaluation methodology.
+**Explanation:** Labels were assigned per window using a majority-label policy: whichever activity occupies the most time in a window is assigned as the window label, with lexicographic tiebreaking when two activities tie. This is a standard windowing labeling approach in HAR. The Chapter 7 ABC section explicitly rules out mixed-label boundary noise as the primary explanation for the 37.6% User 7 accuracy: 2.02% mixed windows is negligible. The dominant explanation is cross-user domain shift.
 
 ---
 
-### Q: "How do you prevent data leakage between train and test?"
+## 3. Architecture and Scalability
 
-**A:** Three layers of protection:
+### Q: "What does 'offline-first' mean?"
 
-1. **Temporal split**: `src/data_splitting.py` splits data ensuring no temporal overlap between train/val/test
-2. **Windowing after split**: Windows are created from already-split data, preventing a single raw sample from appearing in both train and test windows
-3. **StandardScaler fitted on train only**: `src/preprocess_data.py:320` fits scaler on training set, transforms val/test
+**Short answer:** The pipeline runs on a single machine, uses file-based batch inputs (CSV pairs from Garmin Connect), and produces a complete run-scoped artifact set. There is no continuous streaming, no cloud orchestration, and no multi-tenant inference path.
 
-**Evidence:**
-- `src/data_splitting.py` — split logic with subject-awareness
-- `config/pipeline_config.yaml:50-55` — split ratios documented
-- `tests/test_preprocessing.py` — tests verify no index overlap
+**Explanation:** Offline-first is a deliberate scope decision, not a missing feature. The Garmin Venu 3 exports bounded session files — there is no real-time raw sensor API. Monitoring signals (mean confidence, transition rate, drift z-score) are computed over a complete session worth of windowed predictions, so they require batch inputs by design. Reproducibility requires a fixed, versioned input artifact: a streaming system would make exact replay ambiguous. Chapter 3 states this clearly: the system prioritizes controlled execution over distributed orchestration, and a reproducible local architecture is more defensible than a partially implemented cloud platform.
 
 ---
 
-## 6. DVC — Data Versioning
+### Q: "What does 'scalable' mean in the thesis title?"
 
-### Q: "Why DVC instead of Git LFS?"
+**Short answer:** Scalable does not mean cloud-scale deployment. It means the pipeline is modular, reproducible, configurable, artifact-tracked, and extendable from a fixed Stage 1–7 runtime path into gated Stage 8–10 mutation stages without redesigning the whole system.
 
-**A:** DVC provides **pipeline-aware** data versioning, not just large-file storage.
+**Explanation:** Each of the seven operational stages has a single dedicated component file (`data_ingestion.py`, `data_validation.py`, `data_transformation.py`, `model_inference.py`, `model_evaluation.py`, `post_inference_monitoring.py`, `trigger_evaluation.py`). Behavior is controlled through a three-layer configuration system (code defaults, `pipeline_config.yaml`, `pipeline_overrides.yaml`) without requiring code changes for threshold tuning. Artifacts are run-scoped and versioned. The mutation stages (S8–10) are activated by explicit runtime flag. That means a new model checkpoint, a changed dataset, or an updated threshold can be integrated without dismantling the pipeline. That is what scalable means here.
 
-| Feature | DVC | Git LFS |
-|---------|-----|---------|
-| Pipeline DAG tracking | Yes (dvc.yaml) | No |
-| Remote storage backends | S3, GCS, Azure, local | Git server only |
-| Metric/parameter tracking | Yes (dvc metrics, dvc params) | No |
-| Reproducibility | `dvc repro` re-runs changed stages | No pipeline concept |
-| Lock file | dvc.lock captures exact hashes | No equivalent |
-
-**Evidence:**
-- `.dvc/config` — configured with local remote at `../../.dvc_storage`
-- `data/*.dvc` — DVC tracking files for datasets
-- `models/*.dvc` — DVC tracking files for model artifacts
-- `[REF_DVC_DOCS]` — Official DVC documentation
-
-**Counter-argument ready:** "Your DVC remote is local, not S3. Is that production-grade?" → No. The local remote is a thesis-scope simplification. Migrating to S3 requires only changing `.dvc/config remote` URL. The DVC *workflow* (track, push, pull, repro) is identical regardless of backend.
+**What not to say:** Do not say "scalable to cloud" or "production-ready infrastructure." If asked about cloud extension, point to the FastAPI containerization in `src/api/app.py` and acknowledge it is designed as a future extension (Ch8 future work), not a defended current claim.
 
 ---
 
-### Q: "Where is the DVC pipeline definition?"
+### Q: "Why MLOps Level 1 and not Level 2?"
 
-**A:** There is no `dvc.yaml` pipeline file in this repository. DVC is used purely for data/model artifact versioning (`.dvc` tracking files), not for pipeline orchestration. The pipeline is orchestrated by `src/pipeline/production_pipeline.py` with Python-level stage management.
+**Short answer:** Level 2 requires automated continuous retraining without operator intervention. In a label-scarce, health-adjacent setting, that poses a safety risk the evidence does not justify.
 
-**Trade-off:** Using `dvc.yaml` would enable `dvc repro` for automatic cache-aware re-execution. The custom Python pipeline was chosen for finer-grained control over MLflow integration, fallback artifacts, and the trigger policy — features hard to express in DVC YAML.
-
----
-
-## 7. MLflow — Experiment Tracking
-
-### Q: "Why MLflow and not Weights & Biases (W&B)?"
-
-**A:** MLflow is **open-source, self-hosted**, and provides a model registry with stage transitions.
-
-| Feature | MLflow | W&B |
-|---------|--------|-----|
-| Self-hosted | Yes (docker-compose) | Cloud-only (free tier) |
-| Model Registry | Built-in with Staging→Production | Limited |
-| Open-source | Apache 2.0 | Proprietary |
-| Docker integration | First-class | Plugin |
-
-**Evidence:**
-- `docker-compose.yml:5-28` — MLflow server service with SQLite backend and `/mlruns` artifact store
-- `config/mlflow_config.yaml` — tracking URI, experiment naming
-- `src/pipeline/production_pipeline.py:97-115` — MLflow lifecycle: `start_run()`, `log_param()`, `log_metric()`, `log_artifact()`
-- `src/components/model_registration.py` — Model registry integration with quality gate
-
-**Counter-argument ready:** "W&B has better visualization" → True, but introduces external dependency and data residency concerns. MLflow runs entirely in the Docker Compose stack — examiner can `docker compose up` and see everything locally.
+**Explanation:** Level 1 means: automated stage pipeline, experiment tracking, artifact lineage, governed retraining gate. That is what this thesis delivers. Level 2 means: models are retrained and redeployed automatically when monitoring signals fire. In this system, labels are not available at inference time, so the monitoring signals are proxies for risk — they are not ground-truth performance measurements. The negative result from the 26-session unit-fix plus abstain experiment is direct evidence of why Level 2 is unsafe here: an apparently sensible intervention changed routing behavior without changing mean confidence at all (0.8578 before and after). Automating retraining on the basis of such signals would produce a pipeline that mutates its model in response to routing artifacts, not learning signals.
 
 ---
 
-### Q: "How does the model registry quality gate work?"
+### Q: "Why not use Airflow or Prefect for orchestration?"
 
-**A:** `src/components/model_registration.py` implements a registration gate that checks:
+**Short answer:** A linear stage list controlled by a single Python entrypoint is sufficient for this scope, and it allows tight MLflow and trigger-policy integration that would be harder to express in a DAG YAML.
 
-1. **Current model accuracy** must exceed **baseline accuracy - degradation_tolerance** (default 0.005 = 0.5%)
-2. If `block_if_no_metrics = True`, models without evaluation metrics are rejected
-3. If `block_if_no_metrics = False` (default), TTA/domain-adapted models can register without labeled metrics
-
-**Evidence:**
-- `src/entity/config_entity.py:253` — `degradation_tolerance = 0.005`
-- `src/entity/config_entity.py:256` — `block_if_no_metrics = False`
-- `tests/test_model_registration_gate.py` — 8 test cases covering pass/fail/no-metrics scenarios
-
-**Why 0.5% tolerance?** Tighter values (0.1%) caused false rejects due to training noise across folds. 0.5% absorbs noise while still catching real degradation.
+**Explanation:** The pipeline runs one session at a time on a single machine. A DAG orchestrator would add infrastructure complexity without a corresponding operational benefit. The custom Python orchestrator in `src/pipeline/production_pipeline.py` integrates directly with MLflow experiment tracking and the trigger-policy evaluation logic, and keeps configuration fidelity explicit. If the thesis scope were extended to multi-user parallel sessions, a proper DAG orchestrator would become necessary — that is noted as a future work direction in Ch8.
 
 ---
 
-## 8. Docker — Containerization
+## 4. Model Decision A/B/C
 
-### Q: "Why two separate Dockerfiles instead of one?"
+### Q: "Why is Model A the defended runtime candidate?"
 
-**A:** Attack surface reduction and image size optimization.
+**Short answer:** Model A is the only model with a fully specified, persisted, and verified preprocessing contract: Garmin train-only scaler, row-wise time-major tensor layout, SHA-256-verified label order. It is the clean proof-of-concept runtime candidate.
 
-| Image | Base | Key packages | Size |
-|-------|------|--------------|------|
-| Dockerfile.inference | python:3.11-slim | FastAPI, uvicorn, TF-lite | ~1.5GB |
-| Dockerfile.training | python:3.11-slim | TensorFlow, scikit-learn, MLflow, DVC | ~3GB |
+**Explanation:** Model A was selected in the May 2026 model sprint and frozen as the A1 baseline. Its artifact package includes `fine_tuned_clean_model.keras`, `garmin_train_scaler.json`, `garmin_train_scaler.joblib`, `model_contract.json`, `label_order.json`, and a monitoring baseline. The scaler JSON and joblib forms are verified to agree to 0.0 maximum absolute difference. The label order is SHA-256-verified at runtime. The legacy pretrained model is structurally excluded in `src/config.py` with `PRETRAINED_MODEL_STATUS["status"] = "EXCLUDED_UNDOCUMENTED_PROVENANCE"`. Model A is presented as a proof-of-concept runtime candidate, not a production-grade deployment.
 
-**Evidence:**
-- `docker/Dockerfile.inference:1-65` — Inference image with `HEALTHCHECK` at line 62
-- `docker/Dockerfile.training:1-52` — Training image with full ML stack
-- `docker-compose.yml:54-72` — `inference` service uses `Dockerfile.inference`
-- `[REF_DOCKER_BEST]` — Docker best practices recommend minimal production images
-
-**Counter-argument ready:** "Why not use multi-stage builds?" → The images already use `python:3.11-slim` (not full python:3.11). A multi-stage build could further reduce size by ~200MB by separating build-time deps. This is a known improvement opportunity.
+**What not to say:** Do not say "Model A is the best performing model" — it is the most defensible model from a contract and reproducibility standpoint, not the highest-accuracy one.
 
 ---
 
-### Q: "How do the 7 Docker services interact?"
+### Q: "Model B scores 43.8% external and 90.8% internal — why not use Model B?"
 
-**A:** `docker-compose.yml` defines 7 services in a shared Docker network:
+**Short answer:** Model B's non-persisted full-evaluation scaler and legacy native setup limit transferability. Its internal score is not a deployment claim.
 
-1. **mlflow** (port 5000) — Experiment tracking server, SQLite backend
-2. **inference** (port 8000) — FastAPI prediction API, Prometheus `/metrics` endpoint
-3. **training** — Ephemeral container for training runs
-4. **preprocessing** — Ephemeral container for data preprocessing
-5. **prometheus** (port 9090) — *(historical/future-work; config exists but not part of the defended current implementation)*
-6. **alertmanager** (port 9093) — *(historical/future-work; config exists but not part of the defended current implementation)*
-7. **grafana** (port 3000) — *(historical/future-work; config exists but not part of the defended current implementation)*
+**Explanation:** Model B's internal accuracy (90.8% on all\_users diagnostic) is achieved by fitting a StandardScaler on the entire evaluation dataframe at runtime — including validation and external users. That scaler is not persisted; it is computed fresh each time from whatever data is available. Under an external evaluation, this means the scaler's mean and standard deviation include the external user's statistics. This makes the diagnostic preprocessing dependent on the evaluation batch itself, so the result is not reproducible as a fixed runtime contract. The internal-to-external gap of roughly 47 percentage points (90.8% → 43.8%) is consistent with a non-persisted full-evaluation scaler and legacy channel-major tensor layout limiting transferability outside the native diagnostic context. Model B is retained as a forensic reference to document that the internal score overstates deployment performance.
 
-> **Scope note (2026-04-26):** Prometheus, Alertmanager, and Grafana config files exist in the repository but are **not part of the defended current thesis implementation**. The defended monitoring evidence comes from offline-first pipeline artifacts, trigger reports, MLflow/DVC evidence, and saved run outputs. If asked, frame these three services as designed infrastructure for a production extension, not as active components of the defended pipeline.
-
-**Evidence (defended services only):**
-
-- `docker-compose.yml:1-223` — Full service definitions (mlflow, inference, training, preprocessing are the defended services)
-
-**Data flow (defended):** Inference API → offline monitoring artifacts → trigger policy → MLflow model registry.
+**What not to say:** Do not use the phrase "data leakage." The correct framing is: "non-persisted full-evaluation scaler and legacy native setup limit transferability."
 
 ---
 
-## 9. CI/CD — GitHub Actions
+### Q: "What does Model C prove?"
 
-### Q: "Why is CI/CD split into two workflows?"
+**Short answer:** That same tensor shape is not enough — loading the same checkpoint as Model B under a different preprocessing contract collapses accuracy to 7.6% on User 7 and uses only 4 of 11 classes.
 
-**A:** The repository now separates quality checks and release delivery:
-
-- **CI** in `.github/workflows/ci.yml` validates code on push/PR.
-- **CD** in `.github/workflows/cd.yml` runs on release tags or manual dispatch.
-
-This split improves clarity and reduces accidental release coupling.
-
-CI job chain:
-
-```
-lint -> unit-tests -> docker-build-check
-```
-
-CD job chain:
-
-```
-build-and-push -> smoke-test
-```
-
-**Evidence:**
-- `.github/workflows/ci.yml` — push/PR quality gates and build viability checks.
-- `.github/workflows/cd.yml` — tagged release build/push plus health smoke-test.
-- `.github/workflows/README.md` — workflow topology and maintenance guide.
-
-**Counter-argument ready:** "Why not keep one single combined workflow?" -> Separation reduces cognitive load, keeps release logic independent, and supports cleaner thesis explanation of CI vs CD responsibilities.
+**Explanation:** Model C uses the exact same Keras checkpoint as Model B but runs it under the clean row-wise layout with no scaler. The result is near-total collapse: 7.6% accuracy, 2.5% macro F1, 4/11 classes used, mean confidence 0.748. This directly proves that a checkpoint is not a runtime artifact — the preprocessing contract under which the checkpoint was trained is what determines runnable behavior. Without the matching scaler and tensor layout, the model is unusable. This is one of the clearest findings in Chapter 7, and it motivates the heavy emphasis on contract verification in the governed runtime.
 
 ---
 
-### Q: "What triggers CI and CD now?"
+### Q: "ABC comparison: what is the conclusion?"
 
-**A:**
+**Short answer:** Model A is honest but modest. Model B looks strong internally but does not transfer. Model C proves contract-mismatch risk. Together, they show that production governance must verify the preprocessing contract end-to-end, not just the checkpoint.
 
-1. **CI triggers** (`.github/workflows/ci.yml`): push to `main` and `develop`, and pull requests to `main`.
-2. **CD triggers** (`.github/workflows/cd.yml`): tag pushes matching `v*.*.*`, and manual `workflow_dispatch`.
-
-This means normal development runs CI, while releases run CD.
+**Explanation:** The ABC comparison is designed to answer whether each model carries the production properties its internal score would suggest. Model A is the only one that is reproducible and honest: consistent 37–42% accuracy across external and diagnostic datasets, 11 classes used, low mean confidence (0.359) that honestly reflects generalization limits. Model B achieves 43.8% on User 7 in its native diagnostic mode but is not transferable as a runtime artifact. Model C proves the contract-mismatch lesson. The governance conclusion is: internal accuracy is not a sufficient deployment criterion; contract-level verification is required.
 
 ---
 
-## 10. Monitoring — Prometheus + Grafana
+## 5. Runtime Contract and Scaler
 
-### Q: "Why Prometheus + Grafana and not a simpler logging solution?"
+### Q: "What is Model A's input contract?"
 
-**A:** Prometheus and Grafana are present as historical/future-work infrastructure, not as active defended thesis evidence. The defended monitoring evidence comes from offline-first pipeline artifacts: confidence monitoring, temporal consistency checks, drift reports, trigger reports, MLflow/DVC lineage, and saved run outputs. If asked about Prometheus/Grafana, the correct defense answer is that the configuration exists but was intentionally scoped out of the current defended implementation.
+**Short answer:** Row-wise time-major windows of shape (batch, 200, 6) — 200 samples × 6 channels (Ax, Ay, Az, Gx, Gy, Gz) — at 50 Hz, 50% overlap, accelerometer in m/s², gyroscope in deg/s, with Garmin milliG conversion applied at ingest when needed.
 
-**Evidence:**
-- `internal/workflow/EVIDENCE_LEDGER.md` EV-205, EV-208, EV-419, EV-505, EV-506, EV-507 are annotated as historical/future-work.
-- `docs/THESIS_CONSISTENCY_NOTES.md` section 6 records the defended monitoring scope.
-- `src/pipeline/production_pipeline.py` stage 6 and stage 7 remain the defended monitoring/trigger path.
-
-**Counter-argument ready:** "Why not use the Prometheus/Grafana stack?" -> The thesis is defended on reproducible local artifacts and governance decisions. The Prometheus/Grafana files are useful production-extension scaffolding, but the submitted evidence must only claim what was actually exercised and verified.
+**Explanation:** The contract is fully specified in `model_contract.json` in the Model A artifact package. Key items: `legacy_mentor_reshape=false`, `row_wise_windows=true`, gravity removal disabled, runtime calibration disabled, unit conversion enabled at ingest (Garmin Venu 3 exports milliG; the pipeline converts to m/s² at Stage 1). The label order of 11 classes is persisted in `label_order.json` and SHA-256-verified at evaluation time. This is what makes the runtime reproducible: every behavioral and preprocessing parameter is frozen and checked, not inferred from context.
 
 ---
 
-### Q: "How is the monitoring 3-layer model implemented?"
+### Q: "Why a train-only scaler? Why not scale the full dataset?"
 
-**A:** `src/api/app.py` implements inline monitoring at three layers:
+**Short answer:** Fitting the scaler on training data only prevents the scaler statistics from encoding information about the validation or external users, which would make the model's preprocessing artificially well-matched to each test set.
 
-| Layer | What | Metric | Threshold |
-|-------|------|--------|-----------|
-| Data quality | Missing values, NaN, shape | `har_data_quality_errors_total` | Any error = reject |
-| Model confidence | Softmax max probability | `har_confidence_score` | < 0.60 = low conf warning |
-| Prediction drift | Feature distribution shift | `har_drift_score` | z-score > 2.0 = drift alert |
+**Explanation:** A StandardScaler fitted on the full dataset (including validation and external users) produces mean and std values that reflect the statistics of the evaluation population. On deployment, a new user's data would be normalized with statistics that partially include that new user's own distribution. This makes preprocessing artificially aligned with each test set. The Garmin train-only scaler is fitted exclusively on Garmin training-set windows; User 7 and the Garmin unlabeled session are transformed using the stored training statistics. This is the correct approach for estimating deployment performance honestly, and it is verified: the JSON and joblib forms of the scaler agree to 0.0 maximum absolute difference.
 
-These are computed on every prediction request, not in a batch job. The monitoring is inline, not a sidecar.
-
-**Evidence:**
-- `src/api/app.py:200-350` — Prediction endpoint with all 3 monitoring layers
-- `src/entity/config_entity.py:157,162` — `confidence_warn=0.60`, `drift_zscore=2.0`
-- `config/monitoring_thresholds.yaml` — Threshold audit document
+**What not to say:** Do not describe the alternative (full-eval scaler) as "data leakage" — say "non-persisted full-evaluation scaler that limits transferability."
 
 ---
 
-## 11. Alerting — Alertmanager
+### Q: "How do you verify that the API and the batch pipeline produce identical predictions?"
 
-### Q: "How do Prometheus alerts work in this system?"
+**Short answer:** Both paths were run on the same User 7 session (989 windows) and all 989 predictions matched exactly, with a maximum absolute softmax probability difference of 1.9×10⁻⁶.
 
-**A:** Alertmanager is not part of the defended current implementation. Alert rule files exist, but they are historical/future-work configuration. The defended system records trigger decisions and retraining decisions as local artifacts instead of claiming live Alertmanager operation.
-
-**Evidence:**
-- `internal/workflow/EVIDENCE_LEDGER.md` EV-506 and EV-507 mark alert rules and Alertmanager as historical/future-work.
-- `internal/writing/defense_qa.md` Docker services section carries the same scope note.
-- Trigger decision artifacts and governance reports are the defended alerting-equivalent evidence.
+**Explanation:** This is recorded in `reports/FINAL_RUNTIME_RUN_SUMMARY_2026-05-09.md`. API-batch parity is not an implementation assumption — it is a verified property of the defended runtime. Both execution paths load the same Model A artifact from the same frozen package, apply the same scaler, and produce the same per-window predictions. The tiny floating-point difference (1.9×10⁻⁶) is numerical precision noise, not a meaningful discrepancy.
 
 ---
 
-## 12. Trigger Policy & Retraining
+### Q: "What is the runtime entrypoint?"
 
-### Q: "Why 2-of-3 voting instead of single-signal triggering?"
+**Short answer:** `run_pipeline.py` with explicit `--stages` and `--accel-file`/`--gyro-file` arguments. The canonical command is documented in `REPRODUCE.md`.
 
-**A:** Single-signal triggering produces a **13.9% false alarm rate (FAR)**. 2-of-3 voting reduces FAR to **0.7%**.
-
-The three signals are:
-1. **Accuracy degradation** — model accuracy drops below threshold
-2. **Confidence degradation** — prediction confidence drops below threshold
-3. **Drift detection** — feature distribution shift detected
-
-**Evidence:**
-- `src/trigger_policy.py:470` — `_apply_voting_logic()` counts signals ≥ `min_signals_for_retrain` (default: 2)
-- `src/trigger_policy.py:92-130` — `TriggerThresholds` dataclass defining all thresholds
-- `reports/TRIGGER_POLICY_EVAL.csv` — 500 simulated sessions: 1-of-3 precision=0.816 FAR=0.139; 2-of-3 precision=0.988 FAR=0.007
-- `reports/TRIGGER_POLICY_EVAL.md` — Full simulation methodology
-
-**Counter-argument ready:** "2-of-3 could miss a scenario where only one signal fires early" → True. The cooldown mechanism (24h) ensures we don't over-retrain, but a legitimate single-signal scenario (e.g., sudden accuracy crash) would need to wait for a second signal. The 0.988 precision justifies this trade-off.
+**Explanation:** The single entrypoint constructs typed configuration objects, applies YAML overrides, and invokes the stage orchestrator in `src/pipeline/production_pipeline.py`. Stages 1–7 run by default. Stages 8–10 (retraining mutation) and Stage 11 (calibration) are explicitly gated behind runtime flags. This means the normal evidence run — ingest, validate, transform, infer, evaluate, monitor, trigger — never touches the model artifact.
 
 ---
 
-### Q: "Why 24-hour cooldown?"
+## 6. Monitoring, Drift, and Trigger Policy
 
-**A:** At `src/trigger_policy.py:135`, after a retrain trigger fires, the system enters a 24-hour cooldown during which no new triggers are accepted.
+### Q: "What does Stage 6 monitor?"
 
-**Evidence:**
-- `src/entity/config_entity.py:210` — `cooldown_hours = 24`
-- `reports/TRIGGER_POLICY_EVAL.md` — Simulation shows 6h cooldown is optimal, but 24h was chosen for safety (zero FAR in simulation). This is a conservative choice prioritizing stability over responsiveness.
-- `src/trigger_policy.py:500-530` — Cooldown check in `should_trigger()`
+**Short answer:** Three signal groups: (1) confidence and uncertainty — mean confidence, uncertain-window rate, mean entropy; (2) temporal transitions — prediction-sequence stability; (3) distribution drift — mean-shift z-score against the training-set baseline.
 
-**Risks:** 24h may delay response to a second drift event that occurs shortly after the first. Documented as an acceptable risk for thesis scope.
+**Explanation:** Each signal group is independently rated HEALTHY, WARNING, or CRITICAL based on the Stage 6 thresholds (confidence 0.70, uncertain windows 20%, transition rate 35%, drift z-score 1.8, dominant-class share 85%). The three ratings are passed to Stage 7. No single signal drives a governance decision — all three assessments are combined. This multi-signal architecture is motivated empirically: a model can be confidently wrong, poorly calibrated without obvious shift evidence, or shifted without confidence collapse. One signal alone is insufficient.
 
 ---
 
-## 13. Domain Adaptation
+### Q: "What does CRITICAL mean? Does it mean the system retrains?"
 
-### Q: "What domain adaptation methods are implemented and why?"
+**Short answer:** CRITICAL is a monitoring severity level — a rating that one signal group is above the warning threshold. REVIEW is the governance action. They are two separate fields. In both defended evidence runs, severity reached CRITICAL but the governance action was REVIEW and auto\_retrain=false.
 
-**A:** Three methods, each addressing a different adaptation scenario:
+**Explanation:** Stage 6 outputs a severity rating (HEALTHY, WARNING, CRITICAL) for each signal group based on how far each signal is from the configured thresholds. Stage 7 combines the three ratings using a two-of-three voting policy, a collapse guard, and a cooldown gate, and produces a governance action field (NO\_ACTION, REVIEW, or RETRAIN) together with an `auto_retrain` boolean. On both defended evidence runs (Garmin unlabeled and User 7), the action field was `review` and `auto_retrain=false`. Chapter 8 records this explicitly as a non-claim: "CRITICAL is severity; REVIEW is governance action. Severity and mutation decision are two separate fields, by design."
 
-| Method | File | Use Case | Supervision |
-|--------|------|----------|-------------|
-| AdaBN | `src/domain_adaptation/adabn.py:55` | Batch normalization statistics update | Unsupervised |
-| TENT | `src/domain_adaptation/tent.py:50` | Test-time entropy minimization | Unsupervised |
-| Pseudo-labeling | `src/train.py:~720` | Self-training with confident predictions | Semi-supervised |
-
-**Evidence:**
-- `src/domain_adaptation/adabn.py:55` — `adapt_bn_statistics()` — replaces BN running mean/var with target domain statistics. From Li et al. 2018 `[REF_ADABN_PAPER]`
-- `src/domain_adaptation/tent.py:50` — `tent_adapt()` — minimizes prediction entropy on target data. From Wang et al. 2021 `[REF_TENT_PAPER]`
-- OOD guard at `tent.py:~85` — entropy > 0.85 threshold prevents adaptation on out-of-distribution data
-- `src/train.py:~700-800` — `DomainAdaptationTrainer` manages all three methods
-
-**Counter-argument ready:** "Why not use more advanced methods like DANN or CORAL?" → These require access to source domain data during adaptation. AdaBN/TENT operate on target data only, which matches the deployment scenario where source data may not be available.
+**What not to say:** Do not say "when monitoring is CRITICAL the system retrains" — this is exactly wrong.
 
 ---
 
-### Q: "What is the TENT OOD entropy guard?"
+### Q: "Why two-of-three voting and not single-signal triggering?"
 
-**A:** At `src/domain_adaptation/tent.py:~85`, before applying TENT adaptation, the system checks the mean entropy of predictions. If entropy exceeds 0.85, the batch is considered out-of-distribution and adaptation is skipped.
+**Short answer:** Single-signal triggering produces a false alarm rate of 13.9%. Two-of-three voting reduces it to 0.7% while keeping full episode recall.
 
-**Why:** TENT minimizes entropy — if the model is already highly uncertain (OOD data), minimizing entropy forces the model toward arbitrary confident predictions, corrupting the batch normalization parameters.
-
-**P0 gap:** The 0.85 threshold (`GAP-ADAPT-01`) has no calibration artifact. It needs an empirical sweep on known OOD data to validate.
+**Explanation:** The trigger policy evaluation replayed 16 monitored episodes. The single\_signal policy fired alerts at precision 0.8406 with a false alarm rate of 0.1389 — meaning roughly 1 in 7 alerts was spurious. The two\_of\_three policy achieved precision 0.9878, episode recall 1.0, trade-off F1 0.9939, and false alarm rate 0.0069. That means 14 times fewer false alarms while still detecting every genuine episode. The 24-hour cooldown further reduces noise but sacrifices recall: it misses 2 of 16 episodes (recall 0.875). The two\_of\_three policy without cooldown is the strongest overall balance in the tested set.
 
 ---
 
-## 14. Calibration & Uncertainty
+### Q: "Why not use TENT or AdaBN for test-time adaptation?"
 
-### Q: "What is temperature scaling and why do you use it?"
+**Short answer:** These methods adapt the model to target data — they change the deployed artifact. This thesis deliberately prioritizes observation before mutation. Adapting a model without labeled data and without a governance gate is precisely the unsafe pattern the architecture is designed to avoid.
 
-**A:** Temperature scaling applies a single learned parameter $T$ to the logits before softmax: $\hat{p}_i = \frac{\exp(z_i / T)}{\sum_j \exp(z_j / T)}$. This calibrates the model's confidence to match empirical accuracy.
-
-**Evidence:**
-- `src/calibration.py:70` — `TemperatureScaler` class, initial $T=1.5$, optimized via scipy L-BFGS-B on validation NLL
-- `src/entity/config_entity.py:286` — Default temperature configuration
-- `outputs/calibration/temperature.json` — Fitted temperature value
-- `[REF_TEMP_SCALING]` — Guo et al. 2017
-
-**Why:** Neural networks are typically overconfident (softmax max > actual accuracy). A monitoring system that uses raw softmax probabilities for confidence thresholds will have miscalibrated alerts.
+**Explanation:** TENT (entropy minimization at test time) and AdaBN (batch normalization statistics update) both modify the model's behavior on the target domain without ground-truth labels. They are powerful, but they raise a governance question: when should the model be modified, and how do you know the modification improved things? In this pipeline, the governance layer (Stage 7) must approve any state change. TENT and AdaBN are available in the repository as experimental modes, but they are not the defended runtime default. The negative result from the unit-fix plus abstain experiment reinforces this: an intervention that changed routing behavior left mean confidence unchanged, showing that observable routing changes cannot substitute for verified quality improvement.
 
 ---
 
-### Q: "What is MC Dropout and why 30 passes?"
+### Q: "What is the MMD drift branch and why is it not the defended runtime?"
 
-**A:** Monte Carlo Dropout keeps dropout active at inference time and runs $N$ forward passes. The prediction is the mean, and uncertainty is the variance across passes.
+**Short answer:** Calibrated Maximum Mean Discrepancy improves drift visibility and non-mutating risk alerts, but does not improve queue/retrain decisions under the tested policies. The defended runtime stays with the lightweight multi-signal z-score approach.
 
-**Evidence:**
-- `src/calibration.py:170` — `MCDropoutEstimator` class with `n_passes=30`
-- `src/entity/config_entity.py:289` — Default pass count
-- `[REF_MC_DROPOUT]` — Gal & Ghahramani 2016
-
-**Why 30:** The original paper suggests 10-100 passes. 30 is a common practical choice — enough to estimate variance reliably, not so many that inference becomes impractical. At 200-sample windows with 6 channels, 30 passes add ~300ms latency.
+**Explanation:** The MMD branch experiment calibrated 500 reference-vs-reference comparisons to set an empirical warning threshold of 0.00276403 (95th percentile). With MMD active, drift warnings increased from 0/4 to 3/4 degraded datasets, and risk alerts increased from 0 to 3 with risk precision 1.0. However, queue/retrain decisions remained 0 in all tested policies because no behavior-risk signal corroborated the MMD drift signal under the configured thresholds. The result shows that monitoring sensitivity and governance quality are separate claims: a more sensitive detector does not automatically improve mutation decisions. MMD is retained as a calibrated offline audit and a future alerting direction, not as the defended runtime trigger.
 
 ---
 
-### Q: "How is calibration quality measured?"
+## 7. Evaluation Results and User 7
 
-**A:** Expected Calibration Error (ECE) with 15 bins:
+### Q: "37.6% accuracy on User 7 — is that good?"
 
-$$ECE = \sum_{b=1}^{B} \frac{|B_b|}{N} |acc(B_b) - conf(B_b)|$$
+**Short answer:** It is the honest external accuracy ceiling under the defended contract on one external participant. It is not claimed as strong accuracy. It is claimed as honest reporting of cross-user generalization limits.
 
-**Evidence:**
-- `src/calibration.py:260` — `CalibrationEvaluator` class computes ECE and generates reliability diagrams
-- `src/entity/config_entity.py:295` — `ece_n_bins = 15`
-- `outputs/calibration/reliability_diagram.png` — Visual calibration assessment
-- `[REF_TEMP_SCALING]` — ECE definition from Guo et al. 2017
+**Explanation:** 37.6% on 11 classes with a chance level of about 9% is above chance, but it is not strong. The thesis does not claim strong cross-user generalization — in fact, Chapter 8 explicitly records it as a non-claim. The important thing about the User 7 result is not the number itself, but what it tells us: the pipeline reports its honest accuracy limitation without inflation, the monitoring layer correctly identifies risk (low confidence 0.359, high uncertain rate, CRITICAL signals), and the governance layer routes to REVIEW rather than claiming success. That behavior is exactly what a governed system should do.
+
+**What not to say:** Do not say "37.6% proves the system works as a classifier." Say: "37.6% is the honest external ceiling that the monitoring layer correctly identifies as uncertain and routes to review."
 
 ---
 
-## 15. Model Governance — Registration & Baseline
+### Q: "What is the negative result? Why is it academically valuable?"
 
-### Q: "What prevents a bad model from being deployed?"
+**Short answer:** A plausible intervention bundle (unit-fix + abstain) changed routing behavior without improving mean confidence at all — 0.8578 before and after. This shows that routing changes cannot be conflated with genuine quality improvement.
 
-**A:** Three gates:
-
-1. **Registration gate** (`src/components/model_registration.py:74`) — New model accuracy must be ≥ baseline - `degradation_tolerance` (0.005)
-2. **`block_if_no_metrics` flag** (`src/entity/config_entity.py:256`) — When True, models without evaluation metrics are blocked
-3. **`promote_to_shared = False`** (`src/entity/config_entity.py:277`) — Baseline update requires explicit `--update-baseline` flag; no auto-promotion
-
-**Evidence:**
-- `tests/test_model_registration_gate.py` — 8 test cases covering gate behavior
-- `src/components/baseline_update.py:103` — Baseline versioning with archive-on-promote
-
-**Counter-argument ready:** "What about A/B testing or canary deployments?" → Not implemented. The registration gate is a pre-deployment quality check, not a runtime traffic-splitting mechanism. A/B testing is out of thesis scope but would be the natural next step.
+**Explanation:** The 26-session before/after experiment applied g-unit detection, stream-reuse guarding, and abstain-to-review behavior on low-confidence windows. The result: mean dominant-class share dropped from 81.17% to 67.34%, and review share increased to 66.09%. But mean confidence was unchanged at 0.8578 in both cases. The apparent improvement in dominance was entirely explained by routing windows into REVIEW, not by better class discrimination. This negative result is academically valuable because it forces a more disciplined interpretation of monitoring evidence: a change in routing distribution should not be reported as evidence of quality improvement unless the underlying quality signal also improves.
 
 ---
 
-### Q: "How does baseline management work?"
+### Q: "What does the preprocessing ablation show?"
 
-**A:** `src/components/baseline_update.py` manages the production baseline:
+**Short answer:** Preprocessing consistency is not a cosmetic detail. Gravity removal alone worsened class collapse dramatically (configuration C: 5.32 unique classes, 96.72% hand-tapping dominance), while gravity removal combined with calibration produced the broadest diversity (configuration D: 9.72 unique classes, 50.14% dominance).
 
-1. Current baseline metrics are loaded from `outputs/baseline/metrics.json`
-2. New model metrics are compared against baseline
-3. If better (within tolerance), the old baseline is archived with timestamp
-4. New baseline is written
-
-**Evidence:**
-- `src/components/baseline_update.py:50-120` — Full baseline update logic
-- `src/entity/config_entity.py:166` — `max_baseline_age_days = 90`
-- `config/monitoring_thresholds.yaml:93` — Staleness threshold alignment
+**Explanation:** The ablation ran 25 session pairs under four configurations: A (baseline), B (calibration only), C (gravity removal only), D (gravity removal + calibration). Configuration C is the clearest warning case: intuitively reasonable signal cleaning worsened collapse instead of improving it. This supports the thesis claim that train--serve parity is empirically visible and not just a theoretical concern: changing preprocessing at inference time without retraining can produce materially different behavior even if the model architecture and class taxonomy remain unchanged.
 
 ---
 
-## 16. Testing Strategy
+### Q: "What does the same-input old-vs-new comparison prove?"
 
-### Q: "What is the test coverage and how are tests organized?"
+**Short answer:** A same-input controlled rerun shows that the hand-tapping collapse on a fixed unlabeled session is primarily a property of the model, not the input data.
 
-**A:** 20 test files in `tests/` with pytest markers for test categorization:
-
-| Marker | Purpose | Example |
-|--------|---------|---------|
-| `@pytest.mark.slow` | Tests taking > 10s (model training, full pipeline) | `test_training.py` |
-| `@pytest.mark.integration` | End-to-end tests requiring Docker/MLflow | `test_integration.py` |
-| `@pytest.mark.gpu` | Tests requiring GPU | Tests with CUDA operations |
-
-**Evidence:**
-- `pytest.ini` — Marker definitions and test configuration
-- `tests/test_threshold_consistency.py` — Cross-file threshold consistency checks
-- `tests/test_preprocessing.py` — Unit tests for data pipeline
-- `tests/test_model_registration_gate.py` — Gate behavior tests
-- CI runs: `pytest -m "not slow"` for fast tests, `pytest -m slow` separately
-
-**Coverage of pipeline stages:** Tests exist for stages 2,3,7,8,9,10,11,12,13,14. Stages 1 (ingestion), 4 (splitting), 5 (training), 6 (evaluation) rely on integration tests rather than dedicated unit tests.
+**Explanation:** The old model (pseudo-label fine-tuned) produced 85.6% top-class share and 9/11 classes on one unlabeled session. The new retrained model produced 29.0% top-class share and 11/11 classes on the same session. A controlled rerun of the old model reproduced the same collapse (85.64%, 9 classes). Because the input pair was held constant, the collapse cannot be attributed to the data. Across 25 sessions, the pseudo-label fine-tuned model was hand-tapping-dominant in 24/25 runs (mean dominant share 82.4%), while the raw retrained model was hand-tapping-dominant in 1/25 (mean share 37.2%). This motivates the collapse guard in Stage 7 and the requirement that training strategy is an auditable part of the governance record.
 
 ---
 
-### Q: "What does test_threshold_consistency test?"
+### Q: "Why is auto\_retrain=false on both defended evidence runs?"
 
-**A:** `tests/test_threshold_consistency.py` verifies that thresholds defined in `src/entity/config_entity.py` are consistent with thresholds in `config/monitoring_thresholds.yaml` and `config/alerts/har_alerts.yml`.
+**Short answer:** It is a deliberate governance policy, not a missing feature. Retraining requires labeled data and explicit human confirmation. The system detected risk and routed to REVIEW — that is the correct output for an uncertain, unlabeled production run.
 
-**Why this matters:** If the code says confidence_warn=0.60 but the Prometheus alert fires at 0.50, the monitoring is disconnected from the trigger policy. This test catches that.
-
-**Evidence:**
-- `tests/test_threshold_consistency.py` — Parametrized tests comparing thresholds across 3 files
-- `config/monitoring_thresholds.yaml` — Annotated threshold audit file
+**Explanation:** On both defended runs (Garmin unlabeled: 1,304 windows, mean conf 0.393; User 7: 37.6% accuracy, mean conf 0.359), the monitoring layer correctly detected risk across multiple signal groups, Stage 7 voted REVIEW, and `auto_retrain=false`. Retraining without confirmed labels would produce a model updated on low-confidence, potentially collapsed outputs — exactly the pseudo-label bias problem documented in the 25-session comparison. The system's response is correct: flag risk, route to human review, do not mutate the model.
 
 ---
 
-## 17. Threshold Governance
+## 8. Tools: Docker, FastAPI, MLflow, DVC, CI
 
-### Q: "How were all the thresholds chosen? Are they arbitrary?"
+### Q: "Why Docker?"
 
-**A:** Thresholds fall into three categories:
+**Short answer:** Reproducible environment — both the inference path (FastAPI + Model A) and the full pipeline path are containerized, so the experiment can be reproduced from the same image.
 
-| Category | How chosen | Example |
-|----------|-----------|---------|
-| Paper-backed | From cited literature | ECE bins=15 (`[REF_TEMP_SCALING]`), MC passes=30 (`[REF_MC_DROPOUT]`) |
-| Empirically calibrated | Sweep experiments with documented results | drift_zscore=2.0, cooldown=24h, confidence levels |
-| Project decisions | Mentor/author choice with documented rationale | degradation_tolerance=0.005, block_if_no_metrics=false |
+**Explanation:** Two separate Dockerfiles (`docker/Dockerfile.inference`, `docker/Dockerfile.training`) minimize image size and attack surface. The inference image packages FastAPI, the Model A artifact, and the preprocessing stack. The training image adds the full ML dependencies. `docker-compose.yml` wires them with an MLflow server. A reviewer can `docker compose up` and run the defended pipeline without configuring Python environments manually.
 
-**Evidence artifacts:**
-- `reports/THRESHOLD_CALIBRATION.csv` — 54-row sweep: varied confidence_warn (0.40-0.80), drift_zscore (1.5-3.0), degradation_tol (0.001-0.050)
-- `reports/TRIGGER_POLICY_EVAL.csv` — 500-session simulation results
-- `reports/ABLATION_WINDOWING.csv` — 6 window configurations
-
-**P0 gaps** (thresholds without calibration evidence):
-- `GAP-ADAPT-01`: TENT OOD entropy threshold (0.85) — no calibration sweep
-- `GAP-EWC-01`: EWC lambda (1000) — no lambda ablation study
-- `GAP-PSEUDO-01`: Pseudo-label confidence (0.70) — no error-rate validation
+**Scope note:** Prometheus, Alertmanager, and Grafana config files exist in the repository but are not part of the defended thesis implementation. The defended monitoring evidence comes from offline pipeline artifacts: monitoring JSONs, trigger reports, MLflow/DVC lineage. If asked, frame those three services as designed infrastructure for a future production extension.
 
 ---
 
-## 18. Training–Inference Parity
+### Q: "Why FastAPI and not Flask?"
 
-### Q: "How do you ensure the training pipeline and inference API preprocess data identically?"
+**Short answer:** FastAPI provides async support, automatic OpenAPI documentation, and Pydantic validation out of the box — all useful for an inference endpoint that needs to accept wrist sensor uploads and return per-window predictions.
 
-**A:** Three mechanisms:
-
-1. **Shared config entity**: Both `src/train.py` and `src/api/app.py` import from `src/entity/config_entity.py` — window_size, overlap, normalization method are defined once
-2. **Shared preprocessing code**: Both import from `src/preprocess_data.py` — same StandardScaler, same windowing function
-3. **Docker base**: Both Dockerfiles use `python:3.11-slim` with matching Python/TF versions
-
-**Evidence:**
-- `src/entity/config_entity.py:67-68` — Single source of truth for window_size=200, overlap=0.5
-- `src/api/app.py:~50` — Imports preprocessing from shared module
-- `docker/Dockerfile.training:1` and `docker/Dockerfile.inference:1` — Same base image
-
-**Remaining risk:** The scaler parameters (mean, std) must be saved during training and loaded during inference. If the saved scaler file is lost or not updated, there's a parity break. This is mitigated by DVC tracking of the scaler artifact.
+**Explanation:** The inference endpoint at `src/api/app.py` accepts raw CSV uploads via `POST /api/upload` and returns activity predictions with confidence scores per window. FastAPI's async model means it can handle preprocessing-heavy requests without blocking other requests. The OpenAPI schema auto-generated from function signatures makes the API self-documenting. The verified parity between the API path and the batch pipeline path (989/989 matching predictions) confirms that both execution paths use the same model contract.
 
 ---
 
-## 19. Security & Rollback
+### Q: "Why MLflow?"
 
-### Q: "What happens if a retrained model is worse than the current one?"
+**Short answer:** Self-hosted, open-source experiment tracking with a built-in model registry that links run parameters, input files, and output artifacts in a single traceable record.
 
-**A:** The registration gate at `src/components/model_registration.py:74` blocks registration if the new model's accuracy is more than 0.5% below the baseline. If registration is blocked, the current production model remains active.
-
-**Rollback path:**
-1. MLflow model registry preserves all model versions
-2. DVC tracks model artifacts with hashes
-3. Baseline archive (on promote) preserves previous baselines
-4. `docker compose` can pin a specific model version via environment variable
-
-**Evidence:**
-- `src/components/model_registration.py:74` — Gate logic
-- `src/components/baseline_update.py:103` — Archive-on-promote
-- `models/*.dvc` — DVC-tracked model artifacts
-- `mlruns/` — Full MLflow experiment history
+**Explanation:** MLflow is configured under `config/mlflow_config.yaml` and tracks every pipeline run: configuration values, input file paths, per-stage metrics, and artifact locations. This is what makes the evidence in Chapter 7 reproducible rather than ad hoc — each result in the thesis tables can be traced to a run ID in the MLflow log. The model registry allows the governed model lifecycle to be audited: which checkpoint was evaluated, under which configuration, and what the outcome was. W&B would offer better visualization, but introduces an external cloud dependency and data residency concerns that are inappropriate for health-adjacent data.
 
 ---
 
-### Q: "Is there any authentication or access control?"
+### Q: "Why DVC?"
 
-**A:** No. The FastAPI inference API (`src/api/app.py`) has no authentication. MLflow, Prometheus, Grafana, and Alertmanager are exposed on their default ports without authentication.
+**Short answer:** Dataset and model artifact versioning so that run-specific results can be reproduced from versioned inputs, not from memory.
 
-**Justification:** This is a thesis prototype, not a production deployment. Authentication would add complexity without advancing the MLOps research contribution.
-
-**If asked "what would you add for production?":**
-- API key or OAuth2 for FastAPI (`fastapi.security`)
-- Grafana built-in auth (admin password, LDAP)
-- Prometheus basic_auth in `prometheus.yml`
-- Docker network isolation (internal networks)
-- HTTPS via reverse proxy (nginx/traefik)
+**Explanation:** DVC tracks input data files and model artifacts using content-addressed `.dvc` pointers. Any given thesis run can be reproduced by checking out the correct git commit and running `dvc pull` to restore the exact artifact versions linked to that commit. There is no `dvc.yaml` pipeline — DVC is used for artifact versioning only, while the Python orchestrator handles stage execution. The local DVC remote is a deliberate thesis-scope choice; migrating to S3 or GCS requires only changing `.dvc/config` remote URL, not restructuring the workflow.
 
 ---
 
-## Quick Reference: Top 10 "Gotcha" Questions
+### Q: "What does CI do?"
 
-| # | Question | One-line answer | Evidence |
-|---|----------|----------------|----------|
-| 1 | Why not Transformer? | Thesis contribution is MLOps, not SOTA accuracy | `src/train.py:235` |
-| 2 | Why local DVC remote? | Thesis scope; S3 migration = config change only | `.dvc/config` |
-| 3 | Why no dvc.yaml? | Custom Python pipeline needed for MLflow + trigger integration | `production_pipeline.py:54` |
-| 4 | Why ws=200 if ws=256 is better? | Paper reproducibility; ablation documents trade-off | `reports/ABLATION_WINDOWING.csv` |
-| 5 | Why 24h cooldown, not 6h? | 24h = zero FAR in 500-session simulation | `reports/TRIGGER_POLICY_EVAL.md` |
-| 6 | Why no A/B testing? | Out of scope; registration gate is pre-deploy quality check | `src/components/model_registration.py:74` |
-| 7 | Why no LOSO CV? | Known gap; 5-fold chosen for MLOps focus | `src/train.py:400` |
-| 8 | Why TENT OOD = 0.85? | P0 gap — needs calibration sweep | `src/domain_adaptation/tent.py:~85` |
-| 9 | Why no auth? | Thesis prototype; production auth list provided | `src/api/app.py` |
-| 10 | Why inline monitoring not sidecar? | Simpler deployment; single container = no inter-service latency | `src/api/app.py:200` |
+**Short answer:** Lint, unit tests (excluding slow model-training tests), and a Docker build viability check on every push.
+
+**Explanation:** `.github/workflows/ci.yml` runs on push to `main`/`develop` and on PRs. The job chain is: lint → unit-tests → docker-build-check. Slow tests (model training, full pipeline integration) are excluded from CI by the `not slow` marker. The repository currently follows a CI-only stance. The previous CD workflow was removed because the defended thesis scope is reproducible proof-of-concept execution, not automatic deployment. CI verifies code correctness at the stage level; it does not constitute continuous deployment of the defended model.
 
 ---
 
-*Generated by scanning the complete MasterArbeit_MLops repository.*
-*All file:line references point to actual source code.*
-*P0 gaps are explicitly documented — not hidden.*
+## 9. Limitations and Future Work
+
+### Q: "What are the explicit scope limits of this thesis?"
+
+**Short answer:** Single machine, all_users corpus (6 participants), 1 external user, unlabeled runtime-style sessions, conservative governance only — no clinical claims, no population-level generalisation, no automated retraining.
+
+**Explicit non-claims from Chapter 8:**
+
+- No clinical diagnosis, population-level generalisation, or production-grade deployment
+- Model A is a proof-of-concept runtime candidate, not a robust generalizing model
+- Confidence calibration is not solved — mean confidence 0.359 on User 7, uncertain rate 80.5%
+- External generalisation is not solved — one external participant
+- Model B is a diagnostic reference, not a competing runtime candidate
+- Model C is checkpoint-contract mismatch evidence, not a candidate
+- auto\_retrain=false is a governance policy, not a gap
+- CRITICAL is severity; REVIEW is action — they are separate
+- Stages 8–11 are optional/gated extensions, not defended live runtime
+
+---
+
+### Q: "What would you do next if you had more time?"
+
+**Short answer:** (1) labeled-evaluation expansion, (2) governed adaptation study (TENT/AdaBN under governance control), (3) class-collapse diagnosis and prevention, (4) trigger-policy longitudinal calibration, (5) automated figure/evidence regeneration, (6) cloud multi-user extension.
+
+**Explanation:** The most impactful next step is labeled-evaluation expansion — a larger cross-subject labeled set would upgrade monitoring claims from "proxy observation" to "verified against known error rates." The second most impactful is a governed adaptation study that tests TENT and AdaBN within the Stage 7 governance gate rather than as unconstrained test-time modifications. The pseudo-label bias finding (25-session comparison) suggests a third direction: controlled study of which training strategies prevent collapse. The trigger-policy longitudinal calibration addresses the known gap that Stage 6 thresholds were calibrated against 26 curated sessions, not a multi-participant held-out deployment stream.
+
+---
+
+## 10. Examiner Challenge Questions
+
+### Q: "37.6% is low. Why should the examiner accept this as a thesis contribution?"
+
+**Short answer:** The contribution is not the accuracy number. The contribution is the lifecycle that makes the accuracy number honest, traceable, and acted on correctly.
+
+**Explanation:** The claim is: an offline-first governed pipeline can be built such that (1) preprocessing contract is explicit and verified, (2) monitoring detects risk without ground-truth labels, (3) trigger policy suppresses false alarms while preserving episode recall, and (4) governance routes risk to human review rather than automatic mutation. The 37.6% accuracy is the honest ceiling — the system correctly identifies it as uncertain (CRITICAL severity, REVIEW action, auto\_retrain=false) and does not claim otherwise. A system that inflated internal scores (like Model B at 90.8%) while hiding the cross-user gap would be a weaker contribution, not a stronger one.
+
+---
+
+### Q: "Why not use TENT or AdaBN? That would have improved the external accuracy."
+
+**Short answer:** Adaptation methods change the deployed artifact. In a label-scarce, health-adjacent setting, that requires governance justification. The thesis deliberately addresses when and whether to adapt, not just how.
+
+**Explanation:** The thesis is about lifecycle governance, not about maximizing a single accuracy benchmark. TENT and AdaBN are available in the repository and evaluated as experimental modes. The reason they are not the defended runtime default is the same reason Level 2 automation is out of scope: unsupervised model mutation without governance is the unsafe pattern. The negative result from the unit-fix + abstain experiment shows that a plausible intervention changed routing behavior without improving quality — applying the same logic to model weights rather than routing labels would be even more risky. The correct research question is "under what conditions and governance controls should adaptation be applied?" — and that is identified as future work.
+
+---
+
+### Q: "Model B has a higher external accuracy than Model A (43.8% vs 37.6%). Why not defend Model B?"
+
+**Short answer:** Model B's external accuracy comes from a non-persisted full-evaluation scaler that includes the external user's statistics at normalization time. The score is not reproducible as a deployment artifact.
+
+**Explanation:** Model B fits its StandardScaler on the entire evaluation dataframe at runtime, including the external evaluation set. That means on User 7, the scaler encodes User 7's distribution — giving the model artificially favorable normalization. When Model B is assessed on the all\_users diagnostic set without external users, it reaches 90.8%. The 47pp internal-to-external gap is the forensic evidence that this scaler approach overstates transferability. Model A's 37.6% is lower, but it is reproducible under a fixed persisted scaler that was fitted only on training data, so the number is honest. A runtime candidate whose preprocessing statistics are recomputed from each evaluation batch is not a fixed reproducible runtime contract.
+
+---
+
+### Q: "Your system doesn't retrain automatically — is that a weakness?"
+
+**Short answer:** No. auto\_retrain=false is a governance policy. The system detected risk, flagged it correctly, and routed to human review. Automatic retraining without confirmed labels and human review would be unsafe by design.
+
+**Explanation:** The purpose of the governed pipeline is not to automate as much as possible; it is to automate what can be automated safely and to gate what requires human judgment. Without ground-truth labels at inference time, there is no way to confirm that a candidate retrained model is genuinely better before deploying it. The negative result from the 26-session unit-fix experiment makes this concrete: an apparently sensible intervention looked like improvement (lower dominance) but left the actual quality signal unchanged (mean confidence 0.8578). Automating retraining on unlabeled monitoring signals would create a pipeline that mutates itself in response to routing artifacts, not learning signals. Sculley et al. (2015) describe this as hidden technical debt; Chapter 8 frames it as the reason Level 2 automation is out of scope.
+
+---
+
+### Q: "Why is the monitoring threshold calibration uncertain? Is that a weakness?"
+
+**Short answer:** The Stage 6 thresholds are engineering operating points calibrated against 26 runtime-style replay sessions and the training distribution. A multi-participant held-out longitudinal reference would be needed to establish them as statistically robust deployment limits. This is recorded as an explicit scope boundary, not hidden.
+
+**Explanation:** The thresholds (confidence 0.70, uncertain windows 20%, transition rate 35%, drift z-score 1.8, dominant-class 85%) were set by calibrating against the available evidence: 6 training participants, 26 unlabeled production-style sessions, and the trigger-policy replay over 16 episodes. The thesis explicitly records this limitation in Chapter 8 with appropriate citations (Hendrycks and Gidaris 2017, Shewhart 1931, Montgomery 2009). The limitation is not hidden — it is stated as a scope boundary. The correct future work is a longitudinal multi-participant calibration study.
+
+---
+
+### Q: "Could this be used in a clinical setting?"
+
+**Short answer:** No, and the thesis does not claim it could. The system is an engineering artifact, not a medical device or clinical assessment tool.
+
+**Explanation:** A clinical system requires clinical validation: labeled cohorts of patients diagnosed by qualified clinicians, rigorous test methodology following clinical evaluation frameworks, regulatory assessment, and typically a randomized trial. None of those are part of this thesis. The system recognizes motor behaviors from wrist IMU data. Whether a recognized hand-tapping sequence is clinically significant is a judgment that requires clinical context — not a software decision. Chapter 2 anchors this explicitly: the thesis treats anxiety-related repetitive activities as observable behavioral proxies used to study the engineering problem of building a reproducible, governed MLOps pipeline. That framing is both honest and sufficient to justify the thesis topic.
+
+---
+
+### Q: "Why grouped cross-validation instead of leave-one-subject-out?"
+
+**Short answer:** Grouped cross-validation with user IDs as groups is more defensible than naive window-level splitting, and is the correct implementation for this dataset size. Leave-one-subject-out (LOSO) would be more realistic for deployment generalization but is out of scope for the thesis contribution.
+
+**Explanation:** Naive window-level splitting would place windows from the same participant in both training and test folds, inflating held-out accuracy because the model has seen other windows from the same person. Grouped cross-validation prevents this. LOSO would further ensure that each fold holds out an entire participant — the gold standard for estimating subject-independent accuracy. The thesis acknowledges this as a known limitation in Chapter 8 and notes that the six-participant dataset is too small to draw robust LOSO generalization conclusions. The grouped CV results (labeled reference: 98.9%) establish that the baseline model is competent on matched data; the User 7 external evaluation (37.6%) establishes the honest cross-user ceiling.
+
+---
+
+### Q: "Is 98.9% labeled reference accuracy inconsistent with 37.6% on User 7?"
+
+**Short answer:** No, and there is no contradiction — they belong to different experiments. The 98.9% result belongs to the earlier labeled reference / pre-sprint baseline experiment, not to the defended Model A proof-of-concept runtime candidate. The 37.6% is Model A's external evaluation on User 7, a different participant. Cross-user domain shift is well documented in wearable HAR literature and is expected.
+
+**Explanation:** This is not a paradox — it is the core finding the thesis documents. When train and test conditions are aligned (same participants, same sensor, same session structure), the model performs strongly. When they are not aligned (different participant), performance drops sharply. The entire monitoring and governance apparatus is designed precisely because this gap exists and because it can appear at deployment time without obvious warning. The monitoring layer on the User 7 run correctly flagged low confidence and high uncertainty — the system reported the gap, not hid it.
+
+---
+
+*All numbers sourced from archived run artifacts, Chapter 7 tables, and Chapter 8 non-claims list.*
+*Wording rules: never "data leakage" for Model B; use "non-persisted full-evaluation scaler and legacy native setup limit transferability." Always "proof-of-concept runtime candidate" for Model A. Always "CRITICAL is severity; REVIEW is governance action."*
