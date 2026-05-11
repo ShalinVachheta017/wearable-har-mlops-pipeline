@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-05-11T14:35:30",
+  "created_at": "2026-05-11T14:51:17",
   "datasets": {
     "user7_labeled_external": {
       "path": "data/raw/2026-05-05-15-11-15_labeled_50Hz_user7.csv",
@@ -60,6 +60,42 @@
       "window_label_policy": "majority_label_with_lexicographic_tiebreak",
       "mixed_label_window_count": null,
       "mixed_label_window_pct": null
+    },
+    "all_users_diagnostic": {
+      "path": "data/processed/fused_all_users_data_labeled_50Hz.csv",
+      "rows": 385326,
+      "sensor_columns_found": [
+        "Ax",
+        "Ay",
+        "Az",
+        "Gx",
+        "Gy",
+        "Gz"
+      ],
+      "timestamp_column": null,
+      "timestamp_monotonic": null,
+      "timestamp_duplicate_count": null,
+      "sensor_missing_value_count": 0,
+      "accelerometer_unit_detected": "m/s^2",
+      "unit_conversion_applied": false,
+      "label_column": "activity",
+      "label_distribution": {
+        "nail_biting": 38924,
+        "smoking": 36093,
+        "hair_pulling": 35461,
+        "forehead_rubbing": 35219,
+        "hand_scratching": 34975,
+        "sitting": 34949,
+        "knuckles_cracking": 34863,
+        "ear_rubbing": 34768,
+        "standing": 33859,
+        "hand_tapping": 33366,
+        "nape_rubbing": 32849
+      },
+      "window_count": 3852,
+      "window_label_policy": "majority_label_with_lexicographic_tiebreak",
+      "mixed_label_window_count": 129,
+      "mixed_label_window_pct": 3.35
     }
   }
 }

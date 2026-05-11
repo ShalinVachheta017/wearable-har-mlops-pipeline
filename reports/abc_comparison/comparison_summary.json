@@ -1,6 +1,6 @@
 {
   "mode": "evaluate",
-  "created_at": "2026-05-11T14:35:30",
+  "created_at": "2026-05-11T14:51:17",
   "output_dirs_ok": true,
   "models_compared": [
     "model_a",
@@ -8,6 +8,7 @@
     "model_c"
   ],
   "datasets_compared": [
+    "all_users_diagnostic",
     "garmin_unlabeled_production_style",
     "user7_labeled_external"
   ],
@@ -254,7 +255,7 @@
   "registry_commit_metadata": {
     "registry_contract_base_commit": "5b7d537",
     "registry_contract_cleanup_commit": "071a8e8",
-    "runner_commit": "28a876a",
+    "runner_commit": "d559d24",
     "note": "Both commits reference the frozen registry contracts under models/model_registry/"
   },
   "notes": [
