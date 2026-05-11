@@ -1,8 +1,8 @@
 # Model Decision - May 2026
 
-Date: 2026-05-08
+Date: 2026-05-08 | Updated: 2026-05-11 after ABC model-contract comparison freeze
 
-Status: final Model A package selected after bounded sprint and one User 7 external evaluation.
+Status: Model A selected as the defended proof-of-concept runtime candidate. ABC comparison completed 2026-05-11 — full evidence in `reports/abc_comparison/`. Mentor brief: `docs/MODEL_ABC_MENTOR_BRIEF_2026-05.md`.
 
 ## 1. Final Chosen Model
 
@@ -28,7 +28,7 @@ ADAMSense pretrained CNN-BiLSTM
 + class-balanced focal loss, gamma = 0.5
 ```
 
-This is not a high-performing model. It is selected because it is the best current clean-contract candidate after the bounded Model A sprint, keeps all 11 classes active, avoids the mentor legacy tensor/scaler path, and is reproducible as a production package.
+This is not a high-performing model. It is selected because it is the best current clean-contract candidate after the bounded Model A sprint, keeps all 11 classes active, avoids the mentor legacy tensor/scaler path, and is reproducible as a proof-of-concept runtime package.
 
 ## 2. Final Input Contract
 
@@ -65,19 +65,19 @@ standing
 
 ## 3. Why Vendor Legacy Model Is Not Final
 
-The vendor notebooks are useful forensic evidence, but they are not the final production proof.
+The vendor/mentor notebooks are useful forensic evidence, but they are not the defended proof-of-concept runtime contract.
 
 They use:
 
 ```text
-full-data StandardScaler before train/test split
+full-data StandardScaler before train/test split (not persisted)
 random overlapping window split
-legacy tensor reshape
-fresh StandardScaler fitted on each inference file
-accuracy-focused validation
+legacy channel-major tensor reshape
+fresh StandardScaler refitted on each evaluation file
+accuracy-focused validation only
 ```
 
-The vendor checkpoint can reproduce high accuracy only under its legacy notebook contract. Diagnostics showed the same checkpoint performs well with the vendor scaler/layout, but collapses under normal row-wise production windows. Therefore, the thesis defends the clean production contract, not the hidden legacy notebook contract.
+The vendor checkpoint can reproduce high accuracy only under its legacy notebook contract. The ABC comparison (2026-05-11) confirmed this: Model B scores 90.8% internally but 43.8% on User 7, a 47 pp drop consistent with a native setup that does not transfer cleanly outside its evaluation context. Therefore, the thesis defends the clean proof-of-concept runtime contract, not the hidden legacy notebook contract.
 
 ## 4. Bounded Model A Sprint
 
@@ -166,26 +166,37 @@ B = Mentor/vendor legacy model
 C = Previous current pipeline/default model
 ```
 
-Decision:
+Decision (confirmed by ABC comparison 2026-05-11):
 
 ```text
-Model A is selected for the final clean-contract package.
-Model B is kept as historical/forensic evidence only.
-Model C is rejected because it performs poorly under the current clean row-wise pipeline.
+Model A = defended clean proof-of-concept runtime candidate
+Model B = legacy/mentor diagnostic reference only — not a defended runtime
+Model C = checkpoint-contract mismatch evidence — retained as proof, not used
 ```
 
 Rationale:
 
 ```text
-Model A has lower headline accuracy than the vendor legacy route, but it has a documented deployable contract.
-Model B has stronger reported metrics only under a legacy scaler/layout contract with leakage risk.
-Model C shows severe contract mismatch/collapse under clean row-wise evaluation.
+Model A has lower headline accuracy than the vendor legacy route, but it has a clean,
+reproducible proof-of-concept runtime contract with a persisted train-only scaler.
+Its internal-to-external gap is only 5 pp (42.4% → 37.6%), indicating honest generalization.
+
+Model B's native setup does not transfer cleanly: the scaler is refitted on the full
+evaluation dataframe during diagnostic evaluation, so the 90.8% internal score is not
+reproducible outside of that native setup. Score drops to 43.8% on User 7 (47 pp gap).
+
+Model C uses the same checkpoint as Model B but with no scaler. It reaches only 7.6%
+accuracy on User 7 with 0.748 mean confidence — confidently wrong. This proves that
+the preprocessing contract controls what the model receives, not the checkpoint file.
 ```
 
-The A/B/C table is saved at:
+Full ABC evidence:
 
 ```text
-models/production_contract/model_a_final_20260508/abc_model_comparison.csv
+reports/abc_comparison/abc_results.csv        — 9-row summary (3 models × 3 datasets)
+reports/abc_comparison/abc_results.json       — full per-class metrics, confusion matrices
+reports/abc_comparison/comparison_summary.json — decision summary, scaler parity: 0.0
+docs/MODEL_ABC_MENTOR_BRIEF_2026-05.md        — short mentor-facing brief
 ```
 
 ## 7. Weak Classes And Limitations
@@ -240,4 +251,4 @@ external evaluation: User 7, reported after selection
 
 ## Decision Sentence
 
-The final defended Model A uses a clean production contract: ADAMSense is used for pretraining, Garmin all_users is used for fine-tuning with weak-class recovery, the deployed scaler is fitted only on Garmin training data, and User 7 is used only as an external evaluation session.
+The final defended Model A uses a clean proof-of-concept runtime contract: ADAMSense is used for pretraining, Garmin all\_users is used for fine-tuning with weak-class recovery, the scaler is fitted only on Garmin training data and persisted, and User 7 is used only as an external evaluation session — not for tuning or scaler fitting. No automatic retraining is triggered. The pipeline routes uncertainty to REVIEW and governance remains human-gated.
