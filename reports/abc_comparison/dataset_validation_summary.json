@@ -1,0 +1,65 @@
+{
+  "created_at": "2026-05-11T14:35:30",
+  "datasets": {
+    "user7_labeled_external": {
+      "path": "data/raw/2026-05-05-15-11-15_labeled_50Hz_user7.csv",
+      "rows": 99017,
+      "sensor_columns_found": [
+        "Ax",
+        "Ay",
+        "Az",
+        "Gx",
+        "Gy",
+        "Gz"
+      ],
+      "timestamp_column": "timestamp",
+      "timestamp_monotonic": true,
+      "timestamp_duplicate_count": 0,
+      "sensor_missing_value_count": 0,
+      "accelerometer_unit_detected": "m/s^2",
+      "unit_conversion_applied": false,
+      "label_column": "activity",
+      "label_distribution": {
+        "nape_rubbing": 9225,
+        "hand_scratching": 9199,
+        "hair_pulling": 9156,
+        "nail_biting": 9020,
+        "standing": 9004,
+        "sitting": 8994,
+        "knuckles_cracking": 8949,
+        "hand_tapping": 8940,
+        "ear_rubbing": 8916,
+        "smoking": 8915,
+        "forehead_rubbing": 8699
+      },
+      "window_count": 989,
+      "window_label_policy": "majority_label_with_lexicographic_tiebreak",
+      "mixed_label_window_count": 20,
+      "mixed_label_window_pct": 2.02
+    },
+    "garmin_unlabeled_production_style": {
+      "path": "data/processed/fused_2025_07_16_21_03_13_50Hz.csv",
+      "rows": 130500,
+      "sensor_columns_found": [
+        "Ax",
+        "Ay",
+        "Az",
+        "Gx",
+        "Gy",
+        "Gz"
+      ],
+      "timestamp_column": null,
+      "timestamp_monotonic": null,
+      "timestamp_duplicate_count": null,
+      "sensor_missing_value_count": 0,
+      "accelerometer_unit_detected": "milliG",
+      "unit_conversion_applied": true,
+      "label_column": null,
+      "label_distribution": null,
+      "window_count": 1304,
+      "window_label_policy": "majority_label_with_lexicographic_tiebreak",
+      "mixed_label_window_count": null,
+      "mixed_label_window_pct": null
+    }
+  }
+}

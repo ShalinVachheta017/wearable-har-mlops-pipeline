@@ -1,0 +1,1500 @@
+{
+  "mode": "evaluate",
+  "created_at": "2026-05-11T14:35:30",
+  "registry_commit_metadata": {
+    "registry_contract_base_commit": "5b7d537",
+    "registry_contract_cleanup_commit": "071a8e8",
+    "runner_commit": "28a876a",
+    "note": "Both commits reference the frozen registry contracts under models/model_registry/"
+  },
+  "runtime_environment": {
+    "status": "captured_by_dry_run",
+    "python_version": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 16:37:03) [MSC v.1929 64 bit (AMD64)]",
+    "tensorflow_available": true,
+    "tensorflow_version": "2.20.0",
+    "keras_version": "3.12.0",
+    "numpy_version": "2.3.3",
+    "scikit_learn_version": "1.6.1",
+    "pandas_version": "2.2.3",
+    "os": "Windows-11-10.0.26200-SP0",
+    "cuda_available": "pending_tensorflow_device_query",
+    "execution_device": "not_verified",
+    "fresh_model_load_verified": true,
+    "environment_capture_source": "scripts/run_abc_model_comparison.py --mode dry-run",
+    "fresh_model_load_checks": {
+      "model_a": {
+        "status": "loaded",
+        "path": "models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras",
+        "input_shape": [
+          null,
+          200,
+          6
+        ],
+        "output_shape": [
+          null,
+          11
+        ],
+        "parameter_count": 87083,
+        "input_shape_matches_contract": true,
+        "output_shape_matches_contract": true
+      },
+      "model_b": {
+        "status": "loaded",
+        "path": "models/pretrained/fine_tuned_model_1dcnnbilstm.keras",
+        "input_shape": [
+          null,
+          200,
+          6
+        ],
+        "output_shape": [
+          null,
+          11
+        ],
+        "parameter_count": 499131,
+        "input_shape_matches_contract": true,
+        "output_shape_matches_contract": true
+      },
+      "model_c": {
+        "status": "loaded",
+        "path": "models/pretrained/fine_tuned_model_1dcnnbilstm.keras",
+        "input_shape": [
+          null,
+          200,
+          6
+        ],
+        "output_shape": [
+          null,
+          11
+        ],
+        "parameter_count": 499131,
+        "input_shape_matches_contract": true,
+        "output_shape_matches_contract": true
+      }
+    }
+  },
+  "thresholds": {
+    "source": "src/entity/config_entity.py defaults; config/pipeline_overrides.yaml source discovered separately",
+    "threshold_verification": {
+      "runner_threshold_source": "src/entity/config_entity.py defaults",
+      "pipeline_config_checked": true,
+      "pipeline_overrides_checked": true,
+      "same_as_final_pipeline": "pending_manual_review"
+    },
+    "monitoring": {
+      "confidence_warn_threshold": 0.7,
+      "uncertain_pct_threshold": 20.0,
+      "uncertain_window_threshold": 0.5,
+      "dominant_class_warn_threshold": 85.0,
+      "dominant_class_critical_threshold": 95.0,
+      "transition_rate_threshold": 35.0,
+      "drift_zscore_threshold": 1.8
+    },
+    "trigger": {
+      "confidence_warn": 0.65,
+      "confidence_critical": 0.5,
+      "drift_zscore_warn": 2.0,
+      "drift_zscore_critical": 3.0,
+      "temporal_flip_warn": 0.35,
+      "temporal_flip_critical": 0.5,
+      "cooldown_hours": 24
+    },
+    "auto_retrain_enabled": false
+  },
+  "model_a_scaler_parity": {
+    "status": "checked",
+    "joblib_path": "models/production_contract/model_a_final_20260508/garmin_train_scaler.joblib",
+    "json_vs_joblib_mean_max_abs_diff": 0.0,
+    "json_vs_joblib_scale_max_abs_diff": 0.0,
+    "parity_ok": true
+  },
+  "model_b_clean_pipeline_compatibility": {
+    "model_id": "model_b",
+    "contract_mode": "clean_pipeline",
+    "status": "unsupported_not_run",
+    "reason": "no persisted legacy scaler and legacy tensor layout mismatch; Model B requires a non-persisted full-evaluation StandardScaler and legacy channel-major tensor layout incompatible with the clean production pipeline contract"
+  },
+  "datasets": [
+    {
+      "dataset_id": "user7_labeled_external",
+      "path": "data/raw/2026-05-05-15-11-15_labeled_50Hz_user7.csv",
+      "labeled": true,
+      "scope": "primary_labeled_external_evaluation"
+    },
+    {
+      "dataset_id": "garmin_unlabeled_production_style",
+      "path": "data/processed/fused_2025_07_16_21_03_13_50Hz.csv",
+      "labeled": false,
+      "scope": "primary_unlabeled_production_style_evaluation"
+    }
+  ],
+  "dataset_validations": {
+    "user7_labeled_external": {
+      "path": "data/raw/2026-05-05-15-11-15_labeled_50Hz_user7.csv",
+      "rows": 99017,
+      "sensor_columns_found": [
+        "Ax",
+        "Ay",
+        "Az",
+        "Gx",
+        "Gy",
+        "Gz"
+      ],
+      "timestamp_column": "timestamp",
+      "timestamp_monotonic": true,
+      "timestamp_duplicate_count": 0,
+      "sensor_missing_value_count": 0,
+      "accelerometer_unit_detected": "m/s^2",
+      "unit_conversion_applied": false,
+      "label_column": "activity",
+      "label_distribution": {
+        "nape_rubbing": 9225,
+        "hand_scratching": 9199,
+        "hair_pulling": 9156,
+        "nail_biting": 9020,
+        "standing": 9004,
+        "sitting": 8994,
+        "knuckles_cracking": 8949,
+        "hand_tapping": 8940,
+        "ear_rubbing": 8916,
+        "smoking": 8915,
+        "forehead_rubbing": 8699
+      },
+      "window_count": 989,
+      "window_label_policy": "majority_label_with_lexicographic_tiebreak",
+      "mixed_label_window_count": 20,
+      "mixed_label_window_pct": 2.02
+    },
+    "garmin_unlabeled_production_style": {
+      "path": "data/processed/fused_2025_07_16_21_03_13_50Hz.csv",
+      "rows": 130500,
+      "sensor_columns_found": [
+        "Ax",
+        "Ay",
+        "Az",
+        "Gx",
+        "Gy",
+        "Gz"
+      ],
+      "timestamp_column": null,
+      "timestamp_monotonic": null,
+      "timestamp_duplicate_count": null,
+      "sensor_missing_value_count": 0,
+      "accelerometer_unit_detected": "milliG",
+      "unit_conversion_applied": true,
+      "label_column": null,
+      "label_distribution": null,
+      "window_count": 1304,
+      "window_label_policy": "majority_label_with_lexicographic_tiebreak",
+      "mixed_label_window_count": null,
+      "mixed_label_window_pct": null
+    }
+  },
+  "models": {
+    "model_a": {
+      "model_id": "model_a",
+      "model_role": "clean_contract_candidate",
+      "artifact_identity": {
+        "model_path": "models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras",
+        "model_sha256": "2CD78B7B9C931F9BA5581BE43CBA7B7B16878B9FD8EFEF848A336B9A71BA8DC8",
+        "scaler_path": "models/production_contract/model_a_final_20260508/garmin_train_scaler.json",
+        "scaler_sha256": "D790D1D58890AD2C510042A0CE28317209F231DEBC808A0B607DF76CD4B32076",
+        "scaler_joblib_path": "models/production_contract/model_a_final_20260508/garmin_train_scaler.joblib",
+        "scaler_joblib_sha256": "88E50CD6D088D353DD1EE610B2E667143FC43988C031BD3B6C5DDE21107CC383",
+        "label_map_source": "models/production_contract/model_a_final_20260508/label_order.json",
+        "label_map_sha256": "08CC9F3C7FC68701BF9A898843DE1419607DC2A186805A1ACDCBEE7E8E94A452",
+        "monitoring_baseline_path": "models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json",
+        "monitoring_baseline_sha256": "951C569C1D1E3B2291A9806CBA076E4B30777FBE1F131CBC5A030E49242264A7",
+        "git_branch": "feature/inference-parity-gpt-no-scaler",
+        "git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+        "artifact_git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+        "registry_contract_commit": "5b7d537"
+      },
+      "datasets": {
+        "user7_labeled_external": {
+          "dataset": {
+            "dataset_id": "user7_labeled_external",
+            "path": "data/raw/2026-05-05-15-11-15_labeled_50Hz_user7.csv",
+            "scope": "primary_labeled_external_evaluation",
+            "labeled": true,
+            "n_rows": 99017,
+            "n_windows": 989,
+            "label_column": "activity"
+          },
+          "contract_mode": "clean_pipeline",
+          "layout": "time_major_row_wise",
+          "scaler_policy": "garmin_train_only_json",
+          "unit_info": {
+            "unit_conversion_applied": false,
+            "accelerometer_abs_mean_before": 4.778331756591797,
+            "accelerometer_abs_max_before": 31.362947463989258,
+            "accelerometer_detected_unit": "m/s^2",
+            "gyroscope_unit_assumption": "deg/s unchanged"
+          },
+          "metrics": {
+            "accuracy": 0.37613751263902934,
+            "balanced_accuracy": 0.3745449176508112,
+            "macro_f1": 0.34095040328427867,
+            "weighted_f1": 0.3417361266914485,
+            "per_class_precision": {
+              "ear_rubbing": 0.1,
+              "forehead_rubbing": 0.14814814814814814,
+              "hair_pulling": 0.044444444444444446,
+              "hand_scratching": 0.22105263157894736,
+              "hand_tapping": 0.676923076923077,
+              "knuckles_cracking": 0.05263157894736842,
+              "nail_biting": 0.4380952380952381,
+              "nape_rubbing": 0.44785276073619634,
+              "sitting": 0.5544554455445545,
+              "smoking": 0.012345679012345678,
+              "standing": 0.9863013698630136
+            },
+            "per_class_recall": {
+              "ear_rubbing": 0.011235955056179775,
+              "forehead_rubbing": 0.04597701149425287,
+              "hair_pulling": 0.04395604395604396,
+              "hand_scratching": 0.22826086956521738,
+              "hand_tapping": 0.9777777777777777,
+              "knuckles_cracking": 0.06741573033707865,
+              "nail_biting": 0.5111111111111111,
+              "nape_rubbing": 0.7849462365591398,
+              "sitting": 0.6292134831460674,
+              "smoking": 0.011111111111111112,
+              "standing": 0.8089887640449438
+            },
+            "per_class_f1": {
+              "ear_rubbing": 0.020202020202020204,
+              "forehead_rubbing": 0.07017543859649122,
+              "hair_pulling": 0.04419889502762431,
+              "hand_scratching": 0.22459893048128343,
+              "hand_tapping": 0.8,
+              "knuckles_cracking": 0.059113300492610835,
+              "nail_biting": 0.4717948717948718,
+              "nape_rubbing": 0.5703125,
+              "sitting": 0.5894736842105263,
+              "smoking": 0.011695906432748537,
+              "standing": 0.8888888888888888
+            },
+            "per_class_support": {
+              "ear_rubbing": 89,
+              "forehead_rubbing": 87,
+              "hair_pulling": 91,
+              "hand_scratching": 92,
+              "hand_tapping": 90,
+              "knuckles_cracking": 89,
+              "nail_biting": 90,
+              "nape_rubbing": 93,
+              "sitting": 89,
+              "smoking": 90,
+              "standing": 89
+            },
+            "confusion_matrix": [
+              [
+                1,
+                1,
+                63,
+                2,
+                0,
+                1,
+                0,
+                12,
+                0,
+                9,
+                0
+              ],
+              [
+                3,
+                4,
+                17,
+                16,
+                0,
+                15,
+                1,
+                0,
+                0,
+                31,
+                0
+              ],
+              [
+                1,
+                0,
+                4,
+                1,
+                3,
+                25,
+                0,
+                57,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                21,
+                2,
+                48,
+                0,
+                9,
+                12,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                88,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                51,
+                0,
+                6,
+                0,
+                0,
+                32,
+                0,
+                0
+              ],
+              [
+                0,
+                1,
+                1,
+                0,
+                0,
+                2,
+                46,
+                0,
+                0,
+                40,
+                0
+              ],
+              [
+                0,
+                0,
+                3,
+                4,
+                4,
+                9,
+                0,
+                73,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                32,
+                0,
+                0,
+                0,
+                56,
+                0,
+                1
+              ],
+              [
+                5,
+                21,
+                2,
+                0,
+                0,
+                3,
+                58,
+                0,
+                0,
+                1,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                1,
+                4,
+                0,
+                12,
+                0,
+                0,
+                72
+              ]
+            ],
+            "true_label_distribution": {
+              "ear_rubbing": 89,
+              "forehead_rubbing": 87,
+              "hair_pulling": 91,
+              "hand_scratching": 92,
+              "hand_tapping": 90,
+              "knuckles_cracking": 89,
+              "nail_biting": 90,
+              "nape_rubbing": 93,
+              "sitting": 89,
+              "smoking": 90,
+              "standing": 89
+            },
+            "mean_confidence": 0.35944825410842896,
+            "median_confidence": 0.29568812251091003,
+            "prediction_entropy": 1.8464038518668093
+          },
+          "monitoring": {
+            "n_windows": 989,
+            "prediction_distribution": {
+              "ear_rubbing": 10,
+              "forehead_rubbing": 27,
+              "hair_pulling": 90,
+              "hand_scratching": 95,
+              "hand_tapping": 130,
+              "knuckles_cracking": 114,
+              "nail_biting": 105,
+              "nape_rubbing": 163,
+              "sitting": 101,
+              "smoking": 81,
+              "standing": 73
+            },
+            "classes_used": 11,
+            "dominant_class": "nape_rubbing",
+            "dominant_class_pct": 16.48129423660263,
+            "mean_confidence": 0.35944825410842896,
+            "median_confidence": 0.29568812251091003,
+            "confidence_bands": {
+              "high_pct": 1.6177957532861478,
+              "medium_pct": 4.954499494438827,
+              "low_pct": 12.942366026289182,
+              "uncertain_pct": 80.48533872598584
+            },
+            "prediction_entropy": 1.8464038518668093,
+            "transition_rate_pct": 27.732793522267208,
+            "drift": {
+              "status": "HEALTHY",
+              "max_drift_zscore": 0.16390235236204448,
+              "threshold": 1.8,
+              "baseline_path": "models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json"
+            },
+            "monitoring_status": "WARNING",
+            "trigger_decision": "REVIEW",
+            "review_reasons": [
+              "mean_confidence_below_warning_threshold",
+              "uncertain_window_percentage_above_warning_threshold"
+            ],
+            "auto_retrain_flag": false
+          },
+          "prediction_file": "reports/abc_comparison/model_a/predictions/user7_labeled_external_clean_pipeline_predictions.csv",
+          "decision_hint": "clean_runtime_candidate_pending_human_review"
+        },
+        "garmin_unlabeled_production_style": {
+          "dataset": {
+            "dataset_id": "garmin_unlabeled_production_style",
+            "path": "data/processed/fused_2025_07_16_21_03_13_50Hz.csv",
+            "scope": "primary_unlabeled_production_style_evaluation",
+            "labeled": false,
+            "n_rows": 130500,
+            "n_windows": 1304,
+            "label_column": null
+          },
+          "contract_mode": "clean_pipeline",
+          "layout": "time_major_row_wise",
+          "scaler_policy": "garmin_train_only_json",
+          "unit_info": {
+            "unit_conversion_applied": true,
+            "accelerometer_abs_mean_before": 513.6719970703125,
+            "accelerometer_abs_max_before": 5723.90869140625,
+            "accelerometer_detected_unit": "milliG",
+            "gyroscope_unit_assumption": "deg/s unchanged"
+          },
+          "metrics": {},
+          "monitoring": {
+            "n_windows": 1304,
+            "prediction_distribution": {
+              "forehead_rubbing": 2,
+              "hair_pulling": 45,
+              "hand_scratching": 55,
+              "hand_tapping": 16,
+              "knuckles_cracking": 161,
+              "nail_biting": 28,
+              "nape_rubbing": 46,
+              "sitting": 676,
+              "smoking": 26,
+              "standing": 249
+            },
+            "classes_used": 10,
+            "dominant_class": "sitting",
+            "dominant_class_pct": 51.84049079754601,
+            "mean_confidence": 0.392861008644104,
+            "median_confidence": 0.41755998134613037,
+            "confidence_bands": {
+              "high_pct": 0.0,
+              "medium_pct": 1.763803680981595,
+              "low_pct": 22.699386503067483,
+              "uncertain_pct": 75.53680981595092
+            },
+            "prediction_entropy": 1.7405088996725173,
+            "transition_rate_pct": 27.321565617805067,
+            "drift": {
+              "status": "HEALTHY",
+              "max_drift_zscore": 1.1166781618795947,
+              "threshold": 1.8,
+              "baseline_path": "models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json"
+            },
+            "monitoring_status": "WARNING",
+            "trigger_decision": "REVIEW",
+            "review_reasons": [
+              "mean_confidence_below_warning_threshold",
+              "uncertain_window_percentage_above_warning_threshold"
+            ],
+            "auto_retrain_flag": false
+          },
+          "prediction_file": "reports/abc_comparison/model_a/predictions/garmin_unlabeled_production_style_clean_pipeline_predictions.csv",
+          "decision_hint": "clean_runtime_candidate_pending_human_review"
+        }
+      }
+    },
+    "model_b": {
+      "model_id": "model_b",
+      "model_role": "legacy_forensic_reference",
+      "artifact_identity": {
+        "model_path": "models/pretrained/fine_tuned_model_1dcnnbilstm.keras",
+        "alternate_artifact_copy": "6th may/models/fine_tuned_model_1dcnnbilstm.keras",
+        "model_sha256": "3A35F3BD6F74293BFE5E5A7599D1741430A6F76DB26B46C0023355D09C1A5BC2",
+        "alternate_artifact_sha256": "3A35F3BD6F74293BFE5E5A7599D1741430A6F76DB26B46C0023355D09C1A5BC2",
+        "scaler_path": "not_persisted",
+        "scaler_sha256": "not_applicable_not_persisted",
+        "label_map_source": "data/prepared/config.json and src/utils/label_mapping.py canonical fallback",
+        "label_map_sha256": "not_verified",
+        "git_branch": "feature/inference-parity-gpt-no-scaler",
+        "git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+        "artifact_git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+        "registry_contract_commit": "5b7d537"
+      },
+      "datasets": {
+        "user7_labeled_external": {
+          "dataset": {
+            "dataset_id": "user7_labeled_external",
+            "path": "data/raw/2026-05-05-15-11-15_labeled_50Hz_user7.csv",
+            "scope": "primary_labeled_external_evaluation",
+            "labeled": true,
+            "n_rows": 99017,
+            "n_windows": 989,
+            "label_column": "activity"
+          },
+          "contract_mode": "native_legacy_diagnostic",
+          "layout": "legacy_channel_major_reshape",
+          "scaler_policy": "full_evaluation_dataframe_fit_transform_diagnostic_only",
+          "unit_info": {
+            "unit_conversion_applied": false,
+            "accelerometer_abs_mean_before": 4.778331756591797,
+            "accelerometer_abs_max_before": 31.362947463989258,
+            "accelerometer_detected_unit": "m/s^2",
+            "gyroscope_unit_assumption": "deg/s unchanged"
+          },
+          "metrics": {
+            "accuracy": 0.4378159757330637,
+            "balanced_accuracy": 0.43956148141866086,
+            "macro_f1": 0.4185903663849206,
+            "weighted_f1": 0.41711038648738463,
+            "per_class_precision": {
+              "ear_rubbing": 0.5,
+              "forehead_rubbing": 0.30701754385964913,
+              "hair_pulling": 0.07079646017699115,
+              "hand_scratching": 0.22535211267605634,
+              "hand_tapping": 0.46632124352331605,
+              "knuckles_cracking": 0.45,
+              "nail_biting": 0.32075471698113206,
+              "nape_rubbing": 0.4,
+              "sitting": 1.0,
+              "smoking": 0.6551724137931034,
+              "standing": 0.8846153846153846
+            },
+            "per_class_recall": {
+              "ear_rubbing": 0.8202247191011236,
+              "forehead_rubbing": 0.40229885057471265,
+              "hair_pulling": 0.08791208791208792,
+              "hand_scratching": 0.17391304347826086,
+              "hand_tapping": 1.0,
+              "knuckles_cracking": 0.4044943820224719,
+              "nail_biting": 0.18888888888888888,
+              "nape_rubbing": 0.34408602150537637,
+              "sitting": 0.9438202247191011,
+              "smoking": 0.2111111111111111,
+              "standing": 0.25842696629213485
+            },
+            "per_class_f1": {
+              "ear_rubbing": 0.6212765957446809,
+              "forehead_rubbing": 0.3482587064676617,
+              "hair_pulling": 0.0784313725490196,
+              "hand_scratching": 0.19631901840490798,
+              "hand_tapping": 0.6360424028268551,
+              "knuckles_cracking": 0.4260355029585799,
+              "nail_biting": 0.23776223776223776,
+              "nape_rubbing": 0.3699421965317919,
+              "sitting": 0.9710982658959537,
+              "smoking": 0.31932773109243695,
+              "standing": 0.4
+            },
+            "per_class_support": {
+              "ear_rubbing": 89,
+              "forehead_rubbing": 87,
+              "hair_pulling": 91,
+              "hand_scratching": 92,
+              "hand_tapping": 90,
+              "knuckles_cracking": 89,
+              "nail_biting": 90,
+              "nape_rubbing": 93,
+              "sitting": 89,
+              "smoking": 90,
+              "standing": 89
+            },
+            "confusion_matrix": [
+              [
+                73,
+                11,
+                4,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                13,
+                35,
+                26,
+                13,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                14,
+                1,
+                8,
+                10,
+                29,
+                19,
+                0,
+                10,
+                0,
+                0,
+                0
+              ],
+              [
+                3,
+                1,
+                8,
+                16,
+                43,
+                13,
+                0,
+                8,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                90,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                2,
+                0,
+                1,
+                11,
+                8,
+                36,
+                2,
+                29,
+                0,
+                0,
+                0
+              ],
+              [
+                7,
+                57,
+                2,
+                0,
+                2,
+                0,
+                17,
+                0,
+                0,
+                5,
+                0
+              ],
+              [
+                13,
+                0,
+                1,
+                21,
+                15,
+                10,
+                1,
+                32,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                3,
+                0,
+                2,
+                0,
+                84,
+                0,
+                0
+              ],
+              [
+                13,
+                8,
+                13,
+                0,
+                2,
+                1,
+                31,
+                0,
+                0,
+                19,
+                3
+              ],
+              [
+                8,
+                1,
+                50,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                5,
+                23
+              ]
+            ],
+            "true_label_distribution": {
+              "ear_rubbing": 89,
+              "forehead_rubbing": 87,
+              "hair_pulling": 91,
+              "hand_scratching": 92,
+              "hand_tapping": 90,
+              "knuckles_cracking": 89,
+              "nail_biting": 90,
+              "nape_rubbing": 93,
+              "sitting": 89,
+              "smoking": 90,
+              "standing": 89
+            },
+            "mean_confidence": 0.7745576500892639,
+            "median_confidence": 0.8311834335327148,
+            "prediction_entropy": 0.6371875504308412
+          },
+          "monitoring": {
+            "n_windows": 989,
+            "prediction_distribution": {
+              "ear_rubbing": 146,
+              "forehead_rubbing": 114,
+              "hair_pulling": 113,
+              "hand_scratching": 71,
+              "hand_tapping": 193,
+              "knuckles_cracking": 80,
+              "nail_biting": 53,
+              "nape_rubbing": 80,
+              "sitting": 84,
+              "smoking": 29,
+              "standing": 26
+            },
+            "classes_used": 11,
+            "dominant_class": "hand_tapping",
+            "dominant_class_pct": 19.514661274014156,
+            "mean_confidence": 0.7745576500892639,
+            "median_confidence": 0.8311834335327148,
+            "confidence_bands": {
+              "high_pct": 40.647118301314464,
+              "medium_pct": 23.96359959555106,
+              "low_pct": 20.424671385237612,
+              "uncertain_pct": 14.964610717896864
+            },
+            "prediction_entropy": 0.6371875504308412,
+            "transition_rate_pct": 37.044534412955464,
+            "drift": {
+              "status": "not_verified",
+              "reason": "no compatible persisted baseline for this model contract",
+              "max_drift_zscore": null
+            },
+            "monitoring_status": "WARNING",
+            "trigger_decision": "REVIEW",
+            "review_reasons": [
+              "transition_rate_above_warning_threshold"
+            ],
+            "auto_retrain_flag": false
+          },
+          "prediction_file": "reports/abc_comparison/model_b/predictions/user7_labeled_external_native_legacy_diagnostic_predictions.csv",
+          "decision_hint": "forensic_reference_only_native_mode_not_production_safe"
+        },
+        "garmin_unlabeled_production_style": {
+          "dataset": {
+            "dataset_id": "garmin_unlabeled_production_style",
+            "path": "data/processed/fused_2025_07_16_21_03_13_50Hz.csv",
+            "scope": "primary_unlabeled_production_style_evaluation",
+            "labeled": false,
+            "n_rows": 130500,
+            "n_windows": 1303,
+            "label_column": null
+          },
+          "contract_mode": "native_legacy_diagnostic",
+          "layout": "legacy_channel_major_reshape",
+          "scaler_policy": "full_evaluation_dataframe_fit_transform_diagnostic_only",
+          "unit_info": {
+            "unit_conversion_applied": true,
+            "accelerometer_abs_mean_before": 513.6719970703125,
+            "accelerometer_abs_max_before": 5723.90869140625,
+            "accelerometer_detected_unit": "milliG",
+            "gyroscope_unit_assumption": "deg/s unchanged"
+          },
+          "metrics": {},
+          "monitoring": {
+            "n_windows": 1303,
+            "prediction_distribution": {
+              "ear_rubbing": 85,
+              "forehead_rubbing": 120,
+              "hair_pulling": 92,
+              "hand_scratching": 102,
+              "hand_tapping": 388,
+              "knuckles_cracking": 87,
+              "nail_biting": 139,
+              "nape_rubbing": 66,
+              "sitting": 124,
+              "smoking": 46,
+              "standing": 54
+            },
+            "classes_used": 11,
+            "dominant_class": "hand_tapping",
+            "dominant_class_pct": 29.77743668457406,
+            "mean_confidence": 0.7166628837585449,
+            "median_confidence": 0.7399110198020935,
+            "confidence_bands": {
+              "high_pct": 31.23561013046815,
+              "medium_pct": 23.177283192632387,
+              "low_pct": 24.251726784343823,
+              "uncertain_pct": 21.335379892555643
+            },
+            "prediction_entropy": 0.8112197815976024,
+            "transition_rate_pct": 46.31336405529954,
+            "drift": {
+              "status": "not_verified",
+              "reason": "no compatible persisted baseline for this model contract",
+              "max_drift_zscore": null
+            },
+            "monitoring_status": "WARNING",
+            "trigger_decision": "REVIEW",
+            "review_reasons": [
+              "uncertain_window_percentage_above_warning_threshold",
+              "transition_rate_above_warning_threshold"
+            ],
+            "auto_retrain_flag": false
+          },
+          "prediction_file": "reports/abc_comparison/model_b/predictions/garmin_unlabeled_production_style_native_legacy_diagnostic_predictions.csv",
+          "decision_hint": "forensic_reference_only_native_mode_not_production_safe"
+        }
+      }
+    },
+    "model_c": {
+      "model_id": "model_c",
+      "model_role": "previous_pipeline_baseline",
+      "artifact_identity": {
+        "model_path": "models/pretrained/fine_tuned_model_1dcnnbilstm.keras",
+        "model_sha256": "3A35F3BD6F74293BFE5E5A7599D1741430A6F76DB26B46C0023355D09C1A5BC2",
+        "scaler_path": "none",
+        "scaler_sha256": "not_applicable",
+        "label_map_source": "data/prepared/config.json and src/utils/label_mapping.py canonical fallback",
+        "label_map_sha256": "not_verified",
+        "git_branch": "feature/inference-parity-gpt-no-scaler",
+        "git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+        "artifact_git_commit": "510eeedae75725b0505277383da4a3dde5f8b744",
+        "registry_contract_commit": "5b7d537"
+      },
+      "datasets": {
+        "user7_labeled_external": {
+          "dataset": {
+            "dataset_id": "user7_labeled_external",
+            "path": "data/raw/2026-05-05-15-11-15_labeled_50Hz_user7.csv",
+            "scope": "primary_labeled_external_evaluation",
+            "labeled": true,
+            "n_rows": 99017,
+            "n_windows": 989,
+            "label_column": "activity"
+          },
+          "contract_mode": "previous_pipeline_clean_rowwise_no_scaler",
+          "layout": "time_major_row_wise",
+          "scaler_policy": "none",
+          "unit_info": {
+            "unit_conversion_applied": false,
+            "accelerometer_abs_mean_before": 4.778331756591797,
+            "accelerometer_abs_max_before": 31.362947463989258,
+            "accelerometer_detected_unit": "m/s^2",
+            "gyroscope_unit_assumption": "deg/s unchanged"
+          },
+          "metrics": {
+            "accuracy": 0.07583417593528817,
+            "balanced_accuracy": 0.07613210759278176,
+            "macro_f1": 0.0247968247968248,
+            "weighted_f1": 0.0247016558442241,
+            "per_class_precision": {
+              "ear_rubbing": 0.07081545064377683,
+              "forehead_rubbing": 0.0,
+              "hair_pulling": 0.0,
+              "hand_scratching": 0.0,
+              "hand_tapping": 0.09210526315789473,
+              "knuckles_cracking": 0.0,
+              "nail_biting": 0.0,
+              "nape_rubbing": 0.0,
+              "sitting": 0.0,
+              "smoking": 0.0,
+              "standing": 0.0
+            },
+            "per_class_recall": {
+              "ear_rubbing": 0.3707865168539326,
+              "forehead_rubbing": 0.0,
+              "hair_pulling": 0.0,
+              "hand_scratching": 0.0,
+              "hand_tapping": 0.4666666666666667,
+              "knuckles_cracking": 0.0,
+              "nail_biting": 0.0,
+              "nape_rubbing": 0.0,
+              "sitting": 0.0,
+              "smoking": 0.0,
+              "standing": 0.0
+            },
+            "per_class_f1": {
+              "ear_rubbing": 0.11891891891891893,
+              "forehead_rubbing": 0.0,
+              "hair_pulling": 0.0,
+              "hand_scratching": 0.0,
+              "hand_tapping": 0.15384615384615385,
+              "knuckles_cracking": 0.0,
+              "nail_biting": 0.0,
+              "nape_rubbing": 0.0,
+              "sitting": 0.0,
+              "smoking": 0.0,
+              "standing": 0.0
+            },
+            "per_class_support": {
+              "ear_rubbing": 89,
+              "forehead_rubbing": 87,
+              "hair_pulling": 91,
+              "hand_scratching": 92,
+              "hand_tapping": 90,
+              "knuckles_cracking": 89,
+              "nail_biting": 90,
+              "nape_rubbing": 93,
+              "sitting": 89,
+              "smoking": 90,
+              "standing": 89
+            },
+            "confusion_matrix": [
+              [
+                33,
+                0,
+                0,
+                0,
+                56,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                55,
+                0,
+                0,
+                0,
+                31,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0
+              ],
+              [
+                49,
+                0,
+                0,
+                0,
+                42,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                41,
+                0,
+                0,
+                0,
+                51,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                48,
+                0,
+                0,
+                0,
+                42,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                33,
+                0,
+                0,
+                0,
+                56,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                61,
+                0,
+                0,
+                0,
+                29,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                52,
+                0,
+                3,
+                0,
+                37,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0
+              ],
+              [
+                25,
+                0,
+                0,
+                0,
+                5,
+                0,
+                0,
+                0,
+                0,
+                59,
+                0
+              ],
+              [
+                53,
+                0,
+                0,
+                0,
+                37,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                16,
+                0,
+                1,
+                0,
+                70,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0
+              ]
+            ],
+            "true_label_distribution": {
+              "ear_rubbing": 89,
+              "forehead_rubbing": 87,
+              "hair_pulling": 91,
+              "hand_scratching": 92,
+              "hand_tapping": 90,
+              "knuckles_cracking": 89,
+              "nail_biting": 90,
+              "nape_rubbing": 93,
+              "sitting": 89,
+              "smoking": 90,
+              "standing": 89
+            },
+            "mean_confidence": 0.7483844757080078,
+            "median_confidence": 0.7532414197921753,
+            "prediction_entropy": 0.6238751461179272
+          },
+          "monitoring": {
+            "n_windows": 989,
+            "prediction_distribution": {
+              "ear_rubbing": 466,
+              "hair_pulling": 4,
+              "hand_tapping": 456,
+              "smoking": 63
+            },
+            "classes_used": 4,
+            "dominant_class": "ear_rubbing",
+            "dominant_class_pct": 47.118301314459046,
+            "mean_confidence": 0.7483844757080078,
+            "median_confidence": 0.7532414197921753,
+            "confidence_bands": {
+              "high_pct": 23.660262891809907,
+              "medium_pct": 35.28816986855409,
+              "low_pct": 35.8948432760364,
+              "uncertain_pct": 5.156723963599596
+            },
+            "prediction_entropy": 0.6238751461179272,
+            "transition_rate_pct": 40.9919028340081,
+            "drift": {
+              "status": "not_verified",
+              "reason": "no compatible persisted baseline for this model contract",
+              "max_drift_zscore": null
+            },
+            "monitoring_status": "WARNING",
+            "trigger_decision": "REVIEW",
+            "review_reasons": [
+              "transition_rate_above_warning_threshold"
+            ],
+            "auto_retrain_flag": false
+          },
+          "prediction_file": "reports/abc_comparison/model_c/predictions/user7_labeled_external_previous_pipeline_clean_rowwise_no_scaler_predictions.csv",
+          "decision_hint": "historical_baseline_pending_human_review"
+        },
+        "garmin_unlabeled_production_style": {
+          "dataset": {
+            "dataset_id": "garmin_unlabeled_production_style",
+            "path": "data/processed/fused_2025_07_16_21_03_13_50Hz.csv",
+            "scope": "primary_unlabeled_production_style_evaluation",
+            "labeled": false,
+            "n_rows": 130500,
+            "n_windows": 1304,
+            "label_column": null
+          },
+          "contract_mode": "previous_pipeline_clean_rowwise_no_scaler",
+          "layout": "time_major_row_wise",
+          "scaler_policy": "none",
+          "unit_info": {
+            "unit_conversion_applied": true,
+            "accelerometer_abs_mean_before": 513.6719970703125,
+            "accelerometer_abs_max_before": 5723.90869140625,
+            "accelerometer_detected_unit": "milliG",
+            "gyroscope_unit_assumption": "deg/s unchanged"
+          },
+          "metrics": {},
+          "monitoring": {
+            "n_windows": 1304,
+            "prediction_distribution": {
+              "ear_rubbing": 600,
+              "forehead_rubbing": 1,
+              "hair_pulling": 12,
+              "hand_tapping": 590,
+              "nail_biting": 14,
+              "smoking": 87
+            },
+            "classes_used": 6,
+            "dominant_class": "ear_rubbing",
+            "dominant_class_pct": 46.012269938650306,
+            "mean_confidence": 0.730161726474762,
+            "median_confidence": 0.7364842891693115,
+            "confidence_bands": {
+              "high_pct": 22.7760736196319,
+              "medium_pct": 34.04907975460122,
+              "low_pct": 31.82515337423313,
+              "uncertain_pct": 11.349693251533742
+            },
+            "prediction_entropy": 0.6991113549647959,
+            "transition_rate_pct": 43.207981580967,
+            "drift": {
+              "status": "not_verified",
+              "reason": "no compatible persisted baseline for this model contract",
+              "max_drift_zscore": null
+            },
+            "monitoring_status": "WARNING",
+            "trigger_decision": "REVIEW",
+            "review_reasons": [
+              "transition_rate_above_warning_threshold"
+            ],
+            "auto_retrain_flag": false
+          },
+          "prediction_file": "reports/abc_comparison/model_c/predictions/garmin_unlabeled_production_style_previous_pipeline_clean_rowwise_no_scaler_predictions.csv",
+          "decision_hint": "historical_baseline_pending_human_review"
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "model_id": "model_a",
+      "model_role": "clean_contract_candidate",
+      "dataset_id": "user7_labeled_external",
+      "dataset_scope": "primary_labeled_external_evaluation",
+      "contract_mode": "clean_pipeline",
+      "layout": "time_major_row_wise",
+      "scaler_policy": "garmin_train_only_json",
+      "labeled": true,
+      "n_rows": 99017,
+      "n_windows": 989,
+      "accuracy": 0.37613751263902934,
+      "balanced_accuracy": 0.3745449176508112,
+      "macro_f1": 0.34095040328427867,
+      "weighted_f1": 0.3417361266914485,
+      "classes_used": 11,
+      "dominant_class": "nape_rubbing",
+      "dominant_class_pct": 16.48129423660263,
+      "mean_confidence": 0.35944825410842896,
+      "median_confidence": 0.29568812251091003,
+      "uncertain_window_pct": 80.48533872598584,
+      "prediction_entropy": 1.8464038518668093,
+      "transition_rate_pct": 27.732793522267208,
+      "drift_status": "HEALTHY",
+      "max_drift_zscore": 0.16390235236204448,
+      "monitoring_status": "WARNING",
+      "trigger_decision": "REVIEW",
+      "review_reasons": [
+        "mean_confidence_below_warning_threshold",
+        "uncertain_window_percentage_above_warning_threshold"
+      ],
+      "auto_retrain_flag": false,
+      "decision_hint": "clean_runtime_candidate_pending_human_review",
+      "prediction_file": "reports/abc_comparison/model_a/predictions/user7_labeled_external_clean_pipeline_predictions.csv"
+    },
+    {
+      "model_id": "model_a",
+      "model_role": "clean_contract_candidate",
+      "dataset_id": "garmin_unlabeled_production_style",
+      "dataset_scope": "primary_unlabeled_production_style_evaluation",
+      "contract_mode": "clean_pipeline",
+      "layout": "time_major_row_wise",
+      "scaler_policy": "garmin_train_only_json",
+      "labeled": false,
+      "n_rows": 130500,
+      "n_windows": 1304,
+      "accuracy": null,
+      "balanced_accuracy": null,
+      "macro_f1": null,
+      "weighted_f1": null,
+      "classes_used": 10,
+      "dominant_class": "sitting",
+      "dominant_class_pct": 51.84049079754601,
+      "mean_confidence": 0.392861008644104,
+      "median_confidence": 0.41755998134613037,
+      "uncertain_window_pct": 75.53680981595092,
+      "prediction_entropy": 1.7405088996725173,
+      "transition_rate_pct": 27.321565617805067,
+      "drift_status": "HEALTHY",
+      "max_drift_zscore": 1.1166781618795947,
+      "monitoring_status": "WARNING",
+      "trigger_decision": "REVIEW",
+      "review_reasons": [
+        "mean_confidence_below_warning_threshold",
+        "uncertain_window_percentage_above_warning_threshold"
+      ],
+      "auto_retrain_flag": false,
+      "decision_hint": "clean_runtime_candidate_pending_human_review",
+      "prediction_file": "reports/abc_comparison/model_a/predictions/garmin_unlabeled_production_style_clean_pipeline_predictions.csv"
+    },
+    {
+      "model_id": "model_b",
+      "model_role": "legacy_forensic_reference",
+      "dataset_id": "user7_labeled_external",
+      "dataset_scope": "primary_labeled_external_evaluation",
+      "contract_mode": "native_legacy_diagnostic",
+      "layout": "legacy_channel_major_reshape",
+      "scaler_policy": "full_evaluation_dataframe_fit_transform_diagnostic_only",
+      "labeled": true,
+      "n_rows": 99017,
+      "n_windows": 989,
+      "accuracy": 0.4378159757330637,
+      "balanced_accuracy": 0.43956148141866086,
+      "macro_f1": 0.4185903663849206,
+      "weighted_f1": 0.41711038648738463,
+      "classes_used": 11,
+      "dominant_class": "hand_tapping",
+      "dominant_class_pct": 19.514661274014156,
+      "mean_confidence": 0.7745576500892639,
+      "median_confidence": 0.8311834335327148,
+      "uncertain_window_pct": 14.964610717896864,
+      "prediction_entropy": 0.6371875504308412,
+      "transition_rate_pct": 37.044534412955464,
+      "drift_status": "not_verified",
+      "max_drift_zscore": null,
+      "monitoring_status": "WARNING",
+      "trigger_decision": "REVIEW",
+      "review_reasons": [
+        "transition_rate_above_warning_threshold"
+      ],
+      "auto_retrain_flag": false,
+      "decision_hint": "forensic_reference_only_native_mode_not_production_safe",
+      "prediction_file": "reports/abc_comparison/model_b/predictions/user7_labeled_external_native_legacy_diagnostic_predictions.csv"
+    },
+    {
+      "model_id": "model_b",
+      "model_role": "legacy_forensic_reference",
+      "dataset_id": "garmin_unlabeled_production_style",
+      "dataset_scope": "primary_unlabeled_production_style_evaluation",
+      "contract_mode": "native_legacy_diagnostic",
+      "layout": "legacy_channel_major_reshape",
+      "scaler_policy": "full_evaluation_dataframe_fit_transform_diagnostic_only",
+      "labeled": false,
+      "n_rows": 130500,
+      "n_windows": 1303,
+      "accuracy": null,
+      "balanced_accuracy": null,
+      "macro_f1": null,
+      "weighted_f1": null,
+      "classes_used": 11,
+      "dominant_class": "hand_tapping",
+      "dominant_class_pct": 29.77743668457406,
+      "mean_confidence": 0.7166628837585449,
+      "median_confidence": 0.7399110198020935,
+      "uncertain_window_pct": 21.335379892555643,
+      "prediction_entropy": 0.8112197815976024,
+      "transition_rate_pct": 46.31336405529954,
+      "drift_status": "not_verified",
+      "max_drift_zscore": null,
+      "monitoring_status": "WARNING",
+      "trigger_decision": "REVIEW",
+      "review_reasons": [
+        "uncertain_window_percentage_above_warning_threshold",
+        "transition_rate_above_warning_threshold"
+      ],
+      "auto_retrain_flag": false,
+      "decision_hint": "forensic_reference_only_native_mode_not_production_safe",
+      "prediction_file": "reports/abc_comparison/model_b/predictions/garmin_unlabeled_production_style_native_legacy_diagnostic_predictions.csv"
+    },
+    {
+      "model_id": "model_c",
+      "model_role": "previous_pipeline_baseline",
+      "dataset_id": "user7_labeled_external",
+      "dataset_scope": "primary_labeled_external_evaluation",
+      "contract_mode": "previous_pipeline_clean_rowwise_no_scaler",
+      "layout": "time_major_row_wise",
+      "scaler_policy": "none",
+      "labeled": true,
+      "n_rows": 99017,
+      "n_windows": 989,
+      "accuracy": 0.07583417593528817,
+      "balanced_accuracy": 0.07613210759278176,
+      "macro_f1": 0.0247968247968248,
+      "weighted_f1": 0.0247016558442241,
+      "classes_used": 4,
+      "dominant_class": "ear_rubbing",
+      "dominant_class_pct": 47.118301314459046,
+      "mean_confidence": 0.7483844757080078,
+      "median_confidence": 0.7532414197921753,
+      "uncertain_window_pct": 5.156723963599596,
+      "prediction_entropy": 0.6238751461179272,
+      "transition_rate_pct": 40.9919028340081,
+      "drift_status": "not_verified",
+      "max_drift_zscore": null,
+      "monitoring_status": "WARNING",
+      "trigger_decision": "REVIEW",
+      "review_reasons": [
+        "transition_rate_above_warning_threshold"
+      ],
+      "auto_retrain_flag": false,
+      "decision_hint": "historical_baseline_pending_human_review",
+      "prediction_file": "reports/abc_comparison/model_c/predictions/user7_labeled_external_previous_pipeline_clean_rowwise_no_scaler_predictions.csv"
+    },
+    {
+      "model_id": "model_c",
+      "model_role": "previous_pipeline_baseline",
+      "dataset_id": "garmin_unlabeled_production_style",
+      "dataset_scope": "primary_unlabeled_production_style_evaluation",
+      "contract_mode": "previous_pipeline_clean_rowwise_no_scaler",
+      "layout": "time_major_row_wise",
+      "scaler_policy": "none",
+      "labeled": false,
+      "n_rows": 130500,
+      "n_windows": 1304,
+      "accuracy": null,
+      "balanced_accuracy": null,
+      "macro_f1": null,
+      "weighted_f1": null,
+      "classes_used": 6,
+      "dominant_class": "ear_rubbing",
+      "dominant_class_pct": 46.012269938650306,
+      "mean_confidence": 0.730161726474762,
+      "median_confidence": 0.7364842891693115,
+      "uncertain_window_pct": 11.349693251533742,
+      "prediction_entropy": 0.6991113549647959,
+      "transition_rate_pct": 43.207981580967,
+      "drift_status": "not_verified",
+      "max_drift_zscore": null,
+      "monitoring_status": "WARNING",
+      "trigger_decision": "REVIEW",
+      "review_reasons": [
+        "transition_rate_above_warning_threshold"
+      ],
+      "auto_retrain_flag": false,
+      "decision_hint": "historical_baseline_pending_human_review",
+      "prediction_file": "reports/abc_comparison/model_c/predictions/garmin_unlabeled_production_style_previous_pipeline_clean_rowwise_no_scaler_predictions.csv"
+    }
+  ],
+  "safety_guards": {
+    "runtime_code_modified_by_runner": false,
+    "registry_contracts_rewritten": false,
+    "models_retrained": false,
+    "thresholds_changed": false,
+    "model_artifacts_overwritten": false
+  }
+}
