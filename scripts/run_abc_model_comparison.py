@@ -456,10 +456,11 @@ def git_status(paths: List[str]) -> Dict[str, Any]:
         }
 
 
-def git_current_head() -> str:
+def git_runner_commit() -> str:
+    """Return the last commit that touched this runner script, not HEAD."""
     try:
         completed = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ["git", "log", "-1", "--format=%h", "--", "scripts/run_abc_model_comparison.py"],
             cwd=PROJECT_ROOT,
             check=False,
             capture_output=True,
@@ -1414,7 +1415,7 @@ def run_evaluation(include_all_users: bool = False) -> Dict[str, Any]:
         "registry_commit_metadata": {
             "registry_contract_base_commit": "5b7d537",
             "registry_contract_cleanup_commit": "071a8e8",
-            "runner_commit": git_current_head(),
+            "runner_commit": git_runner_commit(),
             "note": "Both commits reference the frozen registry contracts under models/model_registry/",
         },
         "runtime_environment": runtime_environment,
