@@ -5,11 +5,11 @@ import pandas as pd
 import pytest
 
 from src.api.app import (
+    _apply_final_model_scaler,
     _detect_columns,
     _detect_label_column,
     _maybe_convert_accel_units,
     _merge_upload_pair,
-    _preserve_raw_physical_units,
 )
 
 
@@ -82,7 +82,7 @@ def test_millig_accelerometer_values_are_converted():
     assert converted["Gx"].iloc[0] == 1.0
 
 
-def test_api_preserves_raw_physical_units_without_external_scaler():
+def test_api_applies_final_model_a_scaler(monkeypatch):
     values = np.array(
         [
             [9.81, 0.0, -9.81, 1.0, 2.0, 3.0],
@@ -90,11 +90,20 @@ def test_api_preserves_raw_physical_units_without_external_scaler():
         ],
         dtype=np.float32,
     )
+    config = {
+        "normalization_variant": "zscore",
+        "scaler_mean": [9.0, 0.0, -9.0, 1.0, 2.0, 3.0],
+        "scaler_scale": [0.9, 1.0, 0.9, 2.0, 2.0, 2.0],
+    }
+    monkeypatch.setattr("src.api.app._load_scaler_config", lambda: config)
 
-    transformed, info = _preserve_raw_physical_units(values)
+    transformed, info = _apply_final_model_scaler(values)
 
-    np.testing.assert_allclose(transformed, values)
-    assert info["normalization_applied"] is False
-    assert info["normalization_variant"] == "none"
-    assert info["scaler_config"] is None
-    assert info["model_input_space"] == "raw_physical_units_ms2_dps"
+    expected = (values - np.array(config["scaler_mean"], dtype=np.float32)) / np.array(
+        config["scaler_scale"], dtype=np.float32
+    )
+    np.testing.assert_allclose(transformed, expected)
+    assert info["normalization_applied"] is True
+    assert info["normalization_variant"] == "zscore"
+    assert info["scaler_config"]
+    assert info["model_input_space"] == "zscore_scaled_garmin_train_only"
