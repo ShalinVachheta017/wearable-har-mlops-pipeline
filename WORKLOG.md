@@ -24,6 +24,102 @@ From 2026-04-16 onward, each day should start with a compact scan block before d
 
 Detailed bug narratives, full file lists, and deep forensics stay below the quick block as evidence.
 
+## 2026-05-11/12 - PDF Review and Full Chapter Consistency Audit
+
+### Today in 5 lines
+
+- Completed the May 2026 evidence sprint: ABC comparison, evidence kit index, claim register, and Ch5–Ch8 thesis updates all done.
+- Rebuilt the thesis PDF once from source; build passes but content review found remaining critical issues.
+- Full chapter audit revealed a P0-critical scaler contradiction in Ch4 (normalization state says "no scaler" but Ch5/MODEL_DECISION/THESIS_CONSISTENCY_NOTES all say the train-only scaler is applied).
+- PDF review additionally flagged stale title page date (19 April 2026), Ch4 architecture parameter mismatch (499,131 params described vs. Model A's 87,083), weak Ch2 background depth, and notebook-style figures.
+- Next focus: fix Ch4 scaler contradiction, fix title page date, add Ch4 architecture note, rebuild PDF, then tackle figures and Ch2 depth.
+
+### Done (May 11–12 sprint)
+
+- ABC comparison evidence complete and committed: `reports/abc_comparison/` (abc_results.csv, abc_results.json, comparison_summary.json, contract_runtime_verification.json, dataset_validation_summary.json, ABC_MODEL_COMPARISON_REPORT_2026-05-11.md, model_a/b/c subdirs).
+- ABC model registry created: `models/model_registry/model_a_clean_contract.json`, `model_b_legacy_contract.json`, `model_c_previous_pipeline_contract.json`.
+- `docs/EVIDENCE_KIT_INDEX_2026-05.md` created: maps 25+ evidence files to thesis claims, chapters, and defense slides.
+- `docs/FINAL_THESIS_CLAIMS_2026-06.md` created: 20 verified claims C-01–C-20, 5 open gaps documented.
+- `docs/MODEL_ABC_MENTOR_BRIEF_2026-05.md` committed.
+- `docs/MODEL_DECISION_2026-05.md` verified as current and correct.
+- Ch4–Ch8 thesis chapters updated with May sprint evidence:
+  - Ch5: Model A contract, train-only scaler, ABC evidence, Stage 1–7 evidence runs, API/batch parity.
+  - Ch6: CRITICAL vs. REVIEW distinction, governance scope claim, monitoring severity vs. retraining decision.
+  - Ch7: ABC comparison section, preprocessing ablation, trigger-policy comparison, governance evidence.
+  - Ch8: Scope boundaries section, non-claims list, future work section.
+- PDF first build: `thesis/build_thesis.ps1` executed; LaTeX passes.
+- `docs/MASTER_THESIS_FINISH_TODO_MAY_JUNE_2026.md` rewritten with full audit findings.
+
+### Issues Found in PDF Review and Chapter Audit
+
+```text
+CRITICAL — Ch4 scaler contradiction:
+  thesis/chapters/ch4_data_model_development.tex (lines 200–205, preprocessing table) says:
+  "The defended final production path does not apply an external StandardScaler."
+  This directly contradicts:
+  - Ch5 (Train-Only Scaler section)
+  - docs/MODEL_DECISION_2026-05.md (final input contract)
+  - docs/THESIS_CONSISTENCY_NOTES.md (Section 5.1 canonical sentence)
+  - docs/EVIDENCE_KIT_INDEX_2026-05.md
+  Correct contract: unit conversion → Garmin train-only scaler → windowing → Model A.
+  Fix: update Ch4 normalization state section and preprocessing table.
+
+IMPORTANT — Ch4 architecture parameter count:
+  Ch4 describes 499,131 parameters — this matches Models B/C (legacy architecture).
+  Model A has 87,083 parameters per FINAL_THESIS_CLAIMS_2026-06.md (claim C-06).
+  Ch4 does not explain the relationship. Must add a clarifying note.
+
+MODERATE — Ch7 baseline reference model ambiguity:
+  Ch7 "Baseline Reference on Labeled Data" uses har_model_20260327_223917.keras (98.9% accuracy).
+  This is NOT Model A (42.4%/37.6%). Without explicit clarification, examiners may be confused.
+  Fix: add one sentence distinguishing the two models and their roles in the chapter.
+
+STALE — Title page date:
+  main.tex says "Siegen, 19 April 2026". Must update to actual submission date.
+
+PDF VISUAL — Figures:
+  All figures are notebook-style screenshots. Need thesis-quality vector diagrams.
+  Priority: pipeline overview, Stage 1–7 flow, ABC comparison bar chart.
+
+PDF VISUAL — Font and appearance:
+  PDF review flagged font/layout as "weak or broken". Need clean rebuild and font check.
+
+DEPTH — Chapter 2 background:
+  PDF review flagged Ch2 as "too weak/small". Chapter has 5 sections and a synthesis table
+  but individual sections may need additional depth and cited findings.
+
+DEPTH — Chapter 3 offline architecture:
+  PDF review flagged offline architecture explanation as needing strengthening.
+  Ch3 covers design goals and principles but lacks a concrete data-flow walkthrough.
+```
+
+### Leftover and Risk
+
+- Ch4 scaler contradiction is the most dangerous single issue — it directly contradicts the runtime contract and the rest of the thesis.
+- Title page date is visibly wrong on every printed copy.
+- Architecture parameter mismatch will likely draw an examiner question.
+- Figures remain notebook-quality; redesign is needed before any supervisor share.
+
+### Writing Impact
+
+- Ch4 normalization state section must be replaced to state the correct defended contract.
+- Ch4 preprocessing table normalization row must change from "Disabled" to "Enabled — Garmin train-only scaler."
+- Ch4 architecture section must note that Model A (87,083 params) differs from the full baseline (499,131 params).
+- Ch7 baseline reference section must explicitly distinguish `har_model_20260327_223917.keras` from Model A.
+- None of these changes alter the thesis claims — they resolve internal contradictions.
+
+### Next Session Start Point
+
+1. Fix Ch4 normalization state section (P0-01 — scaler contradiction).
+2. Fix Ch4 preprocessing table normalization row.
+3. Add Ch4 architecture parameter note for Model A (P0-02).
+4. Add Ch7 baseline reference clarification (P0-03).
+5. Update title page date in main.tex (P0-04).
+6. Rebuild PDF clean and check font/appearance (P0-07, P0-08).
+7. Then: Ch2 depth, Ch3 expansion, figure redesign.
+
+---
+
 ## 2026-05-11 - Mentor Share Readiness Check And Report Sync
 
 ### Today in 5 lines
@@ -4501,3 +4597,351 @@ first freeze contract + evidence,
 then archive/delete noise,
 never delete before the evidence mapping is written.
 ```
+
+---
+
+
+---
+
+## 2026-05-12 — Full Thesis Stabilization Block: All Chapters, Figures, PDF, Defense Prep
+
+### Session Overview
+
+Major end-of-day thesis stabilization sprint completing the full chapter alignment, figure rebuild, PDF verification, defense Q&A overhaul, and defense slides first-draft outline. All work targets the final defended thesis story:
+
+- Model A = defended clean proof-of-concept runtime candidate (87,083 params)
+- Model B = legacy/mentor diagnostic reference only; non-persisted full-evaluation scaler limits transferability
+- Model C = checkpoint-contract mismatch evidence; same checkpoint as B, no scaler, 7.6% User 7
+- auto_retrain=false is deliberate governance policy, not a missing feature
+- CRITICAL = monitoring severity; REVIEW = governance action (always two separate fields)
+- Final runtime contract: unit conversion when needed → Garmin train-only StandardScaler → row-wise windows → Model A inference
+- No clinical diagnosis, no production-grade claims, no population-level generalisation
+
+---
+
+### Font Fix
+
+Commit: 49c1d1e — "tex: use Latin Modern vector font"
+
+LaTeX font package updated to Latin Modern (lmodern). Thesis PDF now uses vector fonts throughout. Removed residual font artifacts from earlier bitmap/CM font pass. This unblocked the PDF visual pass.
+
+---
+
+### Chapter 5 — Runtime Contract Evidence (P0-05 related)
+
+Commit: ac676ef — "docs: update Chapter 5 runtime contract evidence"
+
+Ch5 updated with Model A contract section: model path, input contract (batch,200,6) row-wise time-major, SHA-256 label order verification, scaler JSON/joblib parity (0.0 abs diff), API/batch parity (100% agreement, 1.9e-6 max abs diff on User 7 989 windows). Stage 1-7 evidence runs on Garmin unlabeled (1,304 windows) and User 7 (989 windows) both report action=review and should_retrain=false.
+
+---
+
+### Chapter 7 — ABC Comparison and External Evaluation
+
+Commit: b404300 — "docs: add Chapter 7 ABC and external evaluation results"
+
+Ch7 updated with full ABC comparison section and external evaluation. Model A: 42.4% all_users, 37.6% User 7, mean conf 0.359, 11/11 classes. Model B (diagnostic): 90.8% all_users, 43.8% User 7 in native diagnostic mode. Model C (contract mismatch): 7.6% User 7, 4/11 classes. Garmin unlabeled: 1,304 windows, mean conf 0.393, drift HEALTHY.
+
+---
+
+### Chapter 7 — Synth Other Correction (P0-03)
+
+Commit: 0e2c23e — "fix(ch7): correct Synth Other metrics in synthetic comparison"
+
+Corrected Synth Other values using authoritative artifact (not stale earlier run):
+- Accuracy: 34.6%
+- Macro F1: 31.7%
+- Mean confidence: 77.7%
+- Uncertain windows: 14.5%
+- Transition rate: 0.282
+- Drift: 0.0090
+
+Also explicitly clarified that the 98.9% labeled reference result belongs to the earlier pre-sprint baseline model (har_model_20260327_223917.keras), NOT to Model A. Without this clarification an examiner could mistake the 98.9% as a Model A result.
+
+---
+
+### Chapter 8 — Scope Boundaries and Non-Claims
+
+Commit: 096e984 — "docs: add Chapter 8 scope boundaries and limitations"
+
+Ch8 updated with explicit non-claims list and scope boundaries section. Items recorded as explicit non-claims: no clinical diagnosis claim, no production-grade deployment, no population-level generalisation, auto_retrain=false is deliberate, CRITICAL severity ≠ automatic retraining, Stages 8-11 are optional/gated extensions. Final contribution statement added: reproducible, auditable, governance-aware offline-first MLOps lifecycle for wearable HAR.
+
+---
+
+### Chapter 4 — Data and Model Provenance
+
+Commit: 528ddfb — "docs: update Chapter 4 data and model provenance"
+
+Ch4 data and model provenance section updated to reflect Model A vs Model B/C distinction, evidence kit mapping, and baseline training data provenance.
+
+---
+
+### Chapter 4 — Scaler Contradiction Fix + Parameter Clarification (P0-01, P0-02)
+
+Commit: 9bdbaae — "fix(ch4): align scaler and parameter wording with Model A contract"
+
+Two fixes:
+
+Fix 1 (P0-01 — scaler contradiction): Ch4 normalization paragraph was saying "the defended final production path does not apply an external StandardScaler." Corrected to match final contract: the Garmin train-only StandardScaler (persisted, SHA-256 verified) IS applied before windowing. Updated preprocessing table: Normalization row now reads "Enabled — Garmin train-only StandardScaler, fit on training set only, applied before windowing." Replaced "production path/production inference dependency" with "defended runtime path / defended proof-of-concept runtime dependency."
+
+Fix 2 (P0-02 — parameter count): Ch4 architecture section was stating "Total trainable parameters: 499,131" (matching Model B/C full baseline). Added clarifying note: Model A (the defended proof-of-concept runtime candidate) uses a fine-tuned variant with 87,083 parameters; the full architecture (499,131 params) is the baseline reference. ABC parameter comparison reported in Chapter 7.
+
+---
+
+### Figures — Rebuild and New Additions (P1-01)
+
+Commit: 4808e14 — "fig: add and update thesis figures for governance and ABC results"
+
+Five thesis-quality figures created/updated:
+
+1. fig_05_core_vs_conditional_pipeline.png — pipeline overview with governance gate and swim lanes showing Stage 1-7 operational path vs Stage 8-10 conditional mutation path
+2. fig_08_trigger_policy_comparison.png — trigger policy comparison bar chart (two-of-three precision 0.9878 FAR 0.0069 vs single-signal 0.8406 FAR 0.1389); x-axis fixed to avoid misleading scale
+3. fig_10_old_vs_new_model_comparison.png — side-by-side class distribution for old pretrained model (collapse: hand_tapping dominant) vs Model A retrained (11/11 classes represented); old-model control rerun verified same-input collapse
+4. fig_ch6_monitoring_governance.png — three monitoring signal groups (confidence/uncertainty, temporal, drift) + governance decision flow (HEALTHY/WARNING/CRITICAL → trigger → REVIEW/PASS)
+5. fig_ch7_abc_comparison.png — ABC accuracy/F1/mean confidence bar chart across all_users and User 7 datasets
+
+All figures referenced from thesis chapters and tracked so clean checkout can build PDF.
+
+---
+
+### Chapter 2 — Background Strengthening (P0-05)
+
+Commit: 64b1f27 — "docs: strengthen Ch2 mental-health and wearable HAR background"
+
+Three edits to ch2_background_related_work.tex:
+
+Edit 2: New BFRBs opening paragraph grounding body-focused repetitive behaviors (hair pulling, nail biting, skin picking, hand scratching, hand rubbing, hand tapping) as the observable behavioral proxy class. Citations: levine2020passivesensing, lago2024longitudinal.
+
+Edit 3: Anchor sentence block — "This thesis does not diagnose mental health conditions. It treats anxiety-related repetitive activities as observable behavioral proxies and uses them to study the engineering problem of building a reproducible, monitored, offline-first MLOps pipeline for wearable sensor models." Wrist-worn IMU classifier = behavior-recognition system, not a validated clinical assessment instrument.
+
+Edit 4: Mini-synthesis + Section 3 bridge. Recognition-layer framing: wearable sensing literature supports application domain, but strictly at motor-behavior detection level, not mental-state inference level. Bridge: engineering problem is making the recognition layer reproducible, monitored, and governed — not making it clinically valid.
+
+---
+
+### Chapter 2 and Chapter 3 — Thesis Framing (P0-05, P0-06)
+
+Commit: 74d107e — "docs: strengthen Ch2 and Ch3 thesis framing"
+
+Ch2: Mini-synthesis paragraph updated; Section 3 bridge explicit.
+
+Ch3 (ch3_offline_mlops_architecture.tex) — two edits:
+
+Edit 1: Named per-stage role descriptions for S1-S10. S1: ingestion + unit validation; S2: contract validation; S3: tensor transform to (batch,200,6); S4: Model A inference; S5: confidence/F1/distribution metrics; S6: three-group monitoring (confidence/uncertainty, temporal, drift); S7: two-of-three voting + collapse guard + cooldown. S8: conditional retraining; S9: registration; S10: baseline promotion. Added concrete Garmin/User 7 governance example: "On the 2026-05-08 runs (1,304 Garmin windows + 989 User 7 windows), all stages 1-7 completed with status SUCCESS; trigger_decision reported action=review and should_retrain=false on both runs."
+
+Edit 2: "Scalable" anchor sentence inserted into Design Goals section. "In this thesis, scalable does not mean cloud-scale deployment. It means the pipeline is modular, reproducible, configurable, artifact-tracked, and extendable from a fixed Stage 1-7 runtime path into gated Stage 8-10 mutation stages without redesigning the whole system." Four dimensions explained: independently replaceable stage components, YAML config layering, run-scoped artifact persistence, flag-gated mutation.
+
+---
+
+### Defense Q&A — Complete Overhaul (P0-09)
+
+Commit: 4a571d3 — "docs: update defense Q&A for final thesis story"
+
+Complete rewrite of internal/writing/defense_qa.md. Old file had stale 499k-param Model B framing throughout.
+
+New structure — Section 0 (numbers quick reference table) + 10 Q&A sections:
+- Section 0: Numbers table — Model A 87,083 params; Model B 499,131; Model C 7.6% User 7 4/11 classes; User 7 accuracy 37.6% macro F1 34.1% mean conf 0.359; Garmin unlabeled 1,304 windows mean conf 0.393; 98.9% = pre-sprint baseline NOT Model A; two-of-three precision 0.9878 FAR 0.0069; Garmin training population = all_users split (User 7 excluded from scaler fit)
+- Section 1-10: contribution, MLOps rationale, Model A selection, ABC comparison, preprocessing/scaler policy, monitoring, trigger policy, negative result, low accuracy, limitations
+
+Key wording rules enforced throughout:
+- Model B: "non-persisted full-evaluation scaler and legacy native setup limit transferability" (not "data leakage")
+- Model A: "proof-of-concept runtime candidate"
+- CRITICAL = severity; REVIEW = governance action — always two separate fields
+- No "data leakage", no "clinical diagnosis", no "production-grade", no "auto-retraining"
+- 98.9%: explicitly attributed to har_model_20260327_223917.keras, not Model A
+
+Five fix passes applied:
+1. CI/CD: CI-only stance, cd.yml was removed — not a CD system
+2. Model B "favorable normalization" replaced with "diagnostic preprocessing dependent on evaluation batch, not a fixed reproducible runtime contract"
+3. "6 participants" replaced with "all_users training split (6 participants); User 7 excluded from Model A scaler fit and evaluation"
+4. 98.9% attribution clarified explicitly
+5. "production behavior / production-style sessions" → "runtime inference behavior / runtime-style replay sessions" throughout
+
+---
+
+### Defense Slides Outline — First Draft (P0-10)
+
+Created: internal/writing/defense_slides_outline.md (not yet committed)
+
+18-slide outline. Each slide has: Key message, Visual (figure path), Text on slide, Verbal notes.
+
+Slide map:
+- 1: Title
+- 2: Problem — "Train → Execute → Monitor → Govern → Decide" (not Deploy)
+- 3: Contribution framing — not a new classifier, an MLOps lifecycle
+- 4: Scope map (fig_03_scope_map.png)
+- 5: Pipeline overview — Stage 1-7 + gated Stage 8-10 (fig_05_core_vs_conditional_pipeline.png)
+- 6: Stage 1-7 concrete session example
+- 7: Dataset and 11 classes — wording uses "all_users training split; User 7 excluded"
+- 8: ABC model comparison (fig_ch7_abc_comparison.png) — Model B wording: "non-persisted scaler"
+- 9: Monitoring and governance (fig_ch6_monitoring_governance.png)
+- 10: Trigger policy comparison (fig_08_trigger_policy_comparison.png)
+- 11: Preprocessing ablation (thesis_journey/fig_07_ablation_config_comparison.png)
+- 12: Old vs. new model collapse (fig_10_old_vs_new_model_comparison.png)
+- 13: Negative result — table only (no scatter plots)
+- 14: What CRITICAL + REVIEW means — confidence/uncertainty CRITICAL, drift/temporal HEALTHY
+- 15: External generalization ceiling (User 7 = one external participant, not population proof)
+- 16: Limitations
+- 17: Future work
+- 18: Contribution statement + scope map closing
+
+Six critical fixes applied to initial draft:
+1. Slide 14 verbal: corrected — only confidence/uncertainty CRITICAL; drift and temporal status remained HEALTHY
+2. Slide 2: "Deploy" → "Execute"
+3. Slide 7: "6 participants" → "all_users training split; User 7 excluded from Model A scaler fit"
+4. Slide 8: Model B verbal uses "non-persisted scaler recomputed from full evaluation dataframe, not a fixed reproducible runtime contract"
+5. fig_07 path corrected from thesis_body/ to thesis_journey/
+6. Slide 13: table only — no weak scatter plots
+
+---
+
+### PDF Status
+
+PDF rebuilds on today's commits: 112 pages, no undefined references, no missing figures, no missing citations. Only minor overfull/underfull box warnings remain. Font issue fixed via Latin Modern (commit 49c1d1e).
+
+---
+
+### Completed Today — Summary
+
+```text
+49c1d1e  tex: use Latin Modern vector font
+0e2c23e  fix(ch7): correct Synth Other metrics in synthetic comparison
+528ddfb  docs: update Chapter 4 data and model provenance
+096e984  docs: add Chapter 8 scope boundaries and limitations
+ac676ef  docs: update Chapter 5 runtime contract evidence
+b404300  docs: add Chapter 7 ABC and external evaluation results
+4808e14  fig: add and update thesis figures for governance and ABC results
+9bdbaae  fix(ch4): align scaler and parameter wording with Model A contract
+64b1f27  docs: strengthen Ch2 mental-health and wearable HAR background
+74d107e  docs: strengthen Ch2 and Ch3 thesis framing
+4a571d3  docs: update defense Q&A for final thesis story
++ internal/writing/defense_slides_outline.md created, not yet committed
+```
+
+---
+
+### Tomorrow Priority
+
+1. Commit defense_slides_outline.md
+2. Turn 18-slide outline into actual slide deck (PPTX or equivalent)
+3. Create defense demo runbook: internal/writing/demo_runbook.md
+4. README consistency update — proof-of-concept language only, no production-grade
+5. DVC clarification paragraph (what DVC is/is not used for in this thesis)
+6. Begin repo cleanup archive wave only after slides and demo runbook are stable
+
+---
+
+### Still Open
+
+```text
+P0-04  Title page date (update when submission date confirmed)
+P0-08  Font/visual appearance final pass
+P0-11  Demo runbook (internal/writing/demo_runbook.md)
+P0-12  Repo cleanup/archive wave (do not start before slides+demo stable)
+P1-02  Dense table simplification
+P1-03  DVC clarification
+P1-04  Threshold justification paragraph
+P1-05  Bibliography cleanup (target 55-65 strong references)
+P1-06  README consistency
+P1-08  CI smoke workflow filter
+```
+
+---
+
+## 2026-05-12 (continued) — P0 Closeout + PPTX Build
+
+### P0-04 — Title Page Date
+
+Updated `thesis/main.tex` line 50: "Siegen, 19 April 2026" → "Siegen, 15 June 2026".
+Submission date confirmed by user: 15 June 2026.
+
+---
+
+### P0-08 — PDF Visual Appearance
+
+Clean build via `thesis/build_thesis.ps1`:
+- 113 pages (up from 112 after title date change)
+- Zero undefined references
+- Zero missing figures
+- Zero missing citations
+- Zero fatal LaTeX errors
+- Latin Modern vector fonts confirmed throughout
+- Remaining warnings: cosmetic Overfull/Underfull hbox (normal for academic LaTeX, not fixed before defense)
+
+---
+
+### P0-11 — Defense Demo Runbook
+
+Created: `internal/writing/demo_runbook.md`
+
+Structure:
+- Pre-demo 30-minute checklist (conda env, help flag, evidence artifacts, PDF)
+- "What to show vs what to skip" decision table
+- Part 1: Environment verification (30 seconds)
+- Part 2: Quick smoke run Stages 1-7 on User 7 session (~20 seconds) with expected output per stage
+- Part 3: Show pre-run evidence — open artifacts/20260508_235323/ and artifacts/20260508_235356/ directly
+- Part 4: Show Model A contract (model_registry/model_a_clean_contract.json)
+- Part 5: Unit test run (optional, if examiner asks about test coverage)
+- Fallback script: if live run fails, walk through archived run_info.json instead
+- Numbers table (Model A 87,083 params; User 7 37.6%; two-of-three 0.9878/0.0069; API-batch 989/989 parity)
+- "What NOT to claim" section (production-ready, 37.6% = broken, Model B data leakage, CRITICAL=retraining, deployed, population-level, 98.9% = Model A)
+
+---
+
+### Defense Slides — PPTX Build
+
+Created: `internal/writing/build_slides.py` (python-pptx builder script)
+Output: `internal/writing/defense_slides.pptx` — 18 slides, 1.32 MB, all 6 figures embedded
+
+Slide-by-slide summary:
+  1  Title — Shalin Vachheta, 15 June 2026, supervisors, university
+  2  The Gap — two-column: standard HAR paper vs this thesis lifecycle
+  3  Application domain / BFRBs — 6 behaviors + anchor sentence box
+  4  Contribution claim — full-slide statement (not a classifier — a lifecycle)
+  5  Architecture: two paths — fig_05_core_vs_conditional_pipeline.png full width
+  6  "Scalable" definition — NOT cloud-scale vs THIS modular/reproducible
+  7  Model A contract — 4-row table: data / model / preprocessing / status
+  8  ABC comparison — bullet summary + fig_ch7_abc_comparison.png
+  9  Monitoring: three signals — fig_ch6_monitoring_governance.png full width
+ 10  Trigger policy — two-of-three table + fig_08_trigger_policy_comparison.png
+ 11  Preprocessing ablation — config A/B/C/D table + fig_07_ablation_config_comparison.png
+ 12  Model collapse — fig_10_old_vs_new_model_comparison.png + numbers sidebar
+ 13  Negative result — 26-session before/after table (mean conf 0.8578 unchanged)
+ 14  Defended evidence runs — two boxes: Garmin + User 7 stats
+ 15  Non-claims — not-this vs contributed, two columns
+ 16  RQ answers — four-row bounded answers table
+ 17  Contribution statement — full-slide dark blue
+ 18  Close / Questions — scope map background, "Thank you"
+
+All slides have verbatim speaker notes matching the defense_slides_outline.md content.
+Design: dark-blue palette, DARK_BLUE/MID_BLUE/LIGHT_BLUE color scheme, Calibri font.
+
+Files created:
+  internal/writing/build_slides.py   (builder script, re-runnable)
+  internal/writing/defense_slides.pptx  (output, 18 slides)
+  internal/writing/demo_runbook.md   (P0-11)
+
+---
+
+### All P0 Items — Status at End of 2026-05-12
+
+```text
+P0-01  DONE  9bdbaae  Ch4 scaler contradiction fixed
+P0-02  DONE  9bdbaae  Ch4 parameter count clarified (87,083 params)
+P0-03  DONE  0e2c23e  Ch7 Synth Other corrected; 98.9% attribution clarified
+P0-04  DONE  (this session) Title page: "Siegen, 15 June 2026"
+P0-05  DONE  64b1f27  Ch2 BFRBs, anchor sentence, recognition-layer synthesis
+P0-06  DONE  74d107e  Ch3 stage roles, scalable anchor, concrete governance example
+P0-07  DONE  (this session) PDF 113 pages, no undefined refs, no missing figures
+P0-08  DONE  (this session) Font check confirmed: Latin Modern vector, cosmetic warnings only
+P0-09  DONE  4a571d3  Defense Q&A complete overhaul, 10 sections
+P0-10  DONE  (this session) defense_slides.pptx built, 18 slides
+P0-11  DONE  (this session) internal/writing/demo_runbook.md created
+P0-12  OPEN  Repo cleanup/archive wave — do not start before slides+demo stable
+```
+
+### Next: P1 Block
+
+P1-05  Bibliography cleanup (target 55-65 references)
+P1-06  README consistency (proof-of-concept language, no production-grade)
+P1-02  Dense table simplification (move full confusion matrices/channel stats to appendix)
+P1-03  DVC clarification paragraph
+P1-04  Threshold justification paragraph in Ch6
