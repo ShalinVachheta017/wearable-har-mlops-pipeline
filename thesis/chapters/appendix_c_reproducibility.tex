@@ -1,0 +1,92 @@
+\chapter{Reproducibility and Contract Audit Checklist}
+\label{app:reproducibility_checklist}
+
+This appendix consolidates the practical audit items that support the defended proof-of-concept runtime claim. It is not a new experiment and does not replace the evidence artifacts cited in Chapters~\ref{chap:implementation}--\ref{chap:experiments}. Its purpose is to make the repository state, runtime contract, parity evidence, and bug-exclusion checks inspectable in one place.
+
+\section{Reproducibility Snapshot}
+
+\begin{table}[htbp]
+\centering
+\caption{Reproducibility checklist for the defended thesis version.}
+\label{tab:reproducibility_checklist}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{p{3.2cm}p{5.0cm}p{6.7cm}}
+\hline
+\textbf{Item} & \textbf{Value / command} & \textbf{Evidence or note} \\
+\hline
+Repository branch & \texttt{feature/inference-parity-gpt-no-scaler} & Final submission archive should record the exact final commit with \texttt{git rev-parse --short HEAD}. \\
+Python environment & Thesis Python environment with project dependencies from \path{pyproject.toml} / local setup & The defended pipeline is executed locally; no cloud runtime is required. \\
+Main command & \texttt{python run\_pipeline.py --stages ingestion validation transformation inference evaluation monitoring trigger} & \texttt{run\_pipeline.py} handles orchestration; a full \texttt{dvc repro} Stage~1--7 graph is not configured for this thesis version. \\
+Model A artifact & \path{models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras} & Defended proof-of-concept runtime candidate. \\
+Scaler artifact & \path{models/production_contract/model_a_final_20260508/garmin_train_scaler.json} and matching joblib file & Garmin train-only StandardScaler; JSON/joblib parity maximum absolute difference \(0.0\). \\
+Label order artifact & \path{models/production_contract/model_a_final_20260508/label_order.json} & Fixed 11-class output order, verified through the registry contract. \\
+Registry contract & \path{models/model_registry/model_a_clean_contract.json} & Records model, scaler, label order, monitoring baseline, and contract metadata. \\
+Defended Garmin run & \path{artifacts/20260508_235323/} & Unlabeled runtime-style run; 1{,}304 windows, Stage~1--7 success, trigger action \texttt{review}. \\
+Defended User~7 run & \path{artifacts/20260508_235356/} & Labeled external run; 989 windows, Stage~1--7 success, trigger action \texttt{review}. \\
+ABC comparison & \path{reports/abc_comparison/} & Model A/B/C contract and behavior comparison used in Chapter~\ref{chap:experiments}. \\
+API/batch parity & \path{reports/FINAL_RUNTIME_RUN_SUMMARY_2026-05-09.md} & 989/989 prediction agreement on User~7; maximum softmax difference \(1.9\times10^{-6}\). \\
+Test command & \texttt{pytest tests/ -q --tb=short} & Defense runbook records a 240-test suite split into unit, integration, and slow tests; rerun before final archive if the environment changes. \\
+PDF build & \texttt{cd thesis} then \texttt{.\textbackslash build\_thesis.ps1} & Produces \path{thesis/main.pdf}; rerun after final front-matter edits. \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\section{API and Batch Parity Matrix}
+
+Table~\ref{tab:api_batch_parity} summarizes the parity evidence behind the API-versus-batch claim. The point of the table is not that the API is production-grade; it is that both local execution routes load the same defended contract and produce numerically equivalent output on the same User~7 session.
+
+\begin{table}[htbp]
+\centering
+\caption{API-versus-batch parity audit on the User~7 labeled session.}
+\label{tab:api_batch_parity}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{p{3.1cm}p{4.0cm}p{4.0cm}p{4.0cm}}
+\hline
+\textbf{Item} & \textbf{Batch path} & \textbf{API path} & \textbf{Result} \\
+\hline
+Model path & Model~A artifact & Same Model~A artifact & Matched \\
+Scaler & Garmin train-only scaler & Same Garmin train-only scaler & Matched \\
+Feature order & \(A_x,A_y,A_z,G_x,G_y,G_z\) & \(A_x,A_y,A_z,G_x,G_y,G_z\) & Matched \\
+Window layout & Row-wise time-major \((200,6)\) & Row-wise time-major \((200,6)\) & Matched \\
+Windows & 989 & 989 & Matched \\
+Prediction agreement & 989/989 & 989/989 & 100\% \\
+Maximum softmax difference & Same probability vectors compared & Same probability vectors compared & \(1.9\times10^{-6}\) \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
+
+\section{Contract-Verification and Bug-Exclusion Matrix}
+
+Table~\ref{tab:contract_bug_exclusion} records the main contract risks that were checked before defending Model~A as the runtime candidate. These checks do not prove clinical accuracy or population-level generalisation. They rule out common implementation errors for the defended evidence runs.
+
+\begin{table}[htbp]
+\centering
+\caption{Contract-verification matrix for defended Model~A evidence runs.}
+\label{tab:contract_bug_exclusion}
+{\setlength{\tabcolsep}{4pt}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{p{3.0cm}p{4.1cm}p{5.2cm}p{3.1cm}}
+\hline
+\textbf{Risk} & \textbf{Check} & \textbf{Evidence} & \textbf{Outcome} \\
+\hline
+Wrong units & Validation and unit-conversion handling before transformation & Stage~1--3 artifacts in the defended run folders; Garmin milliG conversion where needed & Ruled out for defended runs \\
+Wrong scaler & Load persisted Garmin train-only scaler only & \path{garmin_train_scaler.json}, joblib copy, and \path{model_a_clean_contract.json} & Ruled out \\
+Double scaling & Compare local API and batch outputs under the same User~7 input & API/batch parity: 989/989 prediction agreement; max softmax diff \(1.9\times10^{-6}\) & Ruled out for parity case \\
+Wrong feature order & Enforce \(A_x,A_y,A_z,G_x,G_y,G_z\) contract through transformation and inference & Model contract and transformation outputs use the same six-channel order & Ruled out \\
+Wrong label map & Use fixed \path{label_order.json} with 11 classes & Label-order artifact and registry contract & Ruled out \\
+Wrong checkpoint & Load Model~A from the frozen production-contract package & \path{fine_tuned_clean_model.keras} and registry contract hash fields & Ruled out \\
+Unsupported Model~B transfer & Separate Model~B native diagnostic mode from Model~A runtime path & ABC comparison and model registry entries & Not defended as runtime path \\
+\hline
+\end{tabular}
+}
+}
+\end{table}
