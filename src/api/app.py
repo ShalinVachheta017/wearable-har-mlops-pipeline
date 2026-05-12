@@ -30,14 +30,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from src.utils.label_mapping import get_activity_classes
-from src.config import (
-    DEFAULT_MODEL_PATH as _DEFAULT_MODEL_PATH,
-    FINAL_MODEL_A_SCALER_JSON as _FINAL_MODEL_A_SCALER_JSON,
-    OVERLAP as _OVERLAP,
-    PROJECT_ROOT as _PROJECT_ROOT,
-    WINDOW_SIZE as _WINDOW_SIZE,
-)
 from src.components.data_ingestion import (
     DEFAULT_MERGE_TOLERANCE_MS,
     DEFAULT_TARGET_HZ,
@@ -49,7 +41,13 @@ from src.components.data_ingestion import (
     _parse_list_columns,
     _rename_axes,
 )
+from src.config import DEFAULT_MODEL_PATH as _DEFAULT_MODEL_PATH
+from src.config import FINAL_MODEL_A_SCALER_JSON as _FINAL_MODEL_A_SCALER_JSON
+from src.config import OVERLAP as _OVERLAP
+from src.config import PROJECT_ROOT as _PROJECT_ROOT
+from src.config import WINDOW_SIZE as _WINDOW_SIZE
 from src.utils.label_detection import LABEL_COLUMN_CANDIDATES, NON_GROUND_TRUTH_COLUMNS
+from src.utils.label_mapping import get_activity_classes
 
 
 # Single source of truth for monitoring thresholds — shared with the pipeline.
@@ -93,7 +91,13 @@ SCALER_CONFIG_PATH = Path(os.environ.get("SCALER_CONFIG_PATH", str(_FINAL_MODEL_
 BASELINE_PATH = Path(
     os.environ.get(
         "BASELINE_PATH",
-        str(PROJECT_ROOT / "models" / "production_contract" / "model_a_final_20260508" / "garmin_train_scaled_baseline.json"),
+        str(
+            PROJECT_ROOT
+            / "models"
+            / "production_contract"
+            / "model_a_final_20260508"
+            / "garmin_train_scaled_baseline.json"
+        ),
     )
 )
 WINDOW_SIZE = _WINDOW_SIZE
@@ -175,7 +179,12 @@ def _load_scaler_config() -> Dict:
     cfg = json.loads(SCALER_CONFIG_PATH.read_text(encoding="utf-8"))
     mean = cfg.get("scaler_mean")
     scale = cfg.get("scaler_scale")
-    if not isinstance(mean, list) or not isinstance(scale, list) or len(mean) != 6 or len(scale) != 6:
+    if (
+        not isinstance(mean, list)
+        or not isinstance(scale, list)
+        or len(mean) != 6
+        or len(scale) != 6
+    ):
         raise RuntimeError(f"Scaler config has invalid dimensions: {SCALER_CONFIG_PATH}")
     _scaler_config = cfg
     return cfg
@@ -256,7 +265,9 @@ def _prepare_sensor_frame(df: pd.DataFrame, sensor_type: str) -> pd.DataFrame:
     return out
 
 
-def _merge_upload_pair(accel_df: pd.DataFrame, gyro_df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+def _merge_upload_pair(
+    accel_df: pd.DataFrame, gyro_df: pd.DataFrame
+) -> Tuple[pd.DataFrame, List[str]]:
     """Merge uploaded accel+gyro CSVs into the same six-channel frame expected by inference."""
     accel = _prepare_sensor_frame(accel_df, "accelerometer")
     gyro = _prepare_sensor_frame(gyro_df, "gyroscope")
@@ -275,7 +286,9 @@ def _merge_upload_pair(accel_df: pd.DataFrame, gyro_df: pd.DataFrame) -> Tuple[p
     return fused, sensor_cols
 
 
-def _maybe_convert_accel_units(df: pd.DataFrame, sensor_cols: List[str]) -> Tuple[pd.DataFrame, bool]:
+def _maybe_convert_accel_units(
+    df: pd.DataFrame, sensor_cols: List[str]
+) -> Tuple[pd.DataFrame, bool]:
     """
     Convert accelerometer channels from milliG to m/s^2 when the uploaded values
     look like raw Garmin milliG. Gyroscope channels are left unchanged.

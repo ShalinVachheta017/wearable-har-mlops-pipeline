@@ -98,7 +98,9 @@ class TriggerEvaluation:
             cooldown_active=getattr(decision, "cooldown_active", False),
             # Governance fields — propagated from TriggerDecision so the artifact
             # exposes the full review-gate contract without extra dict access.
-            decision=decision._decision_label() if hasattr(decision, "_decision_label") else "HEALTHY",
+            decision=(
+                decision._decision_label() if hasattr(decision, "_decision_label") else "HEALTHY"
+            ),
             auto_retrain=getattr(decision, "auto_retrain", False),
             review_required=getattr(decision, "review_required", False),
             label_required=getattr(decision, "label_required", False),
@@ -115,7 +117,9 @@ class TriggerEvaluation:
         On Failure  :   Logs the error and raises the exception.
         """
         raw_report = self.monitoring_artifact.monitoring_report or {}
-        layer1 = self.monitoring_artifact.layer1_confidence or raw_report.get("layer1_confidence", {})
+        layer1 = self.monitoring_artifact.layer1_confidence or raw_report.get(
+            "layer1_confidence", {}
+        )
         layer2 = self.monitoring_artifact.layer2_temporal or raw_report.get("layer2_temporal", {})
         layer3 = self.monitoring_artifact.layer3_drift or raw_report.get("layer3_drift", {})
         collapse = raw_report.get("collapse_signals", {}) or {}

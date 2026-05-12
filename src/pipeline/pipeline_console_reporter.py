@@ -182,7 +182,11 @@ def _safe_print(text: str) -> None:
 def _print_compact_run_summary(result: PipelineResult) -> None:
     run_id = result.run_id or "-"
     input_src = _input_source_line(result)
-    windows = f"{result.transformation.n_windows:,}" if result.transformation and result.transformation.n_windows else "-"
+    windows = (
+        f"{result.transformation.n_windows:,}"
+        if result.transformation and result.transformation.n_windows
+        else "-"
+    )
     infer_line = _inference_line(result)
     conf_line = _confidence_line(result)
     dom_line, dom_flag = _dominant_class_line(result)
@@ -231,7 +235,11 @@ def _input_source_line(result: PipelineResult) -> str:
     source_path = getattr(result.ingestion, "source_path", None)
     source_type = getattr(result.ingestion, "source_type", "")
     source_name = os.path.basename(str(source_path)) if source_path else ""
-    line = f"{source_name} -> {fused_name}" if source_name and source_name != fused_name else fused_name
+    line = (
+        f"{source_name} -> {fused_name}"
+        if source_name and source_name != fused_name
+        else fused_name
+    )
     return f"{line} [{source_type}]" if source_type else line
 
 
@@ -260,10 +268,7 @@ def _dominant_class_line(result: PipelineResult) -> tuple[str, bool]:
     count = dist[dominant]
     total = max(result.inference.n_predictions, 1)
     pct = count / total * 100
-    warn = (
-        result.evaluation.distribution_dominance_warning
-        if result.evaluation else pct > 95.0
-    )
+    warn = result.evaluation.distribution_dominance_warning if result.evaluation else pct > 95.0
     suffix = "  [!] dominance flag" if warn else ""
     return f"{dominant} ({pct:.1f}%){suffix}", bool(warn)
 
@@ -342,7 +347,9 @@ def _print_retraining_metrics(result: PipelineResult) -> None:
         return
     _safe_print("\n  Retraining:")
     for key, value in result.retraining.metrics.items():
-        _safe_print(f"    - {key}: {value:.4f}" if isinstance(value, float) else f"    - {key}: {value}")
+        _safe_print(
+            f"    - {key}: {value:.4f}" if isinstance(value, float) else f"    - {key}: {value}"
+        )
     _safe_print(f"    - Source samples: {result.retraining.n_source_samples}")
     _safe_print(f"    - Target samples: {result.retraining.n_target_samples}")
 
@@ -351,7 +358,9 @@ def _print_activity_distribution(result: PipelineResult) -> None:
     if not result.inference or not result.inference.activity_distribution:
         return
     _safe_print("\n  Top 3 Activities Detected:")
-    top = sorted(result.inference.activity_distribution.items(), key=lambda item: item[1], reverse=True)[:3]
+    top = sorted(
+        result.inference.activity_distribution.items(), key=lambda item: item[1], reverse=True
+    )[:3]
     for activity, count in top:
         pct = count / max(result.inference.n_predictions, 1) * 100
         _safe_print(f"    - {activity}: {count} ({pct:.1f}%)")

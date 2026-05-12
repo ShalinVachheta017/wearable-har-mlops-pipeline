@@ -9,7 +9,6 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-
 CHANNELS = ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"]
 
 
@@ -54,9 +53,7 @@ class DriftMonitor:
     ) -> Dict:
         """Calibrate reference distributions and thresholds from training windows."""
         if X_train_windows.ndim != 3 or X_train_windows.shape[2] != 6:
-            raise ValueError(
-                f"Expected windows shape (N,T,6), got {X_train_windows.shape}"
-            )
+            raise ValueError(f"Expected windows shape (N,T,6), got {X_train_windows.shape}")
 
         flat = X_train_windows.reshape(-1, X_train_windows.shape[2])
         refs: Dict[str, Dict[str, List[float]]] = {}
@@ -68,7 +65,9 @@ class DriftMonitor:
             edges = np.quantile(flat[:, i], np.linspace(0.0, 1.0, 11))
             edges = np.unique(edges)
             if len(edges) < 3:
-                edges = np.array([flat[:, i].min() - 1e-6, flat[:, i].mean(), flat[:, i].max() + 1e-6])
+                edges = np.array(
+                    [flat[:, i].min() - 1e-6, flat[:, i].mean(), flat[:, i].max() + 1e-6]
+                )
             ref_probs = self._hist_probs(flat[:, i], edges)
             refs[ch] = {
                 "bin_edges": edges.tolist(),
@@ -94,9 +93,7 @@ class DriftMonitor:
         }
         if save:
             self.reference_path.parent.mkdir(parents=True, exist_ok=True)
-            self.reference_path.write_text(
-                json.dumps(self.reference, indent=2), encoding="utf-8"
-            )
+            self.reference_path.write_text(json.dumps(self.reference, indent=2), encoding="utf-8")
         return self.reference
 
     def check(

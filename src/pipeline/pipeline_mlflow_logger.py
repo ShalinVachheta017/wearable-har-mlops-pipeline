@@ -189,9 +189,15 @@ class PipelineMLflowLogger:
         return {
             "transformation_n_windows": result.transformation.n_windows,
             "transformation_window_size": result.transformation.window_size,
-            "transformation_unit_conversion": 1.0 if result.transformation.unit_conversion_applied else 0.0,
-            "transformation_normalization": 1.0 if result.transformation.normalization_applied else 0.0,
-            "transformation_gravity_removal": 1.0 if result.transformation.gravity_removal_applied else 0.0,
+            "transformation_unit_conversion": (
+                1.0 if result.transformation.unit_conversion_applied else 0.0
+            ),
+            "transformation_normalization": (
+                1.0 if result.transformation.normalization_applied else 0.0
+            ),
+            "transformation_gravity_removal": (
+                1.0 if result.transformation.gravity_removal_applied else 0.0
+            ),
         }
 
     @staticmethod
@@ -211,7 +217,9 @@ class PipelineMLflowLogger:
             "inference_max_confidence": conf.get("max", 0.0),
             "inference_median_confidence": conf.get("median", 0.0),
             "inference_uncertain_count": conf.get("n_uncertain", 0),
-            "inference_uncertain_pct": conf.get("n_uncertain", 0) / max(result.inference.n_predictions, 1) * 100,
+            "inference_uncertain_pct": conf.get("n_uncertain", 0)
+            / max(result.inference.n_predictions, 1)
+            * 100,
         }
         if result.inference.activity_distribution:
             total = sum(result.inference.activity_distribution.values())
@@ -246,7 +254,9 @@ class PipelineMLflowLogger:
         layer2 = result.monitoring.layer2_temporal or {}
         layer3 = result.monitoring.layer3_drift or {}
         return {
-            "monitoring_overall_healthy": 1.0 if result.monitoring.overall_status == "HEALTHY" else 0.0,
+            "monitoring_overall_healthy": (
+                1.0 if result.monitoring.overall_status == "HEALTHY" else 0.0
+            ),
             "monitoring_confidence_mean": layer1.get("mean_confidence", 0.0),
             "monitoring_uncertain_pct": layer1.get("uncertain_percentage", 0.0),
             "monitoring_std_confidence": layer1.get("std_confidence", 0.0),

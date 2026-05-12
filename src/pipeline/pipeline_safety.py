@@ -115,9 +115,7 @@ class PipelineSafetyGate:
     def _fill_from_distribution_entries(signals: Dict[str, Any], dist: Dict[str, Any]) -> None:
         if signals["dominant_class"] is not None or not dist:
             return
-        class_entries = {
-            k: v for k, v in dist.items() if isinstance(v, dict) and "percentage" in v
-        }
+        class_entries = {k: v for k, v in dist.items() if isinstance(v, dict) and "percentage" in v}
         if not class_entries:
             return
         dominant = max(class_entries.items(), key=lambda kv: kv[1].get("percentage", 0.0))
@@ -144,7 +142,9 @@ class PipelineSafetyGate:
                 if values:
                     signals["longest_sequence_length"] = max(values)
         except Exception as exc:
-            logger.warning("Could not parse Stage 5 evaluation report for collapse signals: %s", exc)
+            logger.warning(
+                "Could not parse Stage 5 evaluation report for collapse signals: %s", exc
+            )
 
     @staticmethod
     def _fill_distribution_from_json(signals: Dict[str, Any], d: Dict[str, Any]) -> None:
@@ -159,7 +159,12 @@ class PipelineSafetyGate:
 
     @staticmethod
     def _coerce_numeric(signals: Dict[str, Any]) -> None:
-        for key in ("dominant_pct", "mean_confidence", "transition_rate", "longest_sequence_length"):
+        for key in (
+            "dominant_pct",
+            "mean_confidence",
+            "transition_rate",
+            "longest_sequence_length",
+        ):
             try:
                 if signals[key] is not None:
                     signals[key] = float(signals[key])

@@ -156,11 +156,11 @@ class TriggerEvaluationArtifact:
     reasons: List[str] = field(default_factory=list)
     cooldown_active: bool = False
     # Governance fields — mirrors TriggerDecision governance contract.
-    decision: str = "HEALTHY"       # HEALTHY / REVIEW_REQUIRED / DATA_QA_REQUIRED / etc.
-    auto_retrain: bool = False      # always False for unlabeled production inference
-    review_required: bool = False   # True when human review is required
-    label_required: bool = False    # True when label/QA gate must be satisfied
-    qa_required: bool = False       # True when data QA is required
+    decision: str = "HEALTHY"  # HEALTHY / REVIEW_REQUIRED / DATA_QA_REQUIRED / etc.
+    auto_retrain: bool = False  # always False for unlabeled production inference
+    review_required: bool = False  # True when human review is required
+    label_required: bool = False  # True when label/QA gate must be satisfied
+    qa_required: bool = False  # True when data QA is required
     required_next_steps: List[str] = field(default_factory=list)
 
 

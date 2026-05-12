@@ -131,9 +131,7 @@ class TriggerThresholds:
 
     # Collapse guard thresholds. The 95% critical value is owned by Stage 6
     # monitoring config so Stage 5/7 do not drift from the dashboard signal.
-    dominant_pct_critical: float = (
-        PostInferenceMonitoringConfig.dominant_class_critical_threshold
-    )
+    dominant_pct_critical: float = PostInferenceMonitoringConfig.dominant_class_critical_threshold
     dominant_pct_static_high_confidence: float = 90.0
 
 
@@ -160,10 +158,10 @@ class TriggerDecision:
     recommendations: List[str]
     cooldown_active: bool = False
     # Governance fields — always set explicitly; defaults are the safe production values.
-    auto_retrain: bool = False          # must remain False for unlabeled production data
-    review_required: bool = False       # True when human review is required before any action
-    label_required: bool = False        # True when labels/QA gate must be satisfied first
-    qa_required: bool = False           # True when data QA is required before retraining
+    auto_retrain: bool = False  # must remain False for unlabeled production data
+    review_required: bool = False  # True when human review is required before any action
+    label_required: bool = False  # True when labels/QA gate must be satisfied first
+    qa_required: bool = False  # True when data QA is required before retraining
     required_next_steps: List[str] = field(default_factory=list)
 
     def _decision_label(self) -> str:
@@ -403,10 +401,7 @@ class TriggerPolicyEngine:
         # 2) dominant pct >= configured critical threshold
         # 3) dominant pct >= 90 with zero transition and high confidence
         cond_1 = dominance_warning
-        cond_2 = (
-            dominant_pct is not None
-            and dominant_pct >= self.thresholds.dominant_pct_critical
-        )
+        cond_2 = dominant_pct is not None and dominant_pct >= self.thresholds.dominant_pct_critical
         cond_3 = (
             dominant_pct is not None
             and dominant_pct >= self.thresholds.dominant_pct_static_high_confidence
@@ -429,8 +424,7 @@ class TriggerPolicyEngine:
         is_low_motion_session = low_gyro_motion
         is_low_transition = transition_rate is None or abs(transition_rate) < 5.0
         is_critical_dominance = (
-            dominant_pct is not None
-            and dominant_pct >= self.thresholds.dominant_pct_critical
+            dominant_pct is not None and dominant_pct >= self.thresholds.dominant_pct_critical
         )
 
         if is_critical_dominance and is_low_motion_session and is_low_transition:
@@ -439,7 +433,10 @@ class TriggerPolicyEngine:
         elif is_critical_dominance:
             dominance_context = "UNCONTROLLED_COLLAPSE_REVIEW"
             collapse_level_tag = "CRITICAL_REVIEW"
-        elif dominant_pct is not None and dominant_pct >= self.thresholds.dominant_pct_static_high_confidence:
+        elif (
+            dominant_pct is not None
+            and dominant_pct >= self.thresholds.dominant_pct_static_high_confidence
+        ):
             dominance_context = "DOMINANCE_WARNING"
             collapse_level_tag = collapse_level
         elif dominance_warning:
@@ -638,7 +635,9 @@ class TriggerPolicyEngine:
             return {
                 "level": level.value,
                 "issues": issues,
-                "reason": "; ".join(issues) if issues else "MMD drift score below calibrated threshold",
+                "reason": (
+                    "; ".join(issues) if issues else "MMD drift score below calibrated threshold"
+                ),
                 "metrics": {
                     "drift_detector": "mmd",
                     "mmd_score": score,

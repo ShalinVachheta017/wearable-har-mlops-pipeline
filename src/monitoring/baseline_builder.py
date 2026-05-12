@@ -43,9 +43,15 @@ def _compute_stats(X: np.ndarray, channel_names: list) -> dict:
     per_channel = {}
     for i, ch in enumerate(channel_names[:n_channels]):
         per_channel[ch] = {
-            "mean": mean[i], "std": std[i],
-            "min": min_val[i], "max": max_val[i],
-            "p5": p5[i], "p25": p25[i], "p50": p50[i], "p75": p75[i], "p95": p95[i],
+            "mean": mean[i],
+            "std": std[i],
+            "min": min_val[i],
+            "max": max_val[i],
+            "p5": p5[i],
+            "p25": p25[i],
+            "p50": p50[i],
+            "p75": p75[i],
+            "p95": p95[i],
         }
 
     return {
@@ -124,7 +130,9 @@ class BaselineBuilder:
             )
 
         if np.any(scale == 0):
-            raise ValueError("Scaler config has zero scale values; cannot normalize baseline safely.")
+            raise ValueError(
+                "Scaler config has zero scale values; cannot normalize baseline safely."
+            )
 
         X_transformed = (X_transformed - center.reshape(1, 1, -1)) / scale.reshape(1, 1, -1)
         logger.info("Baseline transform variant: %s (canonical transformed space)", variant)

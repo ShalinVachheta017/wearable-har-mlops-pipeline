@@ -25,13 +25,25 @@ SENSOR_COLUMNS = ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"]
 RAW_SAMPLE_COLUMNS = ["sample_time_offset", "x", "y", "z"]
 
 RAW_AXIS_ALIASES = {
-    "accelerometer": {"x": {"x", "accelx", "accelerometerx", "calibratedaccelx"}, "y": {"y", "accely", "accelerometery", "calibratedaccely"}, "z": {"z", "accelz", "accelerometerz", "calibratedaccelz"}},
-    "gyroscope": {"x": {"x", "gyrox", "gyroscopex", "calibratedgyrox"}, "y": {"y", "gyroy", "gyroscopey", "calibratedgyroy"}, "z": {"z", "gyroz", "gyroscopez", "calibratedgyroz"}},
+    "accelerometer": {
+        "x": {"x", "accelx", "accelerometerx", "calibratedaccelx"},
+        "y": {"y", "accely", "accelerometery", "calibratedaccely"},
+        "z": {"z", "accelz", "accelerometerz", "calibratedaccelz"},
+    },
+    "gyroscope": {
+        "x": {"x", "gyrox", "gyroscopex", "calibratedgyrox"},
+        "y": {"y", "gyroy", "gyroscopey", "calibratedgyroy"},
+        "z": {"z", "gyroz", "gyroscopez", "calibratedgyroz"},
+    },
 }
 
 DIRECT_SENSOR_ALIASES = {
-    "Ax": {"ax", "axw", "accelx", "accelerometerx", "calibratedaccelx"}, "Ay": {"ay", "ayw", "accely", "accelerometery", "calibratedaccely"}, "Az": {"az", "azw", "accelz", "accelerometerz", "calibratedaccelz"},
-    "Gx": {"gx", "gxw", "gyrox", "gyroscopex", "calibratedgyrox"}, "Gy": {"gy", "gyw", "gyroy", "gyroscopey", "calibratedgyroy"}, "Gz": {"gz", "gzw", "gyroz", "gyroscopez", "calibratedgyroz"},
+    "Ax": {"ax", "axw", "accelx", "accelerometerx", "calibratedaccelx"},
+    "Ay": {"ay", "ayw", "accely", "accelerometery", "calibratedaccely"},
+    "Az": {"az", "azw", "accelz", "accelerometerz", "calibratedaccelz"},
+    "Gx": {"gx", "gxw", "gyrox", "gyroscopex", "calibratedgyrox"},
+    "Gy": {"gy", "gyw", "gyroy", "gyroscopey", "calibratedgyroy"},
+    "Gz": {"gz", "gzw", "gyroz", "gyroscopez", "calibratedgyroz"},
 }
 
 
@@ -103,7 +115,9 @@ def _find_latest_sensor_pair(raw_dir: Path) -> Tuple[Path, Path]:
     if not raw_dir.exists():
         raise FileNotFoundError(f"Raw data directory not found: {raw_dir}")
 
-    files = [p for p in raw_dir.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_INPUT_SUFFIXES]
+    files = [
+        p for p in raw_dir.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_INPUT_SUFFIXES
+    ]
     accel_files = [p for p in files if "accelerometer" in p.name.lower()]
     gyro_files = [p for p in files if "gyroscope" in p.name.lower()]
 
@@ -127,7 +141,7 @@ def _find_latest_sensor_pair(raw_dir: Path) -> Tuple[Path, Path]:
     def _filename_recorded_ts(p: Path) -> str:
         # Extract YYYY-MM-DD-HH-MM-SS from filename so sort reflects recording date,
         # not when the file was last touched by the pipeline (st_mtime is unreliable).
-        m = re.search(r'\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}', p.stem)
+        m = re.search(r"\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}", p.stem)
         return m.group(0) if m else ""
 
     pairs.sort(key=lambda pair: _filename_recorded_ts(pair[0]), reverse=True)
@@ -166,9 +180,18 @@ def _dataset_stem_from_source(source_path: Path) -> str:
     Output      :   Dataset stem before final sanitization.
     On Failure  :   Falls back to the source file stem.
     """
-    suffixes = ("_accelerometer_data", "_gyroscope_data", "_accelerometer", "_gyroscope",
-                "-accelerometer_data", "-gyroscope_data", "-accelerometer", "-gyroscope",
-                "accelerometer_data", "gyroscope_data")
+    suffixes = (
+        "_accelerometer_data",
+        "_gyroscope_data",
+        "_accelerometer",
+        "_gyroscope",
+        "-accelerometer_data",
+        "-gyroscope_data",
+        "-accelerometer",
+        "-gyroscope",
+        "accelerometer_data",
+        "gyroscope_data",
+    )
     stem = source_path.stem
     lower = stem.lower()
     for suffix in suffixes:
@@ -283,7 +306,9 @@ def _filter_valid_rows(df: pd.DataFrame) -> pd.DataFrame:
     if not list_columns:
         return df.dropna(how="all").reset_index(drop=True)
 
-    lengths = df[list_columns].apply(lambda col: col.map(lambda value: len(value) if isinstance(value, list) else np.nan))
+    lengths = df[list_columns].apply(
+        lambda col: col.map(lambda value: len(value) if isinstance(value, list) else np.nan)
+    )
     mask = lengths.notna().all(axis=1) & lengths.nunique(axis=1).eq(1) & lengths.iloc[:, 0].gt(0)
     dropped = int((~mask).sum())
     if dropped:
@@ -300,7 +325,9 @@ def _explode_rows(df: pd.DataFrame) -> pd.DataFrame:
     On Failure  :   Raises the exception from pandas explode.
     """
     list_columns = [column for column in RAW_SAMPLE_COLUMNS if column in df.columns]
-    return df.explode(list_columns, ignore_index=True) if list_columns else df.reset_index(drop=True)
+    return (
+        df.explode(list_columns, ignore_index=True) if list_columns else df.reset_index(drop=True)
+    )
 
 
 def _parse_timestamp_series(series: pd.Series) -> pd.Series:
@@ -335,7 +362,9 @@ def _create_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     elif "timestamp_iso" in out.columns:
         base_time = pd.to_datetime(out["timestamp_iso"], utc=True, errors="coerce")
     elif "timestamp_ms" in out.columns:
-        out["true_time"] = pd.to_datetime(pd.to_numeric(out["timestamp_ms"], errors="coerce"), unit="ms", utc=True)
+        out["true_time"] = pd.to_datetime(
+            pd.to_numeric(out["timestamp_ms"], errors="coerce"), unit="ms", utc=True
+        )
         return out
     else:
         raise ValueError("No timestamp, timestamp_iso, timestamp_ms, or true_time column found")
@@ -402,7 +431,12 @@ def _merge_and_resample(
         direction="nearest",
     )
     matched = int(merged[["Gx", "Gy", "Gz"]].notna().all(axis=1).sum())
-    logger.info("Merge matched %d/%d rows (%.1f%%)", matched, len(merged), 100 * matched / max(len(merged), 1))
+    logger.info(
+        "Merge matched %d/%d rows (%.1f%%)",
+        matched,
+        len(merged),
+        100 * matched / max(len(merged), 1),
+    )
 
     period_ms = int(round(1000 / target_hz))
     resampled = (
@@ -460,7 +494,9 @@ class DataIngestion:
             )
 
         accel_path, gyro_path = _find_latest_sensor_pair(Path(self.pipeline_config.data_raw_dir))
-        return self._ingest_sensor_pair(accel_path, gyro_path, output_dir, source_type="auto_discover")
+        return self._ingest_sensor_pair(
+            accel_path, gyro_path, output_dir, source_type="auto_discover"
+        )
 
     def _ingest_input_csv(self, input_path: Path, output_dir: Path) -> DataIngestionArtifact:
         """
@@ -493,7 +529,9 @@ class DataIngestion:
         if label_column and label_column not in keep_columns:
             keep_columns.append(label_column)
 
-        fused_df = df[keep_columns].dropna(subset=["true_time", *SENSOR_COLUMNS]).reset_index(drop=True)
+        fused_df = (
+            df[keep_columns].dropna(subset=["true_time", *SENSOR_COLUMNS]).reset_index(drop=True)
+        )
         output_path = _build_fused_output_path(output_dir, input_path, self.config.target_hz)
         fused_df.to_csv(output_path, index=False)
         source_type = "excel" if input_path.suffix.lower() in {".xlsx", ".xls"} else "csv"
@@ -574,9 +612,7 @@ class DataIngestion:
         return _rename_axes(
             _create_timestamps(
                 _explode_rows(
-                    _filter_valid_rows(
-                        _parse_list_columns(_normalize_columns(df, sensor_type))
-                    )
+                    _filter_valid_rows(_parse_list_columns(_normalize_columns(df, sensor_type)))
                 )
             ),
             sensor_type,

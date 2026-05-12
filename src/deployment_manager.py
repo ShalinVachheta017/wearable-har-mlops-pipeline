@@ -158,12 +158,14 @@ class ContainerBuilder:
                 package_dest = src_dest / package_name
                 if package_src.exists():
                     import shutil as _shutil
+
                     _shutil.copytree(package_src, package_dest)
 
             # Copy monitoring package
             monitoring_src = src_dir / "monitoring"
             if monitoring_src.exists():
                 import shutil as _shutil
+
                 _shutil.copytree(monitoring_src, src_dest / "monitoring")
 
             # Copy requirements

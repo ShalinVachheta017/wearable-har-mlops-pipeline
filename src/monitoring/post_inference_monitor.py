@@ -139,7 +139,9 @@ class PostInferenceMonitor:
             predictions_df["confidence"] = p_cal
             self.logger.info(
                 "Temperature scaling applied: T=%.3f — mean confidence %.4f → %.4f",
-                T, float(p.mean()), float(p_cal.mean()),
+                T,
+                float(p.mean()),
+                float(p_cal.mean()),
             )
 
         self.logger.info("\n" + "=" * 60)
@@ -175,7 +177,10 @@ class PostInferenceMonitor:
             self.logger.info("LAYER 3: DRIFT ANALYSIS")
             self.logger.info("=" * 60)
             report.layer3_drift = self._analyze_drift(production_data_path, baseline_path)
-        elif baseline_missing_reason in ("DRIFT_BASELINE_MISSING", "DRIFT_BASELINE_MISMATCH_REVIEW"):
+        elif baseline_missing_reason in (
+            "DRIFT_BASELINE_MISSING",
+            "DRIFT_BASELINE_MISMATCH_REVIEW",
+        ):
             # The component resolved a unit-space mismatch or a missing raw baseline.
             # Do NOT compare raw production data against the normalized baseline —
             # that produces fake-critical z-scores (Az ≈ -9.8 m/s² vs baseline ≈ 0).
@@ -285,7 +290,9 @@ class PostInferenceMonitor:
             results["top2_margin_min"] = float(top2_margin.min())
             results["top2_margin_max"] = float(top2_margin.max())
         self.logger.info(f"Mean entropy ({results['entropy_source']}): {mean_entropy:.4f}")
-        self.logger.info(f"Uncertain predictions: {uncertain_count}/{len(df)} ({uncertain_pct:.1f}%)")
+        self.logger.info(
+            f"Uncertain predictions: {uncertain_count}/{len(df)} ({uncertain_pct:.1f}%)"
+        )
 
         # Layer 1b: dominant-class collapse guard (A27)
         dominant_class: Optional[str] = None
@@ -310,10 +317,14 @@ class PostInferenceMonitor:
         alerts = []
         critical = False
         if mean_conf < self.confidence_warn_threshold:
-            alerts.append(f"Low mean confidence: {mean_conf:.3f} < {self.confidence_warn_threshold:.3f}")
+            alerts.append(
+                f"Low mean confidence: {mean_conf:.3f} < {self.confidence_warn_threshold:.3f}"
+            )
             critical = True
         if uncertain_pct > self.uncertain_threshold_pct:
-            alerts.append(f"High uncertainty rate: {uncertain_pct:.1f}% > {self.uncertain_threshold_pct}%")
+            alerts.append(
+                f"High uncertainty rate: {uncertain_pct:.1f}% > {self.uncertain_threshold_pct}%"
+            )
             critical = True
         if results["dominance_critical"]:
             alerts.append(
@@ -401,7 +412,9 @@ class PostInferenceMonitor:
         results["window_duration_seconds"] = float(self.window_duration_seconds)
         results["prediction_stride_seconds"] = float(self.prediction_stride_seconds)
         results["short_dwell_ratio"] = short_dwell_ratio
-        self.logger.info(f"Mean dwell time: {mean_dwell_secs:.1f}s  short_dwell_ratio: {short_dwell_ratio:.3f}")
+        self.logger.info(
+            f"Mean dwell time: {mean_dwell_secs:.1f}s  short_dwell_ratio: {short_dwell_ratio:.3f}"
+        )
         self.logger.info(f"Activity transitions: {transitions} ({transition_rate:.1f}%)")
 
         if transition_rate > self.transition_rate_threshold:
@@ -418,7 +431,9 @@ class PostInferenceMonitor:
 
         return results
 
-    def _analyze_motion_context(self, production_data_path: Path, dominant_pct: float) -> Dict[str, Any]:
+    def _analyze_motion_context(
+        self, production_data_path: Path, dominant_pct: float
+    ) -> Dict[str, Any]:
         """
         Method Name :   _analyze_motion_context
         Description :   Analyze gyro motion level and gravity-axis orientation from production_X.npy.
@@ -501,7 +516,11 @@ class PostInferenceMonitor:
             }
         except Exception as exc:
             self.logger.error("Motion-context analysis failed: %s", exc)
-            return {"status": "ERROR", "error": str(exc), "production_data_path": str(production_data_path)}
+            return {
+                "status": "ERROR",
+                "error": str(exc),
+                "production_data_path": str(production_data_path),
+            }
 
     @staticmethod
     def _window_summary_features(windows: np.ndarray) -> np.ndarray:
@@ -533,7 +552,9 @@ class PostInferenceMonitor:
         return values[idx]
 
     @staticmethod
-    def _median_bandwidth(values: np.ndarray, rng: np.random.Generator, max_rows: int = 512) -> float:
+    def _median_bandwidth(
+        values: np.ndarray, rng: np.random.Generator, max_rows: int = 512
+    ) -> float:
         """
         Method Name :   _median_bandwidth
         Description :   Estimate the RBF-kernel bandwidth using the median pairwise distance.
@@ -593,10 +614,7 @@ class PostInferenceMonitor:
         # legacy "metadata.feature_space" key (current baselines built by Stage 10 /
         # build_raw_physical_baseline.py).  Also accept "normalized_units" as an
         # alias for "transformed" so handwritten baselines still validate correctly.
-        feature_space = (
-            baseline.get("feature_space")
-            or metadata.get("feature_space")
-        )
+        feature_space = baseline.get("feature_space") or metadata.get("feature_space")
         _valid_spaces = {"transformed", "raw_physical_units", "normalized_units", None}
         if feature_space not in _valid_spaces:
             raise ValueError(
@@ -611,7 +629,10 @@ class PostInferenceMonitor:
         baseline_mean = np.array(baseline["mean"])
         baseline_std = np.array(baseline["std"])
 
-        if baseline_mean.shape[0] != prod_mean.shape[0] or baseline_std.shape[0] != prod_std.shape[0]:
+        if (
+            baseline_mean.shape[0] != prod_mean.shape[0]
+            or baseline_std.shape[0] != prod_std.shape[0]
+        ):
             raise ValueError(
                 "Baseline channel-shape mismatch: "
                 f"baseline_mean={baseline_mean.shape[0]}, baseline_std={baseline_std.shape[0]}, "
@@ -674,7 +695,9 @@ class PostInferenceMonitor:
         ref_features = self._window_summary_features(reference_data)
         cur_features = self._window_summary_features(production_data)
         rng = np.random.default_rng(self.mmd_random_seed)
-        sample_size = min(self.mmd_sample_size, max(32, len(ref_features)), max(32, len(cur_features)))
+        sample_size = min(
+            self.mmd_sample_size, max(32, len(ref_features)), max(32, len(cur_features))
+        )
         ref_sample = self._sample_rows(ref_features, sample_size, rng)
         cur_sample = self._sample_rows(cur_features, sample_size, rng)
         combined = np.vstack([ref_sample, cur_sample])

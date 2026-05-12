@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 def main():
     import run_pipeline
+
     run_pipeline.main()
 
 

@@ -43,12 +43,11 @@ from src.entity.config_entity import (
     TriggerEvaluationConfig,
 )
 from src.exceptions import DataValidationError
-
 from src.logger import logging
-from src.utils.artifacts_manager import ArtifactsManager
 from src.pipeline.pipeline_input_resolver import PipelineInputResolver
 from src.pipeline.pipeline_mlflow_logger import PipelineMLflowLogger
 from src.pipeline.pipeline_safety import PipelineSafetyGate, as_bool
+from src.utils.artifacts_manager import ArtifactsManager
 
 logger = logging.getLogger(__name__)
 
@@ -158,12 +157,21 @@ class ProductionPipeline:
         self._log_startup(result, run_dir, run_stages)
 
         ctx: Dict[str, Any] = {
-            "ingestion_art": None, "validation_art": None, "transformation_art": None,
-            "inference_art": None, "evaluation_art": None, "monitoring_art": None,
-            "trigger_art": None, "retraining_art": None, "registration_art": None,
-            "baseline_art": None, "collapse_signals": {},
-            "dataset_has_labels": has_labels, "dataset_label_column": label_col,
-            "dataset_label_source": label_src, "update_baseline": update_baseline,
+            "ingestion_art": None,
+            "validation_art": None,
+            "transformation_art": None,
+            "inference_art": None,
+            "evaluation_art": None,
+            "monitoring_art": None,
+            "trigger_art": None,
+            "retraining_art": None,
+            "registration_art": None,
+            "baseline_art": None,
+            "collapse_signals": {},
+            "dataset_has_labels": has_labels,
+            "dataset_label_column": label_col,
+            "dataset_label_source": label_src,
+            "update_baseline": update_baseline,
         }
         _DISPATCH = {
             "ingestion": self._run_ingestion,
@@ -209,7 +217,8 @@ class ProductionPipeline:
         finally:
             result.end_time = datetime.now().isoformat()
             result.overall_status = (
-                "SUCCESS" if not result.stages_failed
+                "SUCCESS"
+                if not result.stages_failed
                 else "PARTIAL" if result.stages_completed else "FAILED"
             )
             self.artifacts_manager.finalize()
@@ -219,8 +228,10 @@ class ProductionPipeline:
         logger.info("=" * 60)
         logger.info(
             "Pipeline finished: %s  (completed=%d  failed=%d  skipped=%d)",
-            result.overall_status, len(result.stages_completed),
-            len(result.stages_failed), len(result.stages_skipped),
+            result.overall_status,
+            len(result.stages_completed),
+            len(result.stages_failed),
+            len(result.stages_skipped),
         )
         logger.info("=" * 60)
         return result
@@ -231,9 +242,8 @@ class ProductionPipeline:
 
     def _run_ingestion(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         from src.components.data_ingestion import DataIngestion
-        art = DataIngestion(
-            self.pipeline_config, self.ingestion_config
-        ).initiate_data_ingestion()
+
+        art = DataIngestion(self.pipeline_config, self.ingestion_config).initiate_data_ingestion()
         result.ingestion = art
         ctx["ingestion_art"] = art
 
@@ -241,7 +251,8 @@ class ProductionPipeline:
         label_col = getattr(art, "label_column", None)
         if has_labels:
             label_src = (
-                f"ingestion output column '{label_col}'" if label_col
+                f"ingestion output column '{label_col}'"
+                if label_col
                 else "ingestion output marked as labeled"
             )
         else:
@@ -258,13 +269,20 @@ class ProductionPipeline:
         )
         if art.fused_csv_path.exists():
             self.artifacts_manager.save_file(art.fused_csv_path, "data_ingestion")
-        self.artifacts_manager.log_stage_completion("ingestion", "SUCCESS", {
-            "n_rows": art.n_rows, "n_columns": art.n_columns, "sampling_hz": art.sampling_hz,
-        })
+        self.artifacts_manager.log_stage_completion(
+            "ingestion",
+            "SUCCESS",
+            {
+                "n_rows": art.n_rows,
+                "n_columns": art.n_columns,
+                "sampling_hz": art.sampling_hz,
+            },
+        )
 
     def _run_validation(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         ingestion_art = ctx["ingestion_art"] or self._make_fallback_ingestion_artifact()
         from src.components.data_validation import DataValidation
+
         art = DataValidation(
             self.pipeline_config, self.validation_config, ingestion_art
         ).initiate_data_validation()
@@ -277,7 +295,8 @@ class ProductionPipeline:
                 "warnings": art.warnings,
                 "stats": art.stats,
             },
-            "validation", "validation_report.json",
+            "validation",
+            "validation_report.json",
         )
         self.artifacts_manager.log_stage_completion(
             "validation", "SUCCESS" if art.is_valid else "FAILED", {"n_errors": len(art.errors)}
@@ -293,9 +312,12 @@ class ProductionPipeline:
     def _run_transformation(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         ingestion_art = ctx["ingestion_art"] or self._make_fallback_ingestion_artifact()
         from src.components.data_transformation import DataTransformation
+
         art = DataTransformation(
-            self.pipeline_config, self.transformation_config,
-            ingestion_art, ctx["validation_art"],
+            self.pipeline_config,
+            self.transformation_config,
+            ingestion_art,
+            ctx["validation_art"],
         ).initiate_data_transformation()
         result.transformation = art
         ctx["transformation_art"] = art
@@ -305,19 +327,24 @@ class ProductionPipeline:
             self.artifacts_manager.save_file(art.metadata_path, "data_transformation")
         if art.transformation_report_path and art.transformation_report_path.exists():
             self.artifacts_manager.save_file(art.transformation_report_path, "data_transformation")
-        self.artifacts_manager.log_stage_completion("transformation", "SUCCESS", {
-            "n_windows": art.n_windows,
-            "unit_conversion": art.unit_conversion_applied,
-            "model_input_space": art.model_input_space,
-            "normalization": art.normalization_applied,
-            "gravity_removal": art.gravity_removal_applied,
-        })
+        self.artifacts_manager.log_stage_completion(
+            "transformation",
+            "SUCCESS",
+            {
+                "n_windows": art.n_windows,
+                "unit_conversion": art.unit_conversion_applied,
+                "model_input_space": art.model_input_space,
+                "normalization": art.normalization_applied,
+                "gravity_removal": art.gravity_removal_applied,
+            },
+        )
 
     def _run_inference(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         transformation_art = (
             ctx["transformation_art"] or self._make_fallback_transformation_artifact()
         )
         from src.components.model_inference import ModelInference
+
         art = ModelInference(
             self.pipeline_config, self.inference_config, transformation_art
         ).initiate_model_inference()
@@ -337,35 +364,50 @@ class ProductionPipeline:
         avg_ms = round((t_sec / n_pred) * 1000, 4) if n_pred > 0 else 0.0
         throughput_wps = round(n_pred / t_sec, 2) if t_sec > 0 else 0.0
         act_dist = art.activity_distribution or {}
-        self.artifacts_manager.save_json({
-            "n_predictions": n_pred, "inference_time_seconds": t_sec,
-            "throughput_windows_per_sec": throughput_wps, "avg_ms_per_window": avg_ms,
-            "activity_distribution": act_dist,
-            "activity_share": {
-                a: round(cnt / n_pred, 4) if n_pred > 0 else 0.0
-                for a, cnt in act_dist.items()
+        self.artifacts_manager.save_json(
+            {
+                "n_predictions": n_pred,
+                "inference_time_seconds": t_sec,
+                "throughput_windows_per_sec": throughput_wps,
+                "avg_ms_per_window": avg_ms,
+                "activity_distribution": act_dist,
+                "activity_share": {
+                    a: round(cnt / n_pred, 4) if n_pred > 0 else 0.0 for a, cnt in act_dist.items()
+                },
+                "confidence_stats": art.confidence_stats,
+                "entropy_stats": art.entropy_stats,
+                "top2_margin_stats": art.top2_margin_stats,
+                "dominant_class": art.dominant_class,
+                "dominant_pct": art.dominant_pct,
+                "collapse_level": art.collapse_level,
+                "model_version": art.model_version,
+                "model_md5": art.model_md5,
+                "inference_report_path": (
+                    str(art.inference_report_path) if art.inference_report_path else None
+                ),
             },
-            "confidence_stats": art.confidence_stats,
-            "entropy_stats": art.entropy_stats,
-            "top2_margin_stats": art.top2_margin_stats,
-            "dominant_class": art.dominant_class,
-            "dominant_pct": art.dominant_pct,
-            "collapse_level": art.collapse_level,
-            "model_version": art.model_version,
-            "model_md5": art.model_md5,
-            "inference_report_path": str(art.inference_report_path) if art.inference_report_path else None,
-        }, "inference", "inference_summary.json")
-        self.artifacts_manager.log_stage_completion("inference", "SUCCESS", {
-            "n_predictions": n_pred, "inference_time_sec": t_sec,
-            "throughput_windows_per_sec": throughput_wps, "avg_ms_per_window": avg_ms,
-        })
+            "inference",
+            "inference_summary.json",
+        )
+        self.artifacts_manager.log_stage_completion(
+            "inference",
+            "SUCCESS",
+            {
+                "n_predictions": n_pred,
+                "inference_time_sec": t_sec,
+                "throughput_windows_per_sec": throughput_wps,
+                "avg_ms_per_window": avg_ms,
+            },
+        )
 
     def _run_evaluation(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         inference_art = ctx["inference_art"]
         if inference_art is None:
             raise ValueError("No inference artifact: run inference first.")
         import dataclasses
+
         from src.components.model_evaluation import ModelEvaluation
+
         eval_cfg = self.evaluation_config
         transformation_art = ctx["transformation_art"]
         if (
@@ -374,7 +416,9 @@ class ProductionPipeline:
             and transformation_art.production_y_path is not None
             and transformation_art.production_y_path.exists()
         ):
-            eval_cfg = dataclasses.replace(eval_cfg, labels_path=transformation_art.production_y_path)
+            eval_cfg = dataclasses.replace(
+                eval_cfg, labels_path=transformation_art.production_y_path
+            )
             logger.info(
                 "Stage 5: auto-detected labels from Stage 3; "
                 "switching to LABELED evaluation (production_y.npy)."
@@ -388,30 +432,41 @@ class ProductionPipeline:
         for path in (art.report_json_path, art.report_text_path):
             if path and path.exists():
                 self.artifacts_manager.save_file(path, "evaluation")
-        self.artifacts_manager.save_json({
-            "distribution_summary": art.distribution_summary,
-            "confidence_summary": art.confidence_summary,
-            "has_labels": art.has_labels,
-            "classification_metrics": art.classification_metrics,
-            "dominant_class": art.dominant_class,
-            "dominant_pct": art.dominant_pct,
-            "distribution_dominance_warning": art.distribution_dominance_warning,
-        }, "evaluation", "evaluation_summary.json")
-        self.artifacts_manager.log_stage_completion("evaluation", "SUCCESS", {
-            "mean_confidence": (
-                art.confidence_summary.get("mean", 0) if art.confidence_summary else 0
-            ),
-            "has_labels": art.has_labels,
-        })
+        self.artifacts_manager.save_json(
+            {
+                "distribution_summary": art.distribution_summary,
+                "confidence_summary": art.confidence_summary,
+                "has_labels": art.has_labels,
+                "classification_metrics": art.classification_metrics,
+                "dominant_class": art.dominant_class,
+                "dominant_pct": art.dominant_pct,
+                "distribution_dominance_warning": art.distribution_dominance_warning,
+            },
+            "evaluation",
+            "evaluation_summary.json",
+        )
+        self.artifacts_manager.log_stage_completion(
+            "evaluation",
+            "SUCCESS",
+            {
+                "mean_confidence": (
+                    art.confidence_summary.get("mean", 0) if art.confidence_summary else 0
+                ),
+                "has_labels": art.has_labels,
+            },
+        )
 
     def _run_monitoring(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         inference_art = ctx["inference_art"]
         if inference_art is None:
             raise ValueError("No inference artifact: run inference first.")
         from src.components.post_inference_monitoring import PostInferenceMonitoring
+
         art = PostInferenceMonitoring(
-            self.pipeline_config, self.monitoring_config,
-            inference_art, ctx["transformation_art"],
+            self.pipeline_config,
+            self.monitoring_config,
+            inference_art,
+            ctx["transformation_art"],
         ).initiate_post_inference_monitoring()
         result.monitoring = art
         ctx["monitoring_art"] = art
@@ -448,23 +503,31 @@ class ProductionPipeline:
                     )
         if art.report_path and art.report_path.exists():
             self.artifacts_manager.save_file(art.report_path, "monitoring")
-        self.artifacts_manager.save_json({
-            "overall_status": art.overall_status,
-            "layer1_confidence": art.layer1_confidence,
-            "layer2_temporal": art.layer2_temporal,
-            "layer3_drift": art.layer3_drift,
-            "collapse_signals": collapse_signals,
-            "drift_monitor_chunked": drift_chunked,
-        }, "monitoring", "monitoring_summary.json")
-        self.artifacts_manager.log_stage_completion("monitoring", art.overall_status, {
-            "overall_status": art.overall_status,
-            "confidence_status": art.layer1_confidence.get("status", "N/A"),
-            "temporal_status": art.layer2_temporal.get("status", "N/A"),
-            "drift_status": art.layer3_drift.get("status", "N/A"),
-            "collapse_warning": collapse_signals.get("dominance_warning", False),
-            "dominant_class": collapse_signals.get("dominant_class", ""),
-            "dominant_pct": collapse_signals.get("dominant_pct", 0.0),
-        })
+        self.artifacts_manager.save_json(
+            {
+                "overall_status": art.overall_status,
+                "layer1_confidence": art.layer1_confidence,
+                "layer2_temporal": art.layer2_temporal,
+                "layer3_drift": art.layer3_drift,
+                "collapse_signals": collapse_signals,
+                "drift_monitor_chunked": drift_chunked,
+            },
+            "monitoring",
+            "monitoring_summary.json",
+        )
+        self.artifacts_manager.log_stage_completion(
+            "monitoring",
+            art.overall_status,
+            {
+                "overall_status": art.overall_status,
+                "confidence_status": art.layer1_confidence.get("status", "N/A"),
+                "temporal_status": art.layer2_temporal.get("status", "N/A"),
+                "drift_status": art.layer3_drift.get("status", "N/A"),
+                "collapse_warning": collapse_signals.get("dominance_warning", False),
+                "dominant_class": collapse_signals.get("dominant_class", ""),
+                "dominant_pct": collapse_signals.get("dominant_pct", 0.0),
+            },
+        )
 
     def _augment_collapse_signals(
         self,
@@ -546,33 +609,45 @@ class ProductionPipeline:
         if monitoring_art is None:
             raise ValueError("No monitoring artifact: run monitoring first.")
         from src.components.trigger_evaluation import TriggerEvaluation
+
         art = TriggerEvaluation(
             self.pipeline_config, self.trigger_config, monitoring_art
         ).initiate_trigger_evaluation()
         result.trigger = art
         ctx["trigger_art"] = art
-        self.artifacts_manager.save_json({
-            "decision": getattr(art, "decision", "HEALTHY"),
-            "should_retrain": art.should_retrain,
-            "auto_retrain": getattr(art, "auto_retrain", False),
-            "review_required": getattr(art, "review_required", False),
-            "label_required": getattr(art, "label_required", False),
-            "qa_required": getattr(art, "qa_required", False),
-            "action": art.action,
-            "alert_level": art.alert_level,
-            "reason": art.reasons[0] if art.reasons else "",
-            "reasons": art.reasons,
-            "required_next_steps": getattr(art, "required_next_steps", []),
-            "cooldown_active": art.cooldown_active,
-            "collapse_signals": (
-                monitoring_art.monitoring_report.get("collapse_signals", {})
-                if monitoring_art and monitoring_art.monitoring_report else {}
-            ),
-        }, "trigger", "trigger_decision.json")
-        self.artifacts_manager.log_stage_completion("trigger", "SUCCESS", {
-            "should_retrain": art.should_retrain, "action": art.action,
-            "alert_level": art.alert_level, "n_reasons": len(art.reasons),
-        })
+        self.artifacts_manager.save_json(
+            {
+                "decision": getattr(art, "decision", "HEALTHY"),
+                "should_retrain": art.should_retrain,
+                "auto_retrain": getattr(art, "auto_retrain", False),
+                "review_required": getattr(art, "review_required", False),
+                "label_required": getattr(art, "label_required", False),
+                "qa_required": getattr(art, "qa_required", False),
+                "action": art.action,
+                "alert_level": art.alert_level,
+                "reason": art.reasons[0] if art.reasons else "",
+                "reasons": art.reasons,
+                "required_next_steps": getattr(art, "required_next_steps", []),
+                "cooldown_active": art.cooldown_active,
+                "collapse_signals": (
+                    monitoring_art.monitoring_report.get("collapse_signals", {})
+                    if monitoring_art and monitoring_art.monitoring_report
+                    else {}
+                ),
+            },
+            "trigger",
+            "trigger_decision.json",
+        )
+        self.artifacts_manager.log_stage_completion(
+            "trigger",
+            "SUCCESS",
+            {
+                "should_retrain": art.should_retrain,
+                "action": art.action,
+                "alert_level": art.alert_level,
+                "n_reasons": len(art.reasons),
+            },
+        )
 
     def _run_retraining(self, result: PipelineResult, ctx: Dict[str, Any]):
         adaptation_method = (self.retraining_config.adaptation_method or "none").lower()
@@ -606,9 +681,12 @@ class ProductionPipeline:
             ctx["retraining_art"] = None
             return "SKIP"
         from src.components.model_retraining import ModelRetraining
+
         art = ModelRetraining(
-            self.pipeline_config, self.retraining_config,
-            ctx["trigger_art"], ctx["transformation_art"],
+            self.pipeline_config,
+            self.retraining_config,
+            ctx["trigger_art"],
+            ctx["transformation_art"],
         ).initiate_model_retraining()
         result.retraining = art
         ctx["retraining_art"] = art
@@ -627,18 +705,19 @@ class ProductionPipeline:
         On Failure  :   Logs the error and raises the exception.
         """
         gate = getattr(self, "safety_gate", PipelineSafetyGate())
-        return gate.should_block_unlabeled_retraining(
-            ctx, adaptation_method, unlabeled_supported
-        )
+        return gate.should_block_unlabeled_retraining(ctx, adaptation_method, unlabeled_supported)
 
     def _run_registration(self, result: PipelineResult, ctx: Dict[str, Any]):
         if ctx["retraining_art"] is None:
             logger.info("Stage 9 SKIPPED: no retraining artifact.")
             return "SKIP"
         from src.components.model_registration import ModelRegistration
+
         art = ModelRegistration(
-            self.pipeline_config, self.registration_config,
-            ctx["retraining_art"], ctx["evaluation_art"],
+            self.pipeline_config,
+            self.registration_config,
+            ctx["retraining_art"],
+            ctx["evaluation_art"],
         ).initiate_model_registration()
         result.registration = art
         ctx["registration_art"] = art
@@ -649,6 +728,7 @@ class ProductionPipeline:
             return "SKIP"
         self.baseline_config.promote_to_shared = ctx["update_baseline"]
         from src.components.baseline_update import BaselineUpdate
+
         art = BaselineUpdate(
             self.pipeline_config, self.baseline_config, ctx["retraining_art"]
         ).initiate_baseline_update()
@@ -660,22 +740,30 @@ class ProductionPipeline:
         if inference_art is None:
             raise ValueError("No inference artifact: run inference first.")
         from src.components.calibration_uncertainty import CalibrationUncertainty
+
         art = CalibrationUncertainty(
             self.pipeline_config, self.calibration_config, inference_art
         ).initiate_calibration()
         result.calibration = art
         output_dir = Path(
-            self.calibration_config.output_dir
-            or self.pipeline_config.outputs_dir / "calibration"
+            self.calibration_config.output_dir or self.pipeline_config.outputs_dir / "calibration"
         )
-        for fname in ("temperature.json", "calibration_report.json", "calibrated_probabilities.npy"):
+        for fname in (
+            "temperature.json",
+            "calibration_report.json",
+            "calibrated_probabilities.npy",
+        ):
             p = output_dir / fname
             if p.exists():
                 self.artifacts_manager.save_file(p, "calibration")
-        self.artifacts_manager.log_stage_completion("calibration", art.overall_status, {
-            "overall_status": art.overall_status,
-            "n_warnings": len(art.calibration_warnings),
-        })
+        self.artifacts_manager.log_stage_completion(
+            "calibration",
+            art.overall_status,
+            {
+                "overall_status": art.overall_status,
+                "n_warnings": len(art.calibration_warnings),
+            },
+        )
 
     # ================================================================== #
     # Stage resolution and startup
@@ -791,6 +879,7 @@ class ProductionPipeline:
         log_dir.mkdir(parents=True, exist_ok=True)
         path = log_dir / f"pipeline_result_{result.run_id}.json"
         import dataclasses
+
         data = dataclasses.asdict(result)
 
         def _convert(obj):

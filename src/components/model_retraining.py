@@ -91,9 +91,7 @@ class ModelRetraining:
 
         # Load base model
         model_path = self.config.source_data_path  # repurposed or from pretrained
-        base_model_path = (
-            DEFAULT_MODEL_PATH
-        )
+        base_model_path = DEFAULT_MODEL_PATH
         logger.info("Loading base model: %s", base_model_path)
         model = keras.models.load_model(base_model_path)
 
@@ -155,9 +153,7 @@ class ModelRetraining:
         except ImportError:
             raise ImportError("TensorFlow is required for TENT.")
 
-        base_model_path = (
-            DEFAULT_MODEL_PATH
-        )
+        base_model_path = DEFAULT_MODEL_PATH
         logger.info("Loading base model: %s", base_model_path)
         model = keras.models.load_model(base_model_path)
 
@@ -233,9 +229,7 @@ class ModelRetraining:
         except ImportError:
             raise ImportError("TensorFlow is required.")
 
-        base_model_path = (
-            DEFAULT_MODEL_PATH
-        )
+        base_model_path = DEFAULT_MODEL_PATH
         model = keras.models.load_model(base_model_path)
 
         target_npy = self.config.target_data_npy
@@ -343,9 +337,7 @@ class ModelRetraining:
         target_X = np.load(target_npy) if target_npy else None
 
         # Base model
-        base_model_path = (
-            DEFAULT_MODEL_PATH
-        )
+        base_model_path = DEFAULT_MODEL_PATH
         base_model = keras.models.load_model(base_model_path)
 
         model, metrics = trainer.retrain_with_adaptation(

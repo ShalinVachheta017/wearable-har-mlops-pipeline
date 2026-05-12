@@ -4,6 +4,7 @@ The final Model A runtime uses the Garmin train-only scaler packaged under
 models/production_contract/model_a_final_20260508. Legacy scalers under
 data/prepared remain historical/A-B evidence.
 """
+
 from __future__ import annotations
 
 import json
@@ -11,7 +12,6 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 import numpy as np
-
 
 CANONICAL_SCALER_PATH = (
     Path(__file__).resolve().parents[2]
@@ -21,9 +21,7 @@ CANONICAL_SCALER_PATH = (
     / "garmin_train_scaler.json"
 )
 
-LEGACY_ALL_USERS_PATH = (
-    Path(__file__).resolve().parents[2] / "data" / "prepared" / "config.json"
-)
+LEGACY_ALL_USERS_PATH = Path(__file__).resolve().parents[2] / "data" / "prepared" / "config.json"
 
 
 def assert_scaler_integrity(scaler_path: Path | str) -> bool:

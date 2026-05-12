@@ -24,7 +24,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from src.config import OVERLAP, PROJECT_ROOT as CONFIG_PROJECT_ROOT, WINDOW_SIZE
+from src.config import OVERLAP
+from src.config import PROJECT_ROOT as CONFIG_PROJECT_ROOT
+from src.config import WINDOW_SIZE
 from src.utils.common import get_timestamp
 
 TIMESTAMP: str = get_timestamp()
@@ -89,6 +91,7 @@ class DataIngestionConfig:
     target_hz: int = 50
     merge_tolerance_ms: int = 1
     output_dir: Optional[Path] = None
+
 
 # ============================================================================
 # Stage 2 Data Validation
@@ -232,7 +235,7 @@ class PostInferenceMonitoringConfig:
     #   "raw_physical"  → use models/raw_physical_baseline.json
     #   "normalized"    → use models/normalized_baseline.json (A/B only)
     baseline_mode: str = "raw_physical"
-    raw_baseline_path: Optional[Path] = None       # default: models/raw_physical_baseline.json
+    raw_baseline_path: Optional[Path] = None  # default: models/raw_physical_baseline.json
     normalized_baseline_path: Optional[Path] = None  # default: models/normalized_baseline.json
 
 

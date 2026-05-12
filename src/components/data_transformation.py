@@ -238,9 +238,7 @@ class DataTransformation:
 
             if self.config.enable_unit_conversion:
                 if detected_unit == "milliG":
-                    out[accel_cols] = (
-                        out[accel_cols].apply(pd.to_numeric, errors="coerce") * factor
-                    )
+                    out[accel_cols] = out[accel_cols].apply(pd.to_numeric, errors="coerce") * factor
                     conversion_applied = True
                 elif detected_unit == "m/s^2":
                     out[accel_cols] = out[accel_cols].apply(pd.to_numeric, errors="coerce")
@@ -249,7 +247,9 @@ class DataTransformation:
                         "Ambiguous accelerometer unit. Stage 3 cannot safely convert input."
                     )
             else:
-                logger.warning("Unit conversion disabled; accelerometer values pass through unchanged.")
+                logger.warning(
+                    "Unit conversion disabled; accelerometer values pass through unchanged."
+                )
 
             out[gyro_cols] = out[gyro_cols].apply(pd.to_numeric, errors="coerce")
 
@@ -361,7 +361,9 @@ class DataTransformation:
                     "Expected 'zscore', 'robust', or 'none'."
                 )
 
-            logger.info("Normalization applied: variant=%s scaler=%s", requested_variant, scaler_path)
+            logger.info(
+                "Normalization applied: variant=%s scaler=%s", requested_variant, scaler_path
+            )
             return out, {
                 "applied": True,
                 "mode": "external_saved_scaler",
@@ -411,9 +413,7 @@ class DataTransformation:
             return out, {
                 "gravity_removal_applied": gravity_applied,
                 "calibration_applied": calibration_applied,
-                "note": (
-                    "Optional A/B preprocessing. Paper-aligned default keeps both disabled."
-                ),
+                "note": ("Optional A/B preprocessing. Paper-aligned default keeps both disabled."),
                 "channel_order": sensor_cols,
             }
         except Exception:

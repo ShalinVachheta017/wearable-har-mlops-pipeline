@@ -223,9 +223,7 @@ class PredictionAnalyzer:
             )
 
         # Structured dominance flag: informational, does not trigger retraining.
-        dominance_threshold = (
-            PostInferenceMonitoringConfig.dominant_class_critical_threshold
-        )
+        dominance_threshold = PostInferenceMonitoringConfig.dominant_class_critical_threshold
         distribution_dominance_warning = dominant_pct >= dominance_threshold
         if distribution_dominance_warning:
             self.logger.warning(
@@ -701,32 +699,26 @@ class EvaluationPipeline:
 
                     # Map predicted activity names → integer class indices
                     inv_classes = {name: idx for idx, name in ACTIVITY_CLASSES.items()}
-                    y_pred = (
-                        df["predicted_activity"]
-                        .map(inv_classes)
-                        .fillna(-1)
-                        .astype(int)
-                        .values
-                    )
+                    y_pred = df["predicted_activity"].map(inv_classes).fillna(-1).astype(int).values
 
                     n = min(len(y_true), len(y_pred))
                     if len(y_true) != len(y_pred):
                         self.logger.warning(
                             "Label count (%d) ≠ prediction count (%d) — "
                             "truncating both to %d for metric computation.",
-                            len(y_true), len(y_pred), n,
+                            len(y_true),
+                            len(y_pred),
+                            n,
                         )
                     y_true, y_pred = y_true[:n], y_pred[:n]
 
                     evaluator = ClassificationEvaluator(self.config, self.logger)
-                    results["classification_metrics"] = evaluator.compute_metrics(
-                        y_true, y_pred
+                    results["classification_metrics"] = evaluator.compute_metrics(y_true, y_pred)
+                    self.logger.info(
+                        "LABELED evaluation complete — classification_metrics computed."
                     )
-                    self.logger.info("LABELED evaluation complete — classification_metrics computed.")
                 except Exception as label_err:
-                    self.logger.warning(
-                        "Labeled evaluation skipped due to error: %s", label_err
-                    )
+                    self.logger.warning("Labeled evaluation skipped due to error: %s", label_err)
 
             # Generate reports
             results["output_files"] = {

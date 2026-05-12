@@ -213,7 +213,9 @@ def _log_config_summary(
     logger.info("  Labels file:                   %s", labels_path or "NOT PROVIDED")
     logger.info("Validation configuration (from %s):", config_path)
     logger.info("  Expected frequency:            %.2f Hz", validation_cfg.expected_frequency_hz)
-    logger.info("  Sampling tolerance:            %.0f%%", validation_cfg.sampling_rate_tolerance * 100)
+    logger.info(
+        "  Sampling tolerance:            %.0f%%", validation_cfg.sampling_rate_tolerance * 100
+    )
     logger.info("  Max missing ratio:             %.2f%%", validation_cfg.max_missing_ratio * 100)
     logger.info("  Max acceleration:              %.2f m/s^2", validation_cfg.max_acceleration_ms2)
     logger.info("  Max gyroscope:                 %.2f deg/s", validation_cfg.max_gyroscope_dps)

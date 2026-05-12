@@ -69,8 +69,8 @@ from src.config import (  # noqa: E402
     WINDOW_SIZE,
 )
 from src.mlflow_tracking import MLflowTracker  # noqa: E402
-from src.utils.scaler import CANONICAL_SCALER_PATH, assert_scaler_integrity  # noqa: E402
 from src.utils.common import get_timestamp
+from src.utils.scaler import CANONICAL_SCALER_PATH, assert_scaler_integrity  # noqa: E402
 
 # Setup logging
 logging.basicConfig(
@@ -624,9 +624,7 @@ class HARTrainer:
             test_users = [6]
         else:
             if len(unique_users) < 3:
-                raise ValueError(
-                    "Need at least 3 distinct users for train/val/test holdout."
-                )
+                raise ValueError("Need at least 3 distinct users for train/val/test holdout.")
             fit_users = unique_users[:-2]
             val_users = [unique_users[-2]]
             test_users = [unique_users[-1]]
@@ -1441,7 +1439,7 @@ Examples:
     return parser.parse_args()
 
 
-def main():                                                                                                             
+def main():
     """Main entry point."""
     args = parse_args()
 

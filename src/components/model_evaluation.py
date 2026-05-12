@@ -197,9 +197,7 @@ class ModelEvaluation:
             logger.exception("Failed to read Stage 5 labels.")
             raise exc
 
-    def validate_label_alignment(
-        self, labels: Optional[np.ndarray], n_predictions: int
-    ) -> None:
+    def validate_label_alignment(self, labels: Optional[np.ndarray], n_predictions: int) -> None:
         """
         Method Name :   validate_label_alignment
         Description :   Ensure labels and predictions are exactly paired.
@@ -284,9 +282,7 @@ class ModelEvaluation:
                 classification_metrics=report["classification_metrics"],
                 dominant_class=str(report["dominant_class"]),
                 dominant_pct=float(report["dominant_pct"]),
-                distribution_dominance_warning=bool(
-                    report["distribution_dominance_warning"]
-                ),
+                distribution_dominance_warning=bool(report["distribution_dominance_warning"]),
             )
         except Exception as exc:
             logger.exception("Stage 5 prediction evaluation failed.")
@@ -390,22 +386,17 @@ class ModelEvaluation:
                     .items()
                 )
             },
-            "levels": {
-                str(k): int(v) for k, v in df["confidence_level"].value_counts().items()
-            },
+            "levels": {str(k): int(v) for k, v in df["confidence_level"].value_counts().items()},
         }
 
     def _uncertainty_summary(self, df: pd.DataFrame) -> Dict[str, Any]:
-        uncertain_mask = df["is_uncertain"].astype(str).str.lower().isin(
-            {"true", "1", "yes"}
-        )
+        uncertain_mask = df["is_uncertain"].astype(str).str.lower().isin({"true", "1", "yes"})
         uncertain = df[uncertain_mask]
         return {
             "count": int(len(uncertain)),
             "percentage": float(100.0 * len(uncertain) / len(df)),
             "by_class": {
-                str(k): int(v)
-                for k, v in uncertain["predicted_activity"].value_counts().items()
+                str(k): int(v) for k, v in uncertain["predicted_activity"].value_counts().items()
             },
         }
 
@@ -440,9 +431,9 @@ class ModelEvaluation:
         return {
             "n_windows": int(len(activities)),
             "transitions": int(transitions),
-            "transition_rate": float(transitions / (len(activities) - 1))
-            if len(activities) > 1
-            else 0.0,
+            "transition_rate": (
+                float(transitions / (len(activities) - 1)) if len(activities) > 1 else 0.0
+            ),
             "longest_sequences": longest_by_class,
             "longest_sequence_activity": str(longest_activity),
             "longest_sequence_length": int(longest_length),
@@ -477,12 +468,8 @@ class ModelEvaluation:
             "precision_macro": float(
                 precision_score(y_true, y_pred, average="macro", zero_division=0)
             ),
-            "recall_macro": float(
-                recall_score(y_true, y_pred, average="macro", zero_division=0)
-            ),
-            "f1_macro": float(
-                f1_score(y_true, y_pred, average="macro", zero_division=0)
-            ),
+            "recall_macro": float(recall_score(y_true, y_pred, average="macro", zero_division=0)),
+            "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
             "per_class": classification_report(
                 y_true,
                 y_pred,
@@ -510,10 +497,7 @@ class ModelEvaluation:
             "-" * 40,
         ]
         for activity, values in report["distribution"].items():
-            lines.append(
-                f"{activity:20s}: {values['count']:5d} "
-                f"({values['percentage']:5.1f}%)"
-            )
+            lines.append(f"{activity:20s}: {values['count']:5d} " f"({values['percentage']:5.1f}%)")
 
         conf = report["confidence"]
         temporal = report["temporal"]

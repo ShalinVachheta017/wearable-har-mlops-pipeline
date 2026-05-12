@@ -132,8 +132,7 @@ class PipelineArtifactWriter:
                 "model_version": artifact.model_version,
                 "model_md5": artifact.model_md5,
                 "inference_report_path": (
-                    str(artifact.inference_report_path)
-                    if artifact.inference_report_path else None
+                    str(artifact.inference_report_path) if artifact.inference_report_path else None
                 ),
             },
             "inference",
@@ -178,8 +177,7 @@ class PipelineArtifactWriter:
             "SUCCESS",
             {
                 "mean_confidence": (
-                    artifact.confidence_summary.get("mean", 0)
-                    if artifact.confidence_summary else 0
+                    artifact.confidence_summary.get("mean", 0) if artifact.confidence_summary else 0
                 ),
                 "has_labels": artifact.has_labels,
             },

@@ -6,7 +6,6 @@ from typing import List, Optional
 
 from src.entity.artifact_entity import PipelineResult
 
-
 ALL_STAGES = [
     "ingestion",
     "validation",

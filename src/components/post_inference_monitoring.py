@@ -60,7 +60,11 @@ class PostInferenceMonitoring:
             calib_data = json.loads(temp_path.read_text(encoding="utf-8"))
             calibration_temperature = float(calib_data.get("temperature", 1.0))
             if calibration_temperature != 1.0:
-                logger.info("Loaded calibration temperature %.4f from %s", calibration_temperature, temp_path)
+                logger.info(
+                    "Loaded calibration temperature %.4f from %s",
+                    calibration_temperature,
+                    temp_path,
+                )
             return calibration_temperature
         except Exception as exc:
             logger.warning("Could not load calibration temperature: %s", exc)
@@ -129,14 +133,18 @@ class PostInferenceMonitoring:
             baseline_json = Path(self.config.baseline_stats_json)
         elif baseline_mode == "normalized":
             candidate = getattr(self.config, "normalized_baseline_path", None)
-            baseline_json = Path(candidate) if candidate else (
-                self.pipeline_config.models_dir / "normalized_baseline.json"
+            baseline_json = (
+                Path(candidate)
+                if candidate
+                else (self.pipeline_config.models_dir / "normalized_baseline.json")
             )
         else:
             # Default production path: raw physical units.
             candidate = getattr(self.config, "raw_baseline_path", None)
-            baseline_json = Path(candidate) if candidate else (
-                self.pipeline_config.models_dir / "raw_physical_baseline.json"
+            baseline_json = (
+                Path(candidate)
+                if candidate
+                else (self.pipeline_config.models_dir / "raw_physical_baseline.json")
             )
 
         if not baseline_json.exists():

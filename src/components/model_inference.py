@@ -212,7 +212,9 @@ class ModelInference:
             logger.exception("Activity mapping validation failed.")
             raise exc
 
-    def predict(self, model: Any, data: np.ndarray) -> Tuple[pd.DataFrame, np.ndarray, Dict[str, Any]]:
+    def predict(
+        self, model: Any, data: np.ndarray
+    ) -> Tuple[pd.DataFrame, np.ndarray, Dict[str, Any]]:
         """
         Method Name :   predict
         Description :   Run batch prediction and build the Stage 4 prediction table.
@@ -474,7 +476,9 @@ class ModelInference:
         try:
             self.validate_activity_mapping()
             model_path = Path(self.config.model_path or DEFAULT_MODEL_PATH)
-            input_path = Path(self.config.input_npy or self.transformation_artifact.production_X_path)
+            input_path = Path(
+                self.config.input_npy or self.transformation_artifact.production_X_path
+            )
             output_dir = Path(
                 self.config.output_dir or self.pipeline_config.data_prepared_dir / "predictions"
             )
@@ -553,20 +557,25 @@ class ModelInference:
                 logger.info("-" * 60)
 
                 # Calculate aggregate stats
-                res = results_df.groupby('predicted_activity').agg(
-                    Count=('window_id', 'count'),
-                    Mean_Confidence=('confidence', 'mean')
-                ).sort_values('Count', ascending=False)
+                res = (
+                    results_df.groupby("predicted_activity")
+                    .agg(Count=("window_id", "count"), Mean_Confidence=("confidence", "mean"))
+                    .sort_values("Count", ascending=False)
+                )
 
-                res['Percentage'] = (res['Count'] / len(results_df)) * 100
-                res['Mean_Confidence'] = (res['Mean_Confidence'] * 100).map('{:.1f}%'.format)
-                res['Percentage'] = res['Percentage'].map('{:.1f}%'.format)
+                res["Percentage"] = (res["Count"] / len(results_df)) * 100
+                res["Mean_Confidence"] = (res["Mean_Confidence"] * 100).map("{:.1f}%".format)
+                res["Percentage"] = res["Percentage"].map("{:.1f}%".format)
 
                 # Print formatted table to logs
-                logger.info(f"{'Activity':<25} | {'Count':<8} | {'% of Total':<12} | {'Avg Confidence':<15}")
+                logger.info(
+                    f"{'Activity':<25} | {'Count':<8} | {'% of Total':<12} | {'Avg Confidence':<15}"
+                )
                 logger.info("-" * 60)
                 for activity, row in res.iterrows():
-                    logger.info(f"{activity:<25} | {row['Count']:<8} | {row['Percentage']:<12} | {row['Mean_Confidence']:<15}")
+                    logger.info(
+                        f"{activity:<25} | {row['Count']:<8} | {row['Percentage']:<12} | {row['Mean_Confidence']:<15}"
+                    )
                 logger.info("-" * 60)
                 logger.info("")
 
@@ -666,7 +675,9 @@ def run_model_inference_from_paths(
             batch_size=batch_size,
             confidence_threshold=confidence_threshold,
         )
-        return ModelInference(PipelineConfig(), config, transformation_artifact).initiate_model_inference()
+        return ModelInference(
+            PipelineConfig(), config, transformation_artifact
+        ).initiate_model_inference()
     except Exception as exc:
         logger.exception("Path-based model inference failed.")
         raise exc
