@@ -14,7 +14,7 @@ Model C  = checkpoint-contract mismatch evidence (retained as proof, not used)
 
 auto_retrain = false (deliberate governance policy, not a bug)
 Scaler       = Garmin train-only StandardScaler, persisted, SHA-256 verified
-               Applied in production: unit conversion → Garmin train-only scaler → windowing → Model A
+               Applied in defended runtime path: unit conversion → Garmin train-only scaler → row-wise windowing → Model A
 Pipeline     = Stage 1–7 governed pipeline, verified; Stage 1+2 validation gates operate as designed
 Stage 8–11   = optional/gated extensions, not defended live runtime features
 
@@ -334,9 +334,9 @@ Do not delete `docs/MODEL_ABC_COMPARISON_2026-05.md` yet — check if any thesis
 
 ---
 
-## Next Priority (P1 block — all P0 closed as of 2026-05-12)
+## Next Priority (P1 block — current as of 2026-05-12)
 
-All P0 items are now DONE except P0-12 (repo cleanup — deferred by design until P1 block is stable).
+All technical/writing P0 items are done. P0-12 repo cleanup remains open by design and is deferred until the current P1 documentation pass is stable.
 
 1. **P1-05** — Bibliography cleanup: target 55–65 strong references, remove padding entries
 2. **P1-06** — README consistency: DONE
@@ -502,12 +502,14 @@ config/pipeline_overrides.yaml     — monitoring thresholds (threshold parity s
 
 | Priority | Figure | Status | Chapter |
 | --- | --- | --- | --- |
-| P0 | Pipeline overview (Stage 1–7 + 8–10 split) | needs redesign | Ch3/Ch5 |
-| P0 | Stage 1–7 operational flow with artifacts | missing | Ch5 |
-| P1 | ABC model-contract comparison bar chart | missing | Ch7 |
-| P1 | Mean confidence across datasets | missing | Ch7 |
-| P1 | Trigger governance state machine | missing | Ch6 |
-| P1 | Dataset split / evidence role | missing | Ch4 |
+| P0 | Pipeline overview (Stage 1–7 + 8–10 split) | DONE | fig_05_core_vs_conditional_pipeline |
+| P1 | Stage 1–7 operational flow with artifacts | DONE | fig_05_core_vs_conditional_pipeline |
+| P1 | ABC model-contract comparison | DONE | fig_ch7_abc_comparison |
+| P1 | Mean confidence across datasets | P2 polish only | Ch7 |
+| P1 | Trigger governance state machine | DONE | fig_ch6_monitoring_governance |
+| P1 | Trigger policy comparison | DONE | fig_08 fixed x-axis |
+| P1 | Old vs new model comparison | DONE | fig_10 with control rerun |
+| P1 | Dataset split / evidence role | P2 polish only | Ch4 |
 | P2 | Ch4 channel boxplots / mean / std | exists (PDF) | Ch4 |
 | P2 | Preprocessing flow diagram | exists (PDF) | Ch4 |
 
@@ -517,16 +519,18 @@ config/pipeline_overrides.yaml     — monitoring thresholds (threshold parity s
 
 | Item | Chapter | Status | Blocker |
 | --- | --- | --- | --- |
-| Fix scaler contradiction in Normalization State section | Ch4 | P0-OPEN | none |
-| Fix preprocessing table — Normalization row | Ch4 | P0-OPEN | none |
-| Fix architecture parameter count / add Model A note | Ch4 | P0-OPEN | none |
-| Clarify Ch7 baseline reference model vs. Model A | Ch7 | P0-OPEN | none |
-| Update title page date | main.tex | P0-OPEN | submission date needed |
-| Deepen Ch2 sections (background depth) | Ch2 | P0-OPEN | none |
-| Expand Ch3 offline architecture explanation | Ch3 | P0-OPEN | none |
-| Abstract — verify no stale wording | main.tex | P1-OPEN | review after Ch4 fix |
-| Bibliography cleanup | refs | P1-OPEN | P0 fixes first |
-| Defense Q&A | internal/ | P0-OPEN | P0-01 fix first |
+| Fix scaler contradiction in Normalization State section | Ch4 | DONE | none |
+| Fix preprocessing table — Normalization row | Ch4 | DONE | none |
+| Fix architecture parameter count / Model A note | Ch4 | DONE | none |
+| Clarify Ch7 baseline reference model vs. Model A | Ch7 | DONE | none |
+| Update title page date | main.tex | DONE | none |
+| Deepen Ch2 background sections | Ch2 | DONE | none |
+| Expand Ch3 offline architecture explanation | Ch3 | DONE | none |
+| Abstract — verify no stale wording | main.tex | P1-OPEN | review only |
+| Bibliography cleanup | refs | DONE | none |
+| Defense Q&A | internal/ | DONE | none |
+| Demo runbook | internal/ | DONE | none |
+| Defense slides | internal/ | DONE | none |
 
 ---
 
@@ -534,11 +538,11 @@ config/pipeline_overrides.yaml     — monitoring thresholds (threshold parity s
 
 | Item | Status | Notes |
 | --- | --- | --- |
-| First PDF build | ✓ Done | Build passes; not submission-ready |
-| Ch4 scaler fix → rebuild | P0-OPEN | Must do before submission |
-| Font and visual appearance check | P0-OPEN | After clean build |
-| Undefined reference check | P0-OPEN | After Ch4/Ch7 fixes |
-| Final PDF submission build | Pending | Target: after all P0 writing fixes |
+| First PDF build | DONE | Build passes; not submission-ready |
+| Ch4 scaler fix → rebuild | DONE | Clean rebuild completed |
+| Font and visual appearance check | DONE | Latin Modern confirmed; only cosmetic hbox warnings remain |
+| Undefined reference check | DONE | Clean build reported no undefined references |
+| Final PDF submission build | PENDING | Final date and supervisor feedback only |
 
 ---
 
@@ -556,36 +560,38 @@ config/pipeline_overrides.yaml     — monitoring thresholds (threshold parity s
 
 ## Final May–June Calendar (revised)
 
-### May 11–17
+### May 12–17
 
 ```text
-✓ Evidence kit, claim register, Ch5–Ch8 updates, PDF first build — DONE
-→ Fix Ch4 scaler contradiction (P0-01) — URGENT
-→ Fix Ch4 architecture parameter note (P0-02)
-→ Fix Ch7 baseline reference clarification (P0-03)
-→ Update title page date (P0-04)
-→ Rebuild PDF and do visual/font check (P0-07, P0-08)
+✓ Ch2/Ch3 strengthened
+✓ Ch4/Ch7 contradictions fixed
+✓ Figures improved
+✓ PDF rebuilt
+✓ Defense Q&A done
+✓ Slides first draft done
+✓ Demo runbook done
+→ Finish bibliography/DVC/README cleanup
+→ Final slide QA pass
+→ Mock defense 1
 ```
 
 ### May 18–24
 
 ```text
-→ Deepen Ch2 background sections (P0-05)
-→ Expand Ch3 architecture explanation (P0-06)
-→ Start figure redesign — pipeline + Stage 1–7 flow (P1-01)
-→ Update defense Q&A (P0-09)
-→ Bibliography cleanup (P1-05)
+→ Dense table cleanup if needed
+→ Repo archive cleanup
+→ Final PDF visual pass
+→ Mock defense 2
+→ Supervisor feedback integration
 ```
 
 ### May 25–31
 
 ```text
-→ Finish figure redesign
-→ Build defense slides (P0-10)
-→ Demo runbook (P0-11)
-→ Repo cleanup wave (P0-12)
-→ Mock defense 1
-→ Rebuild PDF — second pass
+→ Final PDF polish
+→ Final slides polish
+→ Demo rehearsal
+→ Submission formatting
 ```
 
 ### June
