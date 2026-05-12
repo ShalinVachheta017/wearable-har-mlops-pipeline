@@ -30,15 +30,15 @@ def _compute_stats(X: np.ndarray, channel_names: list) -> dict:
     n_windows, _, n_channels = X.shape
     flat = X.reshape(-1, n_channels)
 
-    mean    = flat.mean(axis=0).tolist()
-    std     = flat.std(axis=0).tolist()
+    mean = flat.mean(axis=0).tolist()
+    std = flat.std(axis=0).tolist()
     min_val = flat.min(axis=0).tolist()
     max_val = flat.max(axis=0).tolist()
-    p5      = np.percentile(flat,  5, axis=0).tolist()
-    p25     = np.percentile(flat, 25, axis=0).tolist()
-    p50     = np.percentile(flat, 50, axis=0).tolist()
-    p75     = np.percentile(flat, 75, axis=0).tolist()
-    p95     = np.percentile(flat, 95, axis=0).tolist()
+    p5 = np.percentile(flat, 5, axis=0).tolist()
+    p25 = np.percentile(flat, 25, axis=0).tolist()
+    p50 = np.percentile(flat, 50, axis=0).tolist()
+    p75 = np.percentile(flat, 75, axis=0).tolist()
+    p95 = np.percentile(flat, 95, axis=0).tolist()
 
     per_channel = {}
     for i, ch in enumerate(channel_names[:n_channels]):
@@ -50,9 +50,9 @@ def _compute_stats(X: np.ndarray, channel_names: list) -> dict:
 
     return {
         "mean": mean,
-        "std":  std,
-        "min":  min_val,
-        "max":  max_val,
+        "std": std,
+        "min": min_val,
+        "max": max_val,
         "percentiles": {"p5": p5, "p25": p25, "p50": p50, "p75": p75, "p95": p95},
         "per_channel": per_channel,
         "channel_names": channel_names[:n_channels],
