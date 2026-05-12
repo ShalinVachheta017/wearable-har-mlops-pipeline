@@ -341,7 +341,7 @@ All P0 items are now DONE except P0-12 (repo cleanup — deferred by design unti
 1. **P1-05** — Bibliography cleanup: target 55–65 strong references, remove padding entries
 2. **P1-06** — README consistency: DONE
 3. **P1-02** — Dense table simplification: move full confusion matrices / channel stats to appendix
-4. **P1-03** — DVC clarification paragraph: DVC = artifact/data versioning; `dvc repro` not configured
+4. **P1-03** — DVC clarification paragraph: DONE
 5. **P1-04** — Threshold justification paragraph in Ch6: explain why confidence_warn=0.70 etc. are conservative operating points
 6. **P0-12** — Repo cleanup archive wave: only after P1-05 through P1-04 are stable
 
@@ -387,6 +387,8 @@ Several tables are dense and may overwhelm the reader. Candidates:
 ---
 
 ### P1-03 — DVC Reproducibility Clarification *(previously P1-01)*
+
+**Status:** DONE — README and Ch5 now state the defended DVC boundary clearly.
 
 Write clearly what DVC is used for in this thesis:
 

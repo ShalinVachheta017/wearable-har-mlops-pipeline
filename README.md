@@ -104,6 +104,13 @@ If DVC-tracked assets are missing:
 dvc pull
 ```
 
+### DVC Clarification
+
+DVC is used in this repository for data/model artifact versioning and reproducibility support.
+Pipeline orchestration is handled by [run_pipeline.py](run_pipeline.py), not by `dvc repro`.
+A full DVC stage graph is not configured in the defended thesis version, so `dvc repro` is not configured for the full Stage 1-7 pipeline in this thesis version.
+This is acceptable because the defended pipeline is executed through the Python stage orchestrator, while DVC supports artifact traceability.
+
 ### Defended Model Lineage
 
 The default runtime now uses the final clean-contract Model A package:
