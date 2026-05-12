@@ -11,7 +11,7 @@ Primary goals:
 
 ## Project Workflow Summary
 
-The production entrypoint is [run_pipeline.py](run_pipeline.py), which orchestrates the following stages:
+The pipeline entrypoint is [run_pipeline.py](run_pipeline.py), which orchestrates the following stages:
 
 1. ingestion
 2. validation
@@ -118,14 +118,14 @@ Hard rule for this repository:
 - Default model for pipeline/API/Docker is the final clean-contract Model A package.
 - Drift/monitoring alerts alone do not justify promotion.
 - Retraining/fine-tuning can run only when labeled data is available for evaluation.
-- Promotion away from Model A is allowed only if labeled comparison proves a candidate is better under the same clean production contract.
+- Promotion away from Model A is allowed only if labeled comparison proves a candidate is better under the same clean proof-of-concept contract.
 - If the candidate requires a hidden scaler/layout contract, keep it as forensic evidence only.
 
 Canonical policy document: [docs/MODEL_PROMOTION_POLICY.md](docs/MODEL_PROMOTION_POLICY.md)
 
 ### Defended Inference Contract
 
-The final production inference contract uses physical IMU units followed by the
+The final proof-of-concept inference contract uses physical IMU units followed by the
 packaged Garmin train-only StandardScaler:
 
 - accelerometer: converted from milli-g to m/s^2 when needed
@@ -136,13 +136,13 @@ packaged Garmin train-only StandardScaler:
 - model input shape: `(N, 200, 6)`
 - model output shape: 11 classes
 - normalization: Garmin train-only z-score scaler from the Model A package
-- validation/User 7/production input is never used to fit the scaler
+- deployment/unlabeled input is never used to fit the scaler
 - gravity removal and calibration: disabled
 
 The current Stage 6 runtime baseline is
 [models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json).
 Older raw or normalized baselines remain useful for legacy/A-B diagnostics, but
-they are not the default production drift reference.
+they are not the default drift reference.
 
 Detailed notes: [docs/INFERENCE_PARITY_FIX.md](docs/INFERENCE_PARITY_FIX.md)
 and [docs/MONITORING_AND_TRIGGER_POLICY.md](docs/MONITORING_AND_TRIGGER_POLICY.md).
@@ -191,7 +191,7 @@ python run_pipeline.py --retrain --adapt adabn
 
 Note: retraining/register/baseline-update stages execute only after Stage 7
 governance and the required review, label, and QA conditions are satisfied.
-Unlabeled production drift, collapse, or low confidence opens review work; it
+Unlabeled session drift, collapse, or low confidence opens review work; it
 does not justify immediate automatic retraining.
 
 Run advanced calibration stage:
