@@ -24,6 +24,130 @@ From 2026-04-16 onward, each day should start with a compact scan block before d
 
 Detailed bug narratives, full file lists, and deep forensics stay below the quick block as evidence.
 
+## 2026-05-13 - Pipeline-Centered Report Sweep, Ch6 Threshold Explanation, and Final Active-Thesis Wording Sweep
+
+### Today in 5 lines
+
+- Finished the Ch6 threshold explanation for Stage 6 monitoring.
+- Clarified that `confidence_warn_threshold=0.70`, `uncertain_pct_threshold=20%`, and dominant-class thresholds are conservative repository operating points.
+- Explicitly stated these thresholds are not clinical limits, statistical guarantees, or validated wearable-HAR constants.
+- Swept the abstract plus Ch6, Ch7, and Ch8 for wording that could overclaim production readiness, deployability, clinical validity, or broad generalisation.
+- Cleaned the May-June finish board and marked the threshold/wording sweep as done.
+- Rebuilt the thesis PDF successfully after the wording and pipeline-centering edits; fallback `pdflatex/bibtex` path produced `thesis/main.pdf` with 116 pages.
+- Simplified the dense Ch7 evidence-map table into a compact role/boundary overview.
+- Re-centered Ch5, Ch7, and Ch8 around the Stage 1-7 MLOps pipeline; ABC/model artifacts are now framed as supporting runtime-contract diagnostics, not the thesis centerpiece.
+
+### Done Today
+
+- Updated `thesis/main.tex` abstract wording from "reliable deployed system" to "reliable runtime system" and from "unrestricted automated deployment" to "production readiness or unrestricted automation."
+- Updated `thesis/chapters/ch6_monitoring_drift_retraining.tex`:
+  - added config-field names for `confidence_warn_threshold` and `uncertain_pct_threshold`;
+  - made the threshold paragraph explicit that confidence, uncertainty, and dominant-class bands are conservative operating thresholds;
+  - softened "deployed model", "production-facing", and "production deployment" wording.
+- Updated `thesis/chapters/ch7_experiments_evaluation.tex`:
+  - changed deployment-proof language to runtime-proof/runtime-quality language;
+  - kept non-claim wording where it is intentionally limiting the evidence.
+- Updated `thesis/chapters/ch8_discussion_conclusion.tex`:
+  - aligned limitations with Ch6 threshold wording;
+  - reframed the cloud topic as a future multi-user service extension, not a defended deployment claim;
+  - softened scope-boundary captions and future-work wording.
+- Cleaned accidental pasted planning text from `docs/MASTER_THESIS_FINISH_TODO_MAY_JUNE_2026.md`.
+- Rebuilt `thesis/main.pdf`: 116 pages, 3,382,513 bytes, build script completed successfully after `latexmk` fell back because Perl is not available for MiKTeX `latexmk`.
+- Updated `thesis/chapters/ch7_experiments_evaluation.tex` evidence-map table so it no longer compresses six columns of metrics into the chapter overview.
+- Reframed Ch5 runtime-model wording into runtime-contract verification wording.
+- Reframed Ch7 "External Evaluation and ABC Model Comparison" into "External Evaluation and Runtime Contract Check."
+- Reframed Ch8's non-claims and final contribution statement around the pipeline: single entrypoint, stage-based data handling, explicit runtime contracts, run-scoped artifacts, monitoring, and review-first trigger policy.
+
+### Leftover and Risk
+
+- The active thesis wording sweep is complete for the requested files.
+- The report now treats model A/B/C evidence as supporting contract verification for the MLOps pipeline, not as a standalone model-comparison thesis.
+- Remaining exact terms such as "clinical validity", "population-level generalisation", and "production readiness" now appear as explicit non-claims or limitation statements, not as supported claims.
+- The larger unresolved workspace risk remains the dirty ABC evidence bundle in `reports/abc_comparison/`.
+
+### Next Session Start Point
+
+1. Decide whether the narrowed ABC evidence bundle should be kept and committed.
+2. If kept, update the human-readable ABC report text to match the two-dataset evidence scope.
+3. Address dense-table cleanup only if the PDF body still feels overloaded.
+4. Keep the `latexmk`/Perl limitation in mind; current successful PDF builds rely on the script's `pdflatex/bibtex` fallback.
+
+## 2026-05-12 (late evening) - Board Reconciliation, CI/Test Cleanup, and ABC Scope Tightening
+
+### Today in 5 lines
+
+- Reconciled the thesis/defense sprint with the later 2026-05-12 commits so the documentation reflects the full day, not only the overnight P0 closeout.
+- Closed the remaining README, DVC, bibliography, appendix, slide, and demo-runbook follow-up items in code/docs history.
+- Fixed CI-oriented hygiene issues: whitespace/lint cleanup, formatter pass, API upload scaler-contract alignment, and `pytest --basetemp` path handling for Windows/CI stability.
+- Added a repo-cleanup audit document but did not move or delete files yet; cleanup remains deferred behind submission-safe documentation.
+- The working tree still contains uncommitted ABC evidence refreshes that remove `all_users_diagnostic` from the active comparison outputs, plus the new cleanup-candidates note.
+
+### Done Today (committed after the main P0 sprint)
+
+- `5e9cf3d` `docs: clarify DVC role in thesis reproducibility`
+  - DVC boundary is now explicit: data/artifact versioning only; `run_pipeline.py` remains the defended orchestration path.
+- `57ddb75` `docs(readme): align Model A description and scaler wording with final contract`
+  - README now consistently frames Model A as the defended proof-of-concept runtime candidate with the Garmin train-only scaler in the runtime contract.
+- `0f0f92a` `docs: clean bibliography and soften BFRB scope wording`
+  - Bibliography cleanup landed; thesis language around BFRBs was softened to keep the scope at behavior recognition rather than diagnosis.
+- `7064293` `docs: add stage-by-stage technical confidence audit`
+  - Added `internal/writing/STAGE_BY_STAGE_TECHNICAL_CONFIDENCE.md` as a defense-prep support artifact.
+- `bd212c0` `slides: finalize defense deck after QA pass`
+  - Defense deck moved beyond first-draft status and was finalized after a QA pass.
+- `9e74884` `docs: update worklog after defense prep sprint`
+  - Worklog was refreshed once already, but it stopped before the later afternoon CI/test/doc updates; this entry closes that gap.
+- `82e1f5b` `fix(thesis): update title page and final build settings`
+  - Reinforced the submission-date/final-build state in thesis sources.
+- `48d8a7c` `docs: add defense demo runbook`
+  - Runbook committed in final form.
+- `2e8de29` `docs: add formal defense cleanup and reproducibility appendix`
+  - Added formal supporting appendix material for defense/reproducibility.
+- `b56c79c` `fix: resolve CI lint whitespace errors`
+- `38bdd4b` `style: apply black and isort formatting`
+- `8ff925d` `test: align API upload scaler contract`
+- `dfdd44c` `fix(test): use relative path for basetemp to fix CI file not found error`
+  - Afternoon engineering pass made the repo safer for CI and local Windows execution without changing the defended model story.
+
+### Also Done Today (uncommitted working tree)
+
+- `reports/abc_comparison/abc_results.csv`
+- `reports/abc_comparison/abc_results.json`
+- `reports/abc_comparison/comparison_summary.json`
+- `reports/abc_comparison/contract_runtime_verification.json`
+- `reports/abc_comparison/dataset_validation_summary.json`
+
+These edits tighten the active ABC evidence scope from three datasets to two:
+- keep `user7_labeled_external`
+- keep `garmin_unlabeled_production_style`
+- drop `all_users_diagnostic` from the generated output bundle
+
+Impact:
+- This makes the evidence pack more defense-safe because `all_users_diagnostic` was always secondary/internal and not primary external evidence.
+- If kept, the surrounding markdown/report text must be checked so it no longer claims the active bundle contains all three datasets.
+- Because these files are not committed yet, the current source-of-truth remains the committed May 11 ABC evidence unless this refresh is intentionally reviewed and committed.
+
+### Leftover and Risk
+
+- `reports/abc_comparison/` is currently dirty. That is the most important unresolved workspace state because it touches defended evidence files.
+- `docs/REPO_CLEANUP_CANDIDATES_2026-05.md` is new and useful, but it is only an audit. No archive wave has been executed yet.
+- The finish board still needs to treat repo cleanup as deferred and distinguish:
+  - thesis/defense content that is done
+  - CI/test/documentation hardening that is done
+  - evidence refreshes that are present but not yet committed
+
+### Writing Impact
+
+- The defended thesis story is now stable enough that the remaining work is mainly curation and packaging, not model or architecture changes.
+- The strongest near-term documentation move is to state clearly that `all_users_diagnostic` is internal/secondary and optional, regardless of whether it remains in the ABC evidence bundle.
+- Submission risk has shifted away from chapter contradictions and toward final evidence hygiene, repo cleanliness, and rehearsal materials.
+
+### Next Session Start Point
+
+1. Decide whether to keep the late-evening ABC refresh that removes `all_users_diagnostic` from the active comparison outputs.
+2. If yes, update the human-readable ABC report and any references that still say "all three datasets."
+3. Commit `docs/REPO_CLEANUP_CANDIDATES_2026-05.md` only as an audit note, not as an archive action.
+4. Then review the remaining open list: threshold-justification wording, dense-table trimming, abstract wording sweep, and the eventual archive wave.
+
 ## 2026-05-11/12 - PDF Review and Full Chapter Consistency Audit
 
 ### Today in 5 lines

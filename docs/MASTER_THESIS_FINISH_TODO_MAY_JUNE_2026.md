@@ -1,6 +1,6 @@
 # Master Thesis Finish Board — May–June 2026
 
-*Last updated: 2026-05-12 (after defense-prep sprint: Ch2/Ch3 writing, Q&A overhaul, slides outline, figure sprint).*
+*Last updated: 2026-05-13 (after pipeline-centering sweep, Ch6 threshold explanation, and final active-thesis wording sweep).*
 *Replaces all previous versions. Source of truth for what is done, what is open, and what is blocked.*
 
 ---
@@ -19,7 +19,7 @@ Pipeline     = Stage 1–7 governed pipeline, verified; Stage 1+2 validation gat
 Stage 8–11   = optional/gated extensions, not defended live runtime features
 
 No model improvement until docs/evidence/thesis sync and PDF submission are complete.
-No production-grade, clinical, deployable, or population-level generalisation claims anywhere.
+No production-grade, clinical, production-ready, or population-level generalisation claims anywhere.
 ```
 
 ---
@@ -48,7 +48,7 @@ No production-grade, clinical, deployable, or population-level generalisation cl
 ✓ docs/FINAL_THESIS_CLAIMS_2026-06.md — created, 20 verified claims C-01–C-20, 5 open gaps documented
 ✓ Ch5 pipeline implementation — updated with Model A contract, scaler, ABC evidence, Stage 1–7 evidence runs (ac676ef)
 ✓ Ch6 monitoring/drift/retraining — updated with CRITICAL vs. REVIEW distinction, governance scope
-✓ Ch7 experiments/evaluation — updated with ABC comparison, preprocessing ablation, trigger comparison (b404300)
+✓ Ch7 experiments/evaluation — updated with runtime contract check, preprocessing ablation, trigger comparison (b404300 + 2026-05-13 pipeline-centering sweep)
 ✓ Ch7 Synth Other metrics corrected from authoritative artifact (0e2c23e)
 ✓ Ch7 98.9% baseline reference explicitly attributed to pre-sprint model, not Model A (0e2c23e)
 ✓ Ch8 discussion/conclusion — scope boundaries, non-claims section, final contribution statement (096e984)
@@ -62,12 +62,22 @@ No production-grade, clinical, deployable, or population-level generalisation cl
 ✓ Figures rebuilt: fig_05, fig_08, fig_10, fig_ch6, fig_ch7 — thesis-quality vector diagrams (4808e14)
 ✓ PDF rebuilt: 112 pages, no undefined references, no missing figures, no missing citations (2026-05-12)
 ✓ internal/writing/defense_qa.md — complete overhaul, 10 sections, wording guards enforced (4a571d3)
-✓ internal/writing/defense_slides_outline.md — 18-slide outline, speaker notes, 6 fixes applied (not yet committed)
+✓ internal/writing/defense_slides_outline.md — 18-slide outline used as the source for the finalized defense deck
 ✓ thesis/main.tex title page — updated to "Siegen, 15 June 2026" (P0-04, 2026-05-12)
 ✓ PDF final build — 113 pages, no undefined refs, no missing figures, Latin Modern font confirmed (P0-08, 2026-05-12)
 ✓ internal/writing/demo_runbook.md — created with exact commands, fallback script, numbers table, what-not-to-claim (P0-11, 2026-05-12)
 ✓ internal/writing/defense_slides.pptx — 18-slide PPTX built, 1.32 MB, all 6 figures embedded, verbatim speaker notes (P0-10, 2026-05-12)
 ✓ internal/writing/build_slides.py — re-runnable python-pptx builder script
+✓ README.md — proof-of-concept wording and final scaler/runtime contract aligned (`57ddb75`)
+✓ thesis/references.bib and wording cleanup — bibliography pass + softened BFRB scope wording (`0f0f92a`)
+✓ internal/writing/STAGE_BY_STAGE_TECHNICAL_CONFIDENCE.md — added as defense-prep support (`7064293`)
+✓ docs appendix/support material — formal defense cleanup and reproducibility appendix added (`2e8de29`)
+✓ CI/test hygiene — whitespace fix, formatter pass, API upload scaler-contract alignment, Windows-safe relative `--basetemp` (`b56c79c`, `38bdd4b`, `8ff925d`, `dfdd44c`)
+✓ Ch6 threshold explanation — conservative operating thresholds clarified; not clinical/statistical guarantees (2026-05-13)
+✓ Abstract/Ch6/Ch7/Ch8 wording sweep — active thesis files softened around production readiness, deployment, clinical validity, and broad generalisation (2026-05-13)
+✓ Ch7 dense evidence-map table simplified — overview now shows evidence role and claim boundary, detailed metrics remain in sections (2026-05-13)
+✓ Ch5/Ch7/Ch8 pipeline-centering sweep — ABC/model artifacts reframed as supporting runtime-contract diagnostics, not the thesis centerpiece (2026-05-13)
+✓ PDF rebuilt after 2026-05-13 wording/pipeline-centering sweep — 116 pages, fallback pdflatex/bibtex path completed successfully
 ✓ docs/MASTER_THESIS_FINISH_TODO_MAY_JUNE_2026.md — updated 2026-05-12
 ```
 
@@ -141,7 +151,7 @@ Ch7 "Baseline Reference on Labeled Data" uses `har_model_20260327_223917.keras` 
 
 **Fix required:**
 - Add a sentence explicitly stating that `har_model_20260327_223917.keras` is the original baseline deployment model used for the preprocessing ablation and labeled reference experiments, and is distinct from Model A (the defended proof-of-concept runtime candidate selected in the May 2026 model sprint).
-- Reference the ABC comparison section for Model A's actual numbers.
+- Reference the runtime contract check section for Model A's actual numbers.
 - Make clear the two models serve different roles in the chapter.
 
 **Time:** 1 hour  
@@ -197,7 +207,7 @@ Ch7 "Baseline Reference on Labeled Data" uses `har_model_20260327_223917.keras` 
 
 ### P0-07 — Rebuild PDF After Fixes and Verify *(previously P0-06)*
 
-**Status:** DONE — multiple clean builds on 2026-05-12; passes with no undefined references. P0-03/P0-04 still open so not yet submission-ready, but PDF is currently coherent.  
+**Status:** DONE — multiple clean builds on 2026-05-12; passes with no undefined references and the previously open P0-03/P0-04 items were later closed the same day.  
 **Source:** `thesis/build_thesis.ps1`
 
 After P0-01 through P0-06 are fixed, rebuild the PDF:
@@ -215,7 +225,7 @@ Verify:
 - Scaler wording in Ch4 matches Ch5 and MODEL_DECISION
 - Architecture parameter note in Ch4 is consistent with Ch7 ABC numbers
 - Ch7 baseline reference model is explicitly distinguished from Model A
-- Abstract wording: no "production-grade", "deployable", or "population-level generalisation" claims
+- Abstract wording: no "production-grade", "production-ready", or "population-level generalisation" claims
 
 **Time:** 3–5 hours  
 **Suggested commit:** `build: rebuild thesis PDF after Ch4 scaler fix, architecture note, title page date update`
@@ -248,7 +258,7 @@ Check:
 Update for:
 - Runtime contract (Model A, clean PoC, 87,083 params)
 - Scaler policy (train-only, persisted) — must now be consistent with Ch4 fix
-- ABC comparison and why Model A was chosen
+- Runtime contract check and why Model A was chosen
 - Monitoring and trigger behavior (CRITICAL ≠ auto-retrain)
 - auto_retrain=false governance
 - Self-recorded Garmin evaluation (what it proves and what it does not)
@@ -263,7 +273,7 @@ Update for:
 
 ### P0-10 — Build Defense Slides *(previously P0-08)*
 
-**Status:** DONE — first-draft outline created `internal/writing/defense_slides_outline.md` (18 slides, key messages + verbatim speaker notes); not yet committed  
+**Status:** DONE — finalized into `internal/writing/defense_slides.pptx`; the outline remains the source script/document for the committed deck  
 **Target:** 15–20 slides
 
 | Slide | Topic |
@@ -277,7 +287,7 @@ Update for:
 | 7 | Dataset and 11 classes |
 | 8 | Final runtime/model contract (Model A, scaler, contract) |
 | 9 | Model architecture (87,083 params — Model A) |
-| 10 | ABC comparison — one slide |
+| 10 | Runtime contract check — one slide |
 | 11 | Main evaluation results |
 | 12 | Monitoring and drift behavior |
 | 13 | Trigger governance — REVIEW, no auto-retrain |
@@ -334,16 +344,12 @@ Do not delete `docs/MODEL_ABC_COMPARISON_2026-05.md` yet — check if any thesis
 
 ---
 
-## Next Priority (P1 block — current as of 2026-05-12)
+## Next Priority (current real open block as of 2026-05-12 evening)
 
-All technical/writing P0 items are done. P0-12 repo cleanup remains open by design and is deferred until the current P1 documentation pass is stable.
+All thesis/defense P0 content items are done. The remaining work is now curation, packaging, and one unresolved evidence decision.
 
-1. **P1-05** — Bibliography cleanup: target 55–65 strong references, remove padding entries
-2. **P1-06** — README consistency: DONE
-3. **P1-02** — Dense table simplification: move full confusion matrices / channel stats to appendix
-4. **P1-03** — DVC clarification paragraph: DONE
-5. **P1-04** — Threshold justification paragraph in Ch6: explain why confidence_warn=0.70 etc. are conservative operating points
-6. **P0-12** — Repo cleanup archive wave: only after P1-05 through P1-04 are stable
+1. **ABC evidence decision** — review the dirty `reports/abc_comparison/` outputs that remove `all_users_diagnostic`; either commit this narrowed two-dataset bundle intentionally or revert it before final sharing.
+2. **P0-12** — Repo cleanup audit-to-action wave: only after the evidence bundle and wording are stable.
 
 ---
 
@@ -376,6 +382,8 @@ PDF review found all figures are notebook-style screenshots, not thesis-quality 
 
 ### P1-02 — Simplify Dense Tables or Move to Appendix *(NEW — PDF review)*
 
+**Status:** DONE — 2026-05-13 Ch7 evidence-map table simplified; no appendix move needed for this pass.
+
 Several tables are dense and may overwhelm the reader. Candidates:
 - Ch4 channel statistics table (`ch4_channel_statistics.tex`) — consider moving to appendix
 - Ch7 ABC full metrics table — ensure only key rows appear in body; full confusion matrices in appendix
@@ -404,6 +412,8 @@ dvc repro is not configured for the full pipeline in this thesis version.
 
 ### P1-04 — Threshold and Trigger Justification *(previously P1-02)*
 
+**Status:** DONE — 2026-05-13 active thesis sweep
+
 Document the monitoring thresholds in one place (already in `config/pipeline_overrides.yaml`). Write a short thesis paragraph for Ch6 explaining:
 
 ```text
@@ -413,13 +423,18 @@ Why dominant_class_warn=85%
 Why these thresholds are not calibrated; they are conservative defaults
 ```
 
-**Time:** 2–3 hours
+Final wording added in Ch6:
+- `confidence_warn_threshold=0.70` and `uncertain_pct_threshold=20%` are conservative operating thresholds for surfacing low-decisiveness batches.
+- Dominant-class warning/critical thresholds catch high-confidence class collapse that confidence alone can miss.
+- These values are not clinical limits, statistical guarantees, or validated wearable-HAR constants.
 
 ---
 
 ### P1-05 — Bibliography Cleanup *(previously P1-05)*
 
-Target: 55–65 strong references. Remove padding entries. Prioritize MLOps, HAR, wearable sensors, domain shift, monitoring, calibration.
+**Status:** DONE — commit `0f0f92a`
+
+Target was 55–65 strong references with less padding and clearer thesis relevance. This cleanup landed together with wording softening around the BFRB scope.
 
 **Time:** 5–8 hours
 
@@ -429,7 +444,7 @@ Target: 55–65 strong references. Remove padding entries. Prioritize MLOps, HAR
 
 **Status:** DONE
 
-Verify README uses only proof-of-concept language for Model A, correct scaler wording, and no "production-grade" or "deployable" claims.
+Verify README uses only proof-of-concept language for Model A, correct scaler wording, and no "production-grade" or "production-ready" claims.
 
 **Time:** 1–2 hours  
 **Suggested commit:** `docs(readme): align Model A description and scaler wording with final contract`
@@ -470,7 +485,7 @@ Do not start these until P0 and main P1 tasks are safe.
 ```text
 docs/MODEL_ABC_COMPARISON_2026-05.md  — superseded by mentor brief + abc_comparison reports
                                         keep until no thesis chapter cites it, then archive
-old "production-grade" / "deployable" wording anywhere in docs
+old "production-grade" / "production-ready" wording anywhere in docs
 May 9/10 calendar items — completed or superseded
 "Use Model B if production-safe" framing — resolved: Model B is diagnostic reference only
 ```
@@ -526,7 +541,9 @@ config/pipeline_overrides.yaml     — monitoring thresholds (threshold parity s
 | Update title page date | main.tex | DONE | none |
 | Deepen Ch2 background sections | Ch2 | DONE | none |
 | Expand Ch3 offline architecture explanation | Ch3 | DONE | none |
-| Abstract — verify no stale wording | main.tex | P1-OPEN | review only |
+| Abstract — verify no stale wording | main.tex | DONE | swept 2026-05-13 |
+| Threshold justification paragraph | Ch6 | DONE | conservative operating thresholds clarified |
+| Dense table simplification / appendix move | Ch4/Ch7 | DONE | Ch7 evidence-map table simplified |
 | Bibliography cleanup | refs | DONE | none |
 | Defense Q&A | internal/ | DONE | none |
 | Demo runbook | internal/ | DONE | none |
@@ -542,7 +559,8 @@ config/pipeline_overrides.yaml     — monitoring thresholds (threshold parity s
 | Ch4 scaler fix → rebuild | DONE | Clean rebuild completed |
 | Font and visual appearance check | DONE | Latin Modern confirmed; only cosmetic hbox warnings remain |
 | Undefined reference check | DONE | Clean build reported no undefined references |
-| Final PDF submission build | PENDING | Final date and supervisor feedback only |
+| 2026-05-13 wording/pipeline-centering rebuild | DONE | 116 pages; `latexmk` missing Perl, fallback `pdflatex`/`bibtex` completed |
+| Final PDF submission build | PENDING | Final supervisor feedback and evidence-bundle decision only |
 
 ---
 
@@ -553,8 +571,27 @@ config/pipeline_overrides.yaml     — monitoring thresholds (threshold parity s
 | Root noise files (analyze_*.py, temp.txt, reasoningtxt.txt) | P0-12 open | Do not start before PDF rebuild |
 | docs/ old April planning docs | P0-12 open | Archive, not delete |
 | reports/ smoke and tmp files | P0-12 open | Archive |
-| 6th may/ folder | P0-12 open | Archive after ABC committed |
+| 6th may/ folder | P0-12 open | Archive after final ABC evidence decision/commit |
 | Old notebooks | P2 | Low priority |
+
+---
+
+## Current Working Tree Note
+
+Uncommitted as of 2026-05-12 evening:
+
+- `reports/abc_comparison/ABC_MODEL_COMPARISON_REPORT_2026-05-11.md`
+- `reports/abc_comparison/abc_results.csv`
+- `reports/abc_comparison/abc_results.json`
+- `reports/abc_comparison/comparison_summary.json`
+- `reports/abc_comparison/contract_runtime_verification.json`
+- `reports/abc_comparison/dataset_validation_summary.json`
+- `docs/REPO_CLEANUP_CANDIDATES_2026-05.md`
+
+Interpretation:
+- The ABC bundle appears to have been regenerated in a narrower two-dataset mode, removing `all_users_diagnostic` from the active output set while keeping User 7 and Garmin as the primary evidence.
+- This is potentially a good final-defense simplification, but it is not yet committed and should be treated as a pending decision, not as finished evidence.
+- The cleanup-candidates document is an audit only. No archive move has happened yet.
 
 ---
 
