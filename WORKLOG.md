@@ -24,6 +24,47 @@ From 2026-04-16 onward, each day should start with a compact scan block before d
 
 Detailed bug narratives, full file lists, and deep forensics stay below the quick block as evidence.
 
+## 2026-05-16 (session 3) — Heavy cleanup PR + repo housekeeping
+
+### Today in 5 lines
+
+- Dropped the stale `may16-cleanup-snapshot` stash (redundant — working tree already contained the same cleanup changes).
+- Shipped `cleanup/repo-tidy-may16` PR: 260 files changed, 246,365 deletions — removed diagnostics, archive scripts, old model contracts, stale reports, 12 superseded test files; renamed `models/production_contract` → `models/runtime_contract`.
+- Fixed two real test failures uncovered during the run: milliG conversion constant (`0.00981` → `MILLIG_TO_MS2 = 0.00980665`) in `src/api/app.py` and `src/preprocess_data.py`; pytest basetemp (`--basetemp=.pytest_tmp` caused Windows `PermissionError` on paths with spaces — removed, moved to `C:/tmp/pytest_har`).
+- Result: **86/86 tests green**. PR merged and remote branch deleted.
+- Consolidated `notebooks/` and `nb/`: archived 13 stale notebooks to `_archive/notebooks_nb_may16/`, kept 4 active files in `notebooks/`.
+
+### Done today (short)
+
+- Stash dropped: `stash@{0}` on `audit/stage1-7-manual-check` — was a snapshot, not needed.
+- PR merged: `cleanup/repo-tidy-may16` → `main` (commit `a664432`). One squash commit, 260 files.
+- Bug fixes in cleanup: `_MILLIG_TO_MS2` shared constant wired into API and preprocessor; pytest basetemp path fixed for Windows.
+- Branch hygiene: deleted `repo-noise-plan-2026-04-29` locally and on remote; `cleanup/repo-tidy-may16` remote deleted by GitHub on merge.
+- Notebooks consolidated: `notebooks/` now holds 4 files — `train_synthetic_production_distribution_comparison.ipynb`, `from_guide_processing.ipynb`, `fit_parser.py`, `gpt.ipynb`. All other 13 archived locally.
+
+### Leftover and risk
+
+- `models/runtime_contract/model_a_final_20260508/` is the correct path everywhere now; any old `production_contract` references in thesis text still need a sweep.
+- Stage 11 calibration (temperature scaling, ECE/NLL/Brier on User 7 labeled split) not yet started — deferred to next session.
+- 8 must-change thesis figures still have hard-coded `Fig. N` titles — not yet regenerated.
+- Appendix C float overflow (`+20.22511pt`) not yet fixed.
+- Thesis PDF not yet rebuilt.
+
+### Writing impact
+
+- No thesis text changed this session. Source notes path updated: `production_contract` → `runtime_contract`.
+- Test count is confirmed **86** on `main` with the current suite. Appendix C wording should read 86 tests.
+
+### Next session start point
+
+1. Run Stage 11 calibration on labeled User 7 split — fit temperature scaling, report ECE, NLL, Brier, mean confidence, uncertain-window rate. Guardrail: do not lower 0.50 threshold without metric justification.
+2. Decide User 7 augmentation role (calibration support only vs. new evidence).
+3. Fix 8 must-change thesis figures (remove hard-coded `Fig. N` from image titles).
+4. Fix Appendix C float overflow.
+5. Rebuild thesis PDF and verify no undefined references or layout warnings.
+
+---
+
 ## 2026-05-16 (session 2) - User 7 labeled/unlabeled rerun + release/thesis sync
 
 ### Today in 5 lines
