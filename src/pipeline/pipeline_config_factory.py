@@ -151,8 +151,6 @@ def build_runtime_configs(args) -> PipelineRuntimeConfigs:
     inference_cfg = ModelInferenceConfig(model_path=Path(args.model) if args.model else None)
     evaluation_cfg = ModelEvaluationConfig(labels_path=Path(args.labels) if args.labels else None)
     retraining_cfg = ModelRetrainingConfig(
-        enable_adaptation=(args.adapt != "none"),
-        adaptation_method=args.adapt,
         epochs=args.epochs,
         skip_cv=args.skip_cv,
         labels_path=Path(args.labels) if args.labels else None,

@@ -1,7 +1,7 @@
 """Canonical scaler loading and integrity assertions.
 
 The final Model A runtime uses the Garmin train-only scaler packaged under
-models/production_contract/model_a_final_20260508. Legacy scalers under
+models/runtime_contract/model_a_final_20260508. Legacy scalers under
 data/prepared remain historical/A-B evidence.
 """
 
@@ -16,7 +16,7 @@ import numpy as np
 CANONICAL_SCALER_PATH = (
     Path(__file__).resolve().parents[2]
     / "models"
-    / "production_contract"
+    / "runtime_contract"
     / "model_a_final_20260508"
     / "garmin_train_scaler.json"
 )

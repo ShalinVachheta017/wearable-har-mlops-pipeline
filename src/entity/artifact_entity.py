@@ -171,15 +171,13 @@ class TriggerEvaluationArtifact:
 
 @dataclass
 class ModelRetrainingArtifact:
-    """Output of model retraining (standard or domain-adapted)."""
+    """Output of supervised model retraining."""
 
     retrained_model_path: Optional[Path] = None
     scaler_config_path: Optional[Path] = None  # new scaler params
     training_report: Dict = field(default_factory=dict)
-    adaptation_method: str = "none"  # adabn / pseudo_label / supervised / none
     metrics: Dict[str, float] = field(default_factory=dict)
     n_source_samples: int = 0
-    n_target_samples: int = 0
     retraining_timestamp: str = ""
 
 

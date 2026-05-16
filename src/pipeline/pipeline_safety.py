@@ -89,28 +89,6 @@ class PipelineSafetyGate:
                 signals[key] = motion[key]
         return signals
 
-    def should_block_unlabeled_retraining(
-        self,
-        ctx: Dict[str, Any],
-        adaptation_method: str,
-        unlabeled_supported: set[str],
-    ) -> bool:
-        """
-        Method Name :   should_block_unlabeled_retraining
-        Description :   Check if collapse risk makes unlabeled adaptation unsafe.
-
-        Output      :   Returns True when Stage 8 must be blocked.
-        On Failure  :   Logs the error and raises the exception.
-        """
-        if ctx.get("dataset_has_labels"):
-            return False
-        if adaptation_method not in unlabeled_supported:
-            return False
-        collapse_signals = ctx.get("collapse_signals", {}) or {}
-        collapse_level = str(collapse_signals.get("collapse_level") or "").upper()
-        low_motion_risk = as_bool(collapse_signals.get("low_motion_collapse_risk", False))
-        return collapse_level == "CRITICAL_COLLAPSE" or low_motion_risk
-
     @staticmethod
     def _fill_from_distribution_entries(signals: Dict[str, Any], dist: Dict[str, Any]) -> None:
         if signals["dominant_class"] is not None or not dist:

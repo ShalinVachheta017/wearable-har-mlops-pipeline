@@ -1,4 +1,4 @@
-"""
+﻿"""
 FastAPI Inference API for HAR Model
 ====================================
 
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 MODEL_PATH = os.environ.get(
     "MODEL_PATH",
-    "models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras",
+    "models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras",
 )
 CONFIG_PATH = os.environ.get(
     "CONFIG_PATH",

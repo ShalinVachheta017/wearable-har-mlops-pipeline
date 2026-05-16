@@ -1,8 +1,0 @@
-{
-  "scaler_mode": "train_only_standard",
-  "scaler_fitted": true,
-  "fit_data": "ADAMSense train windows + Garmin all_users train windows",
-  "not_used_for_fit": "ADAMSense validation, Garmin validation, User 7 external",
-  "scaler_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\models\\production_contract\\production_contract_train_only_scaler.joblib",
-  "note": "Production must load this scaler. Do not fit a new scaler per inference file."
-}

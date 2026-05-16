@@ -19,15 +19,16 @@ This appendix consolidates the practical audit items that support the defended p
 Repository state & Final thesis branch and commit & Final submission archive should record the exact commit with \texttt{git rev-parse --short HEAD}. \\
 Python environment & Thesis Python environment with project dependencies from \path{pyproject.toml} / local setup & The defended pipeline is executed locally; no cloud runtime is required. \\
 Main command & \texttt{python run\_pipeline.py --stages ingestion validation transformation inference evaluation monitoring trigger} & \texttt{run\_pipeline.py} handles orchestration; a full \texttt{dvc repro} Stage~1--7 graph is not configured for this thesis version. \\
-Model A artifact & \path{models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras} & Defended proof-of-concept runtime candidate. \\
-Scaler artifact & \path{models/production_contract/model_a_final_20260508/garmin_train_scaler.json} and matching joblib file & Garmin train-only StandardScaler; JSON/joblib parity maximum absolute difference \(0.0\). \\
-Label order artifact & \path{models/production_contract/model_a_final_20260508/label_order.json} & Fixed 11-class output order, verified through the registry contract. \\
+Model A artifact & \path{models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras} & Defended proof-of-concept runtime candidate. \\
+Scaler artifact & \path{models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json} and matching joblib file & Garmin train-only StandardScaler; JSON/joblib parity maximum absolute difference \(0.0\). \\
+Label order artifact & \path{models/runtime_contract/model_a_final_20260508/label_order.json} & Fixed 11-class output order, verified through the registry contract. \\
 Registry contract & \path{models/model_registry/model_a_clean_contract.json} & Records model, scaler, label order, monitoring baseline, and contract metadata. \\
 Defended Garmin run & \path{artifacts/20260508_235323/} & Unlabeled runtime-style run; 1{,}304 windows, Stage~1--7 success, trigger action \texttt{review}. \\
 Defended User~7 run & \path{artifacts/20260508_235356/} & Labeled external run; 989 windows, Stage~1--7 success, trigger action \texttt{review}. \\
-ABC comparison & \path{reports/abc_comparison/} & Model A/B/C contract and behavior comparison used in Chapter~\ref{chap:experiments}. \\
+Runtime-contract diagnostic & \path{reports/abc_comparison/} & Model A/B/C contract and behavior diagnostic used in Chapter~\ref{chap:experiments}. \\
 API/batch parity & \path{reports/FINAL_RUNTIME_RUN_SUMMARY_2026-05-09.md} & 989/989 prediction agreement on User~7; maximum softmax difference \(1.9\times10^{-6}\). \\
-Test command & \texttt{pytest tests/ -q --tb=short} & Defense runbook records the test suite split into unit, integration, and slow tests; rerun before final archive if the environment changes. \\
+Test command & \texttt{pytest tests/ -q --tb=short} & Current trimmed suite records 86 critical tests scoped to the main pipeline failure modes; rerun before final archive if the environment changes. \\
+Adaptation scope & Supervised retraining only & Unsupervised adaptation methods (AdaBN, TENT, pseudo-label) were evaluated during development and removed from the active source tree; archived copies are retained in \path{_archive/domain_adaptation/} for reference. Stage~8 requires labels. \\
 PDF build & \texttt{cd thesis} then \texttt{.\textbackslash build\_thesis.ps1} & Produces \path{thesis/main.pdf}; rerun after final front-matter edits. \\
 \hline
 \end{tabular}
@@ -83,8 +84,8 @@ Wrong scaler & Load persisted Garmin train-only scaler only & \path{garmin_train
 Double scaling & Compare local API and batch outputs under the same User~7 input & API/batch parity: 989/989 prediction agreement; max softmax diff \(1.9\times10^{-6}\) & Ruled out for parity case \\
 Wrong feature order & Enforce \(A_x,A_y,A_z,G_x,G_y,G_z\) contract through transformation and inference & Model contract and transformation outputs use the same six-channel order & Ruled out \\
 Wrong label map & Use fixed \path{label_order.json} with 11 classes & Label-order artifact and registry contract & Ruled out \\
-Wrong checkpoint & Load Model~A from the frozen production-contract package & \path{fine_tuned_clean_model.keras} and registry contract hash fields & Ruled out \\
-Unsupported Model~B transfer & Separate Model~B native diagnostic mode from Model~A runtime path & ABC comparison and model registry entries & Not defended as runtime path \\
+Wrong checkpoint & Load Model~A from the frozen runtime-contract package & \path{fine_tuned_clean_model.keras} and registry contract hash fields & Ruled out \\
+Unsupported Model~B transfer & Separate Model~B native diagnostic mode from Model~A runtime path & Runtime-contract diagnostic and model registry entries & Not defended as runtime path \\
 \hline
 \end{tabular}
 }

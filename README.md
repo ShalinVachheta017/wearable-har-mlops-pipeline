@@ -93,9 +93,9 @@ har-pipeline
 
 Expected core files include:
 
-- [models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras](models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras)
-- [models/production_contract/model_a_final_20260508/garmin_train_scaler.json](models/production_contract/model_a_final_20260508/garmin_train_scaler.json)
-- [models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json)
+- [models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras](models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras)
+- [models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json)
+- [models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json)
 - one accel/gyro pair in [data/raw](data/raw)
 
 If DVC-tracked assets are missing:
@@ -114,7 +114,7 @@ This is acceptable because the defended pipeline is executed through the Python 
 ### Defended Model Lineage
 
 The default runtime now uses the final clean-contract Model A package:
-[models/production_contract/model_a_final_20260508](models/production_contract/model_a_final_20260508).
+[models/runtime_contract/model_a_final_20260508](models/runtime_contract/model_a_final_20260508).
 The older mentor/vendor pretrained model remains historical and forensic
 evidence only, because its strong legacy metrics depend on a different scaler
 and tensor-layout contract.
@@ -147,7 +147,7 @@ packaged Garmin train-only StandardScaler:
 - gravity removal and calibration: disabled
 
 The current Stage 6 runtime baseline is
-[models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json).
+[models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json).
 Older raw or normalized baselines remain useful for legacy/A-B diagnostics, but
 they are not the default drift reference.
 
@@ -193,13 +193,14 @@ python run_pipeline.py --stages inference evaluation monitoring trigger
 Enable retraining path (trigger-gated stages 8-10):
 
 ```powershell
-python run_pipeline.py --retrain --adapt adabn
+python run_pipeline.py --retrain --labels data/raw/labels.csv
 ```
 
 Note: retraining/register/baseline-update stages execute only after Stage 7
 governance and the required review, label, and QA conditions are satisfied.
 Unlabeled session drift, collapse, or low confidence opens review work; it
-does not justify immediate automatic retraining.
+does not justify immediate automatic retraining. AdaBN, TENT, and pseudo-label
+adaptation hooks are archived research context, not active runtime modes.
 
 Run advanced calibration stage:
 

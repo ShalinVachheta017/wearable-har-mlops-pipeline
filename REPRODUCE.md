@@ -1,4 +1,4 @@
-# Reproduce the Main Pipeline Result
+﻿# Reproduce the Main Pipeline Result
 
 This guide reproduces the main offline inference cycle (stages 1-7) used for thesis evidence.
 
@@ -25,8 +25,10 @@ python -m pip install -e .[dev]
 
 Required files:
 
-- `models/pretrained/fine_tuned_model_1dcnnbilstm.keras`
-- `models/normalized_baseline.json`
+- `models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras`
+- `models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json`
+- `models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json`
+- `models/runtime_contract/model_a_final_20260508/label_order.json`
 - one accel/gyro pair under `data/raw/`
 
 Example pair already present in this repo:
@@ -39,6 +41,8 @@ If running from a fresh clone and DVC assets are missing, restore DVC-tracked da
 ```powershell
 dvc pull
 ```
+
+DVC is used here for data/model artifact versioning and restore support. The defended Stage 1-7 pipeline is orchestrated by `run_pipeline.py`, not by a full `dvc repro` stage graph.
 
 ## 3) Exact Reproduction Command (Main Result Path)
 

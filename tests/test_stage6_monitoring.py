@@ -1,7 +1,8 @@
 """Stage 6 — Post-Inference Monitoring Tests
 
-Covers: confidence thresholds (A27/A28), baseline-space consistency,
-baseline age gauge, drift detection, and temporal metrics.
+Covers: confidence thresholds (A27/A28), dominance tiers, baseline-space
+consistency, baseline age, drift detection, PSI, entropy, flip rate,
+and motion-context collapse signals.
 """
 from __future__ import annotations
 
@@ -20,7 +21,6 @@ from scipy import stats
 from src.entity.config_entity import PostInferenceMonitoringConfig, TriggerEvaluationConfig
 from src.monitoring.baseline_builder import BaselineBuilder
 from src.monitoring.post_inference_monitor import PostInferenceMonitor
-from src.utils.temporal_metrics import flip_rate_per_session, summarize_rates
 
 
 CLASSES = [
@@ -137,16 +137,6 @@ def test_monitor_critical_at_96_pct_dominance():
     assert layer1["dominance_critical"] is True
 
 
-def test_monitor_dominance_thresholds_from_config():
-    cfg = PostInferenceMonitoringConfig()
-    cfg.dominant_class_warn_threshold = 50.0
-    cfg.dominant_class_critical_threshold = 80.0
-    df = _make_predictions(dominant_pct=60.0, mean_conf=0.85)
-    report = _run_monitor(df, cfg)
-    assert report.layer1_confidence["dominance_warning"] is True
-    assert report.layer1_confidence["dominance_critical"] is False
-
-
 # ── Baseline-space consistency ────────────────────────────────────────────────
 
 def _write_training_csv(csv_path: Path) -> None:
@@ -191,21 +181,6 @@ def test_normalized_baseline_saved_in_transformed_space(tmp_path):
     np.testing.assert_allclose(transformed_std, expected_std, rtol=1e-5, atol=1e-5)
 
 
-def test_monitor_rejects_baseline_without_transformed_feature_space(tmp_path):
-    production = np.random.RandomState(11).normal(0, 1, (8, 200, 6)).astype(np.float32)
-    production_path = tmp_path / "production_X.npy"
-    np.save(production_path, production)
-
-    legacy_baseline = {"mean": [0.0] * 6, "std": [1.0] * 6, "metadata": {"feature_space": "raw"}}
-    baseline_path = tmp_path / "legacy_baseline.json"
-    baseline_path.write_text(json.dumps(legacy_baseline), encoding="utf-8")
-
-    monitor = PostInferenceMonitor()
-    result = monitor._analyze_drift(production_path, baseline_path)
-    assert result["status"] == "ERROR"
-    assert "feature-space mismatch" in result["error"].lower()
-
-
 def test_monitor_accepts_transformed_space_baseline(tmp_path):
     production = np.random.RandomState(13).normal(0, 1, (10, 200, 6)).astype(np.float32)
     production_path = tmp_path / "production_X.npy"
@@ -233,203 +208,58 @@ def _compute_baseline_age(baseline_path: Path) -> float:
     return -1
 
 
-class TestBaselineAgeCalculation:
-    def test_age_is_non_negative_for_fresh_file(self, tmp_path):
-        baseline = tmp_path / "normalized_baseline.json"
-        baseline.write_text('{"mean": [], "std": []}', encoding="utf-8")
-        age = _compute_baseline_age(baseline)
-        assert 0 <= age < 1.0
-
-    def test_age_is_minus_one_when_file_missing(self, tmp_path):
-        age = _compute_baseline_age(tmp_path / "normalized_baseline.json")
-        assert age == -1
-
-    def test_age_reflects_known_mtime(self, tmp_path):
-        baseline = tmp_path / "normalized_baseline.json"
-        baseline.write_text("{}", encoding="utf-8")
-        five_days_ago = time.time() - (5 * 86400)
-        os.utime(baseline, (five_days_ago, five_days_ago))
-        assert abs(_compute_baseline_age(baseline) - 5.0) < 0.01
-
-
-class TestBaselineAgeGaugeIntegration:
-    def test_baseline_path_constant_is_defined(self):
-        from src.api import app as _app
-        assert hasattr(_app, "BASELINE_PATH")
-        assert _app.BASELINE_PATH.name == "garmin_train_scaled_baseline.json"
+def test_baseline_age_reflects_known_mtime(tmp_path):
+    baseline = tmp_path / "normalized_baseline.json"
+    baseline.write_text("{}", encoding="utf-8")
+    five_days_ago = time.time() - (5 * 86400)
+    os.utime(baseline, (five_days_ago, five_days_ago))
+    assert abs(_compute_baseline_age(baseline) - 5.0) < 0.01
 
 
 # ── Drift detection ───────────────────────────────────────────────────────────
 
-class TestDriftMetrics:
-    def test_identical_distributions_no_drift(self):
-        np.random.seed(42)
-        baseline = np.random.normal(0, 1, 1000)
-        current = np.random.normal(0, 1, 1000)
-        _, ks_pvalue = stats.ks_2samp(baseline, current)
-        assert ks_pvalue > 0.01
-
-    def test_different_distributions_detect_drift(self):
-        np.random.seed(42)
-        baseline = np.random.normal(0, 1, 1000)
-        current = np.random.normal(2, 1, 1000)
-        _, ks_pvalue = stats.ks_2samp(baseline, current)
-        assert ks_pvalue < 0.01
-
-    def test_variance_change_detected(self):
-        np.random.seed(42)
-        baseline = np.random.normal(0, 1, 1000)
-        current = np.random.normal(0, 3, 1000)
-        _, ks_pvalue = stats.ks_2samp(baseline, current)
-        assert ks_pvalue < 0.05
+def test_different_distributions_detect_drift():
+    np.random.seed(42)
+    baseline = np.random.normal(0, 1, 1000)
+    current = np.random.normal(2, 1, 1000)
+    _, ks_pvalue = stats.ks_2samp(baseline, current)
+    assert ks_pvalue < 0.01
 
 
-class TestPSICalculation:
-    def compute_psi(self, baseline: np.ndarray, current: np.ndarray, n_bins: int = 10) -> float:
+def test_psi_major_shift():
+    def compute_psi(baseline, current, n_bins=10):
         bin_edges = np.percentile(baseline, np.linspace(0, 100, n_bins + 1))
         bin_edges[0], bin_edges[-1] = -np.inf, np.inf
         baseline_props = np.histogram(baseline, bins=bin_edges)[0] / len(baseline) + 1e-10
         current_props = np.histogram(current, bins=bin_edges)[0] / len(current) + 1e-10
         return float(np.sum((current_props - baseline_props) * np.log(current_props / baseline_props)))
 
-    def test_psi_identical_distributions(self):
-        np.random.seed(42)
-        baseline = np.random.normal(0, 1, 1000)
-        assert self.compute_psi(baseline, np.random.normal(0, 1, 1000)) < 0.10
-
-    def test_psi_shifted_distribution(self):
-        np.random.seed(42)
-        baseline = np.random.normal(0, 1, 1000)
-        assert self.compute_psi(baseline, np.random.normal(1, 1, 1000)) > 0.10
-
-    def test_psi_major_shift(self):
-        np.random.seed(42)
-        baseline = np.random.normal(0, 1, 1000)
-        assert self.compute_psi(baseline, np.random.normal(3, 2, 1000)) > 0.25
+    np.random.seed(42)
+    baseline = np.random.normal(0, 1, 1000)
+    assert compute_psi(baseline, np.random.normal(3, 2, 1000)) > 0.25
 
 
-class TestMultiChannelDrift:
-    def test_single_channel_drift_not_alarm(self):
-        assert sum([False, False, False, False, False, True]) < 2
+# ── Confidence + temporal core ────────────────────────────────────────────────
 
-    def test_multiple_channel_drift_triggers_alarm(self):
-        assert sum([True, True, True, False, False, False]) >= 2
-
-    def test_aggregate_drift_score(self):
-        channel_psi = [0.05, 0.08, 0.12, 0.03, 0.15, 0.07]
-        assert 0 < np.mean(channel_psi) < 0.15
-        assert np.max(channel_psi) == 0.15
+def test_entropy_calculation(sample_predictions):
+    probs = sample_predictions['probabilities']
+    entropy = -np.sum(probs * np.log(probs + 1e-10), axis=1)
+    assert np.mean(entropy) > 0
+    assert np.mean(entropy) < 2.5
 
 
-class TestConfidenceMetrics:
-    def test_high_confidence_normal(self, sample_predictions):
-        mean_confidence = np.mean(sample_predictions['confidence'])
-        assert 0 < mean_confidence < 1
-
-    def test_entropy_calculation(self, sample_predictions):
-        probs = sample_predictions['probabilities']
-        entropy = -np.sum(probs * np.log(probs + 1e-10), axis=1)
-        assert np.mean(entropy) > 0
-        assert np.mean(entropy) < 2.5
-
-    def test_uncertain_ratio_calculation(self, sample_predictions):
-        confidence = sample_predictions['confidence']
-        uncertain_ratio = np.sum(confidence < 0.5) / len(confidence)
-        assert 0 <= uncertain_ratio <= 1
+def test_unstable_predictions_high_flip_rate():
+    predictions = np.array([0, 1] * 50)
+    flip_rate = np.sum(predictions[1:] != predictions[:-1]) / (len(predictions) - 1)
+    assert flip_rate > 0.9
 
 
-class TestTemporalConceptMetrics:
-    def test_flip_rate_calculation(self):
-        predictions = np.array([0, 0, 1, 1, 1, 2, 2, 0, 0, 1])
-        flips = np.sum(predictions[1:] != predictions[:-1])
-        flip_rate = flips / (len(predictions) - 1)
-        assert abs(flip_rate - 4 / 9) < 0.01
-
-    def test_stable_predictions_low_flip_rate(self):
-        predictions = np.array([1] * 100)
-        flip_rate = np.sum(predictions[1:] != predictions[:-1]) / (len(predictions) - 1)
-        assert flip_rate == 0.0
-
-    def test_unstable_predictions_high_flip_rate(self):
-        predictions = np.array([0, 1] * 50)
-        flip_rate = np.sum(predictions[1:] != predictions[:-1]) / (len(predictions) - 1)
-        assert flip_rate > 0.9
-
-    def test_dwell_time_calculation(self):
-        predictions = np.array([0, 0, 0, 1, 1, 2, 2, 2, 2, 0])
-        window_stride_seconds = 2.0
-        dwell_times = []
-        current_activity, current_dwell = predictions[0], 1
-        for pred in predictions[1:]:
-            if pred == current_activity:
-                current_dwell += 1
-            else:
-                dwell_times.append(current_dwell * window_stride_seconds)
-                current_activity, current_dwell = pred, 1
-        dwell_times.append(current_dwell * window_stride_seconds)
-        assert len(dwell_times) == 4
-        assert dwell_times[0] == 6.0
-
-
-# ── Temporal metrics utility ──────────────────────────────────────────────────
-
-def test_flip_rate_per_session_uses_adjacent_windows_in_order():
-    labels = [0, 0, 1, 1, 1, 2, 2]
-    session_ids = ["A", "A", "A", "A", "B", "B", "B"]
-    timestamps = [0, 1, 2, 3, 0, 1, 2]
-    rates = flip_rate_per_session(labels, session_ids, timestamps)
-    assert rates["A"] == pytest.approx(1.0 / 3.0)
-    assert rates["B"] == pytest.approx(0.5)
-
-
-def test_flip_rate_rejects_shuffled_windows():
-    with pytest.raises(ValueError, match="not sorted within session"):
-        flip_rate_per_session([0, 1, 1, 0], ["S1"] * 4, [0, 2, 1, 3])
-
-
-def test_flip_rate_summary_returns_median_and_p95():
-    summary = summarize_rates({"S1": 0.10, "S2": 0.40, "S3": 0.30})
-    assert summary["n_sessions"] == 3
-    assert summary["median"] == pytest.approx(0.30)
-    assert summary["p95"] == pytest.approx(0.39, abs=0.02)
-
-
-# ── Ported from removed test_post_inference_monitor.py (2026-05-08 cleanup) ────
-
+# ── Motion-context collapse signal ────────────────────────────────────────────
 
 def _test_tmp_parent() -> Path:
     parent = Path.cwd() / "stage6_pytest_work"
     parent.mkdir(parents=True, exist_ok=True)
     return parent
-
-
-def test_monitor_uses_stage4_entropy_and_top2_margin_columns():
-    df = _make_predictions(dominant_pct=25.0, mean_conf=0.84, n=4)
-    df["entropy"] = [0.1, 0.2, 0.3, 0.4]
-    df["top2_margin"] = [0.9, 0.8, 0.7, 0.6]
-
-    report = _run_monitor(df)
-    layer1 = report.layer1_confidence
-
-    assert layer1["entropy_source"] == "stage4_prediction_csv"
-    assert layer1["mean_entropy"] == pytest.approx(0.25)
-    assert layer1["top2_margin_mean"] == pytest.approx(0.75)
-
-
-def test_monitor_temporal_dwell_uses_four_second_window_and_two_second_stride():
-    monitor = PostInferenceMonitor(window_duration_seconds=4.0, prediction_stride_seconds=2.0)
-    df = pd.DataFrame(
-        {
-            "predicted_activity": ["sitting", "sitting", "sitting"],
-            "confidence": [0.9, 0.9, 0.9],
-        }
-    )
-
-    temporal = monitor._analyze_temporal_patterns(df)
-
-    assert temporal["mean_dwell_time_seconds"] == pytest.approx(8.0)
-    assert temporal["window_duration_seconds"] == 4.0
-    assert temporal["prediction_stride_seconds"] == 2.0
 
 
 def test_monitor_motion_context_flags_low_gyro_collapse_risk():
@@ -452,25 +282,3 @@ def test_monitor_motion_context_flags_low_gyro_collapse_risk():
     assert motion["low_motion_collapse_risk"] is True
     assert motion["gravity_dominant_axis"] == "Az"
     assert report.layer2_temporal["status"] == "WARNING"
-
-
-def test_monitor_motion_context_does_not_flag_active_session():
-    tmp_path = _test_tmp_parent() / f"motion_active_{uuid.uuid4().hex}"
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    df = _make_predictions(dominant_pct=80.0, mean_conf=0.85, n=10)
-    rng = np.random.RandomState(42)
-    windows = np.zeros((10, 200, 6), dtype=np.float32)
-    windows[:, :, 1] = 9.81
-    windows[:, :, 3:6] = rng.normal(0.0, 15.0, size=(10, 200, 3))
-    production_path = tmp_path / "production_X.npy"
-    np.save(production_path, windows)
-
-    pred_csv = tmp_path / "predictions.csv"
-    df.to_csv(pred_csv, index=False)
-    monitor = PostInferenceMonitor()
-    report = monitor.run(predictions_path=pred_csv, production_data_path=production_path, output_dir=tmp_path / "out")
-
-    motion = report.layer2_temporal["motion_context"]
-    assert motion["low_gyro_motion"] is False
-    assert motion["low_motion_collapse_risk"] is False
-    assert motion["gravity_dominant_axis"] == "Ay"

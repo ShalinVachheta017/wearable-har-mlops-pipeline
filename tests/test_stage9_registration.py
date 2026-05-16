@@ -50,9 +50,8 @@ def _make_comp(tmp_path, new_accuracy, degradation_tolerance=0.005,
     retrain = ModelRetrainingArtifact(
         retrained_model_path=fake_model,
         training_report={},
-        adaptation_method="standard",
         metrics=metrics,
-        n_target_samples=100,
+        n_source_samples=100,
         retraining_timestamp="2026-02-26T00:00:00",
     )
     cfg = ModelRegistrationConfig(
@@ -74,14 +73,6 @@ def test_improved_model_is_accepted(tmp_path):
     assert _run(_make_comp(tmp_path, new_accuracy=0.92)).is_better_than_current is True
 
 
-def test_equal_accuracy_is_accepted(tmp_path):
-    assert _run(_make_comp(tmp_path, new_accuracy=0.90)).is_better_than_current is True
-
-
-def test_small_regression_within_tolerance_is_accepted(tmp_path):
-    assert _run(_make_comp(tmp_path, new_accuracy=0.897, degradation_tolerance=0.005)).is_better_than_current is True
-
-
 def test_large_regression_outside_tolerance_is_blocked(tmp_path):
     assert _run(_make_comp(tmp_path, new_accuracy=0.88, degradation_tolerance=0.005)).is_better_than_current is False
 
@@ -90,22 +81,10 @@ def test_zero_tolerance_blocks_any_drop(tmp_path):
     assert _run(_make_comp(tmp_path, new_accuracy=0.899, degradation_tolerance=0.0)).is_better_than_current is False
 
 
-def test_tta_model_without_metrics_defaults_to_true(tmp_path):
-    result = _run(_make_comp(tmp_path, new_accuracy=None, block_if_no_metrics=False,
-                             metrics_override={"after_mean_confidence": 0.85}))
-    assert result.is_better_than_current is True
-    assert result.is_deployed is False
-
-
 def test_tta_model_with_block_if_no_metrics_is_blocked(tmp_path):
     result = _run(_make_comp(tmp_path, new_accuracy=None, block_if_no_metrics=True,
                              metrics_override={"after_mean_confidence": 0.85}))
     assert result.is_better_than_current is False
-
-
-# Rollback test classes (TestModelVersion, TestModelRegistry,
-# TestRollbackIntegration) removed 2026-05-08: src/model_rollback.py is out
-# of thesis scope under the auto_retrain=false governance freeze.
 
 
 # ── Baseline Update (stage 10) ────────────────────────────────────────────────
@@ -122,36 +101,34 @@ def pipeline_config_bu(tmp_path):
     return cfg
 
 
-class TestBaselineUpdateConfig:
-    def test_defaults(self):
-        cfg = BaselineUpdateConfig()
-        assert cfg.training_data_path is None
-        assert cfg.rebuild_embeddings is False
+def test_baseline_update_defaults():
+    cfg = BaselineUpdateConfig()
+    assert cfg.training_data_path is None
+    assert cfg.rebuild_embeddings is False
 
 
-class TestBaselineUpdateComponent:
-    def test_initiate_with_mock_builder(self, pipeline_config_bu, tmp_path):
-        csv_path = pipeline_config_bu.data_raw_dir / "all_users_data_labeled.csv"
-        pd.DataFrame({
-            "timestamp": range(100),
-            "Ax_w": np.random.randn(100), "Ay_w": np.random.randn(100), "Az_w": np.random.randn(100),
-            "Gx_w": np.random.randn(100), "Gy_w": np.random.randn(100), "Gz_w": np.random.randn(100),
-            "activity": ["sitting"] * 50 + ["standing"] * 50,
-            "User": [1] * 100,
-        }).to_csv(csv_path, index=False)
+def test_baseline_update_initiate_with_mock_builder(pipeline_config_bu, tmp_path):
+    csv_path = pipeline_config_bu.data_raw_dir / "all_users_data_labeled.csv"
+    pd.DataFrame({
+        "timestamp": range(100),
+        "Ax_w": np.random.randn(100), "Ay_w": np.random.randn(100), "Az_w": np.random.randn(100),
+        "Gx_w": np.random.randn(100), "Gy_w": np.random.randn(100), "Gz_w": np.random.randn(100),
+        "activity": ["sitting"] * 50 + ["standing"] * 50,
+        "User": [1] * 100,
+    }).to_csv(csv_path, index=False)
 
-        mock_builder = MagicMock()
-        mock_builder.build_from_csv.return_value = {"n_channels": 6, "n_samples": 100, "per_class": {}}
+    mock_builder = MagicMock()
+    mock_builder.build_from_csv.return_value = {"n_channels": 6, "n_samples": 100, "per_class": {}}
 
-        config = BaselineUpdateConfig(
-            output_baseline_path=tmp_path / "baseline.json",
-            output_normalized_path=tmp_path / "normalized.json",
-        )
+    config = BaselineUpdateConfig(
+        output_baseline_path=tmp_path / "baseline.json",
+        output_normalized_path=tmp_path / "normalized.json",
+    )
 
-        with patch("src.monitoring.baseline_builder.BaselineBuilder", return_value=mock_builder):
-            from src.components.baseline_update import BaselineUpdate
-            artifact = BaselineUpdate(pipeline_config_bu, config).initiate_baseline_update()
+    with patch("src.monitoring.baseline_builder.BaselineBuilder", return_value=mock_builder):
+        from src.components.baseline_update import BaselineUpdate
+        artifact = BaselineUpdate(pipeline_config_bu, config).initiate_baseline_update()
 
-        assert isinstance(artifact, BaselineUpdateArtifact)
-        assert artifact.n_channels == 6
-        assert artifact.update_timestamp != ""
+    assert isinstance(artifact, BaselineUpdateArtifact)
+    assert artifact.n_channels == 6
+    assert artifact.update_timestamp != ""

@@ -5,7 +5,7 @@ Delegates to run_pipeline.main() — single entry point for the full pipeline.
 Usage after `pip install -e .`:
     har-pipeline
     har-pipeline --stages inference evaluation monitoring trigger
-    har-pipeline --retrain --adapt adabn
+    har-pipeline --retrain --labels path/to/labels.csv
 """
 
 import sys

@@ -43,6 +43,7 @@ from src.components.data_ingestion import (
 )
 from src.config import DEFAULT_MODEL_PATH as _DEFAULT_MODEL_PATH
 from src.config import FINAL_MODEL_A_SCALER_JSON as _FINAL_MODEL_A_SCALER_JSON
+from src.config import MILLIG_TO_MS2 as _MILLIG_TO_MS2
 from src.config import OVERLAP as _OVERLAP
 from src.config import PROJECT_ROOT as _PROJECT_ROOT
 from src.config import WINDOW_SIZE as _WINDOW_SIZE
@@ -94,7 +95,7 @@ BASELINE_PATH = Path(
         str(
             PROJECT_ROOT
             / "models"
-            / "production_contract"
+            / "runtime_contract"
             / "model_a_final_20260508"
             / "garmin_train_scaled_baseline.json"
         ),
@@ -297,7 +298,7 @@ def _maybe_convert_accel_units(
     accel_cols = sensor_cols[:3]
     accel_abs_mean = float(np.nanmean(np.abs(out[accel_cols].values.astype(np.float32))))
     if accel_abs_mean > 50.0:
-        out[accel_cols] = out[accel_cols] * 0.00981
+        out[accel_cols] = out[accel_cols] * _MILLIG_TO_MS2
         return out, True
     return out, False
 

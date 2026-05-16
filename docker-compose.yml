@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 # Docker Compose for HAR MLOps Pipeline
 # ============================================================================
 # This file orchestrates all services for the MLOps pipeline:
@@ -62,7 +62,11 @@ services:
       - ./config:/app/config:ro
       - ./logs:/app/logs
     environment:
-      - MODEL_PATH=/app/models/pretrained/fine_tuned_model_1dcnnbilstm.keras
+      # Do not override MODEL_PATH here. The API uses src/config.py's
+      # defended default Model A runtime contract unless an operator
+      # intentionally supplies a different path outside this compose file.
+      - SCALER_CONFIG_PATH=/app/models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json
+      - BASELINE_PATH=/app/models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json
       - CONFIG_PATH=/app/config/pipeline_config.yaml
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     depends_on:

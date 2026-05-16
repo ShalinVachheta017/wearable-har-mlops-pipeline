@@ -1,4 +1,4 @@
-# HAR MLOps - Runtime Pipeline Config Overrides
+﻿# HAR MLOps - Runtime Pipeline Config Overrides
 # =============================================
 # This file allows operators to override dataclass default thresholds at
 # runtime WITHOUT changing Python source code (12-Factor App, Factor III).
@@ -30,7 +30,7 @@
 
 monitoring:
   baseline_mode: normalized
-  normalized_baseline_path: "models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json"
+  normalized_baseline_path: "models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json"
 
 # Stage 7 - Trigger Evaluation thresholds
 # (src/entity/config_entity.py:TriggerEvaluationConfig)

@@ -40,7 +40,7 @@ Examples:
   python run_pipeline.py --skip-ingestion
   python run_pipeline.py --stages inference evaluation monitoring trigger
   python run_pipeline.py --input-csv data/raw/my_recording.csv
-  python run_pipeline.py --retrain --adapt adabn_tent
+  python run_pipeline.py --retrain --labels data/raw/labels.csv
   python run_pipeline.py --advanced
   python run_pipeline.py --continue-on-failure
         """,
@@ -145,13 +145,6 @@ Examples:
         "--retrain",
         action="store_true",
         help="Include stages 8-10 (retraining -> registration -> baseline)",
-    )
-    parser.add_argument(
-        "--adapt",
-        type=str,
-        choices=["adabn", "tent", "adabn_tent", "pseudo_label", "none"],
-        default="none",
-        help="Domain adaptation method for retraining (default: none).",
     )
     parser.add_argument(
         "--labels",

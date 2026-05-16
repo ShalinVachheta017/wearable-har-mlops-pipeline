@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.config import (
     DATA_PREPARED,
     LOGS_DIR,
+    MILLIG_TO_MS2,
     OVERLAP,
     PROJECT_ROOT,
     WINDOW_SIZE,
@@ -75,8 +76,7 @@ class PreprocessLogger:
 class UnitDetector:
     """Automatically detect accelerometer units and convert if needed"""
 
-    # Conversion factor from mentor (Dec 3, 2025)
-    CONVERSION_FACTOR = 0.00981  # milliG → m/s²
+    CONVERSION_FACTOR = MILLIG_TO_MS2
 
     # Expected ranges for unit detection
     MILLIG_RANGE = (-2000, 2000)  # Typical milliG range
