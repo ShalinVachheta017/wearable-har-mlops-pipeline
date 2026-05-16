@@ -16,7 +16,7 @@ This appendix consolidates the practical audit items that support the defended p
 \hline
 \textbf{Item} & \textbf{Value / command} & \textbf{Evidence or note} \\
 \hline
-Repository branch & \texttt{feature/inference-parity-gpt-no-scaler} & Final submission archive should record the exact final commit with \texttt{git rev-parse --short HEAD}. \\
+Repository state & Final thesis branch and commit & Final submission archive should record the exact commit with \texttt{git rev-parse --short HEAD}. \\
 Python environment & Thesis Python environment with project dependencies from \path{pyproject.toml} / local setup & The defended pipeline is executed locally; no cloud runtime is required. \\
 Main command & \texttt{python run\_pipeline.py --stages ingestion validation transformation inference evaluation monitoring trigger} & \texttt{run\_pipeline.py} handles orchestration; a full \texttt{dvc repro} Stage~1--7 graph is not configured for this thesis version. \\
 Model A artifact & \path{models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras} & Defended proof-of-concept runtime candidate. \\
@@ -27,7 +27,7 @@ Defended Garmin run & \path{artifacts/20260508_235323/} & Unlabeled runtime-styl
 Defended User~7 run & \path{artifacts/20260508_235356/} & Labeled external run; 989 windows, Stage~1--7 success, trigger action \texttt{review}. \\
 ABC comparison & \path{reports/abc_comparison/} & Model A/B/C contract and behavior comparison used in Chapter~\ref{chap:experiments}. \\
 API/batch parity & \path{reports/FINAL_RUNTIME_RUN_SUMMARY_2026-05-09.md} & 989/989 prediction agreement on User~7; maximum softmax difference \(1.9\times10^{-6}\). \\
-Test command & \texttt{pytest tests/ -q --tb=short} & Defense runbook records a 240-test suite split into unit, integration, and slow tests; rerun before final archive if the environment changes. \\
+Test command & \texttt{pytest tests/ -q --tb=short} & Defense runbook records the test suite split into unit, integration, and slow tests; rerun before final archive if the environment changes. \\
 PDF build & \texttt{cd thesis} then \texttt{.\textbackslash build\_thesis.ps1} & Produces \path{thesis/main.pdf}; rerun after final front-matter edits. \\
 \hline
 \end{tabular}
@@ -37,7 +37,7 @@ PDF build & \texttt{cd thesis} then \texttt{.\textbackslash build\_thesis.ps1} &
 
 \section{API and Batch Parity Matrix}
 
-Table~\ref{tab:api_batch_parity} summarizes the parity evidence behind the API-versus-batch claim. The point of the table is not that the API is production-grade; it is that both local execution routes load the same defended contract and produce numerically equivalent output on the same User~7 session.
+Table~\ref{tab:api_batch_parity} summarizes the parity evidence behind the API-versus-batch claim. The point of the table is not operational readiness; it is that both local execution routes load the same defended contract and produce numerically equivalent output on the same User~7 session.
 
 \begin{table}[htbp]
 \centering

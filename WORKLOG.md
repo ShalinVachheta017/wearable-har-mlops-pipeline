@@ -24,129 +24,199 @@ From 2026-04-16 onward, each day should start with a compact scan block before d
 
 Detailed bug narratives, full file lists, and deep forensics stay below the quick block as evidence.
 
-## 2026-05-13 - Pipeline-Centered Report Sweep, Ch6 Threshold Explanation, and Final Active-Thesis Wording Sweep
+## 2026-05-16 (session 2) - User 7 labeled/unlabeled rerun + release/thesis sync
 
 ### Today in 5 lines
 
-- Finished the Ch6 threshold explanation for Stage 6 monitoring.
-- Clarified that `confidence_warn_threshold=0.70`, `uncertain_pct_threshold=20%`, and dominant-class thresholds are conservative repository operating points.
-- Explicitly stated these thresholds are not clinical limits, statistical guarantees, or validated wearable-HAR constants.
-- Swept the abstract plus Ch6, Ch7, and Ch8 for wording that could overclaim production readiness, deployability, clinical validity, or broad generalisation.
-- Cleaned the May-June finish board and marked the threshold/wording sweep as done.
-- Rebuilt the thesis PDF successfully after the wording and pipeline-centering edits; fallback `pdflatex/bibtex` path produced `thesis/main.pdf` with 116 pages.
-- Simplified the dense Ch7 evidence-map table into a compact role/boundary overview.
-- Re-centered Ch5, Ch7, and Ch8 around the Stage 1-7 MLOps pipeline; ABC/model artifacts are now framed as supporting runtime-contract diagnostics, not the thesis centerpiece.
+- Re-ran User 7 labeled and unlabeled Stage 1-7 paths with the correct `thesis-mlops` conda interpreter; both completed `SUCCESS (7/7)`.
+- Confirmed the previous Stage 5 labeled-run crash is fixed in the current code path: `np.load(..., allow_pickle=True)` is active and Stage 5 produces labeled metrics.
+- Confirmed deterministic labeled/unlabeled parity: 989 windows, mean confidence 35.9%, top class `nape_rubbing` 16.5%, uncertainty 80.5%, drift 0.164 HEALTHY, trigger `REVIEW`.
+- Confirmed the current unlabeled run ignores stale labels correctly: `production_y_path=null` for `artifacts/20260516_013406`.
+- Updated the next working plan: uncertainty/calibration and optional User 7 augmentation should be handled on May 17 or May 18, 2026, after documentation/release sync.
 
-### Done Today
+### Fresh Evidence
 
-- Updated `thesis/main.tex` abstract wording from "reliable deployed system" to "reliable runtime system" and from "unrestricted automated deployment" to "production readiness or unrestricted automation."
-- Updated `thesis/chapters/ch6_monitoring_drift_retraining.tex`:
-  - added config-field names for `confidence_warn_threshold` and `uncertain_pct_threshold`;
-  - made the threshold paragraph explicit that confidence, uncertainty, and dominant-class bands are conservative operating thresholds;
-  - softened "deployed model", "production-facing", and "production deployment" wording.
-- Updated `thesis/chapters/ch7_experiments_evaluation.tex`:
-  - changed deployment-proof language to runtime-proof/runtime-quality language;
-  - kept non-claim wording where it is intentionally limiting the evidence.
-- Updated `thesis/chapters/ch8_discussion_conclusion.tex`:
-  - aligned limitations with Ch6 threshold wording;
-  - reframed the cloud topic as a future multi-user service extension, not a defended deployment claim;
-  - softened scope-boundary captions and future-work wording.
-- Cleaned accidental pasted planning text from `docs/MASTER_THESIS_FINISH_TODO_MAY_JUNE_2026.md`.
-- Rebuilt `thesis/main.pdf`: 116 pages, 3,382,513 bytes, build script completed successfully after `latexmk` fell back because Perl is not available for MiKTeX `latexmk`.
-- Updated `thesis/chapters/ch7_experiments_evaluation.tex` evidence-map table so it no longer compresses six columns of metrics into the chapter overview.
-- Reframed Ch5 runtime-model wording into runtime-contract verification wording.
-- Reframed Ch7 "External Evaluation and ABC Model Comparison" into "External Evaluation and Runtime Contract Check."
-- Reframed Ch8's non-claims and final contribution statement around the pipeline: single entrypoint, stage-based data handling, explicit runtime contracts, run-scoped artifacts, monitoring, and review-first trigger policy.
+| Run | Input | Status | Windows | Mean confidence | Top class | Uncertain | Drift | Trigger | Accuracy |
+| --- | --- | --- | ---: | ---: | --- | ---: | --- | --- | ---: |
+| `20260516_013345` | User 7 labeled CSV | `SUCCESS (7/7)` | 989 | 35.9% | `nape_rubbing` 16.5% | 80.5% | 0.164 HEALTHY | REVIEW | 37.6% |
+| `20260516_013406` | User 7 unlabeled CSV | `SUCCESS (7/7)` | 989 | 35.9% | `nape_rubbing` 16.5% | 80.5% | 0.164 HEALTHY | REVIEW | n/a |
 
-### Leftover and Risk
+### Interpretation
 
-- The active thesis wording sweep is complete for the requested files.
-- The report now treats model A/B/C evidence as supporting contract verification for the MLOps pipeline, not as a standalone model-comparison thesis.
-- Remaining exact terms such as "clinical validity", "population-level generalisation", and "production readiness" now appear as explicit non-claims or limitation statements, not as supported claims.
-- The larger unresolved workspace risk remains the dirty ABC evidence bundle in `reports/abc_comparison/`.
+- The 80.5% uncertain-window rate is a real model-output signal, not a label artifact. The median top-class probability is below the 0.50 uncertainty threshold, so most windows are routed as uncertain.
+- Low drift with high uncertainty means the input pipeline is not obviously broken; the likely issue is external-user class-boundary uncertainty and calibration/generalization, not a unit/scaler failure.
+- The 16.5% dominant-class share is healthy compared with collapse behavior. The model is unsure but not collapsed.
+- The labeled and unlabeled rows should now replace older notes that described the labeled run as partial or Stage 5-crashed.
 
-### Next Session Start Point
+### May 17 Safe Execution Order
 
-1. Decide whether the narrowed ABC evidence bundle should be kept and committed.
-2. If kept, update the human-readable ABC report text to match the two-dataset evidence scope.
-3. Address dense-table cleanup only if the PDF body still feels overloaded.
-4. Keep the `latexmk`/Perl limitation in mind; current successful PDF builds rely on the script's `pdflatex/bibtex` fallback.
+1. Protect Git state first. Do not commit the full dirty worktree (`256 files changed`, `663 insertions`, `246,755 deletions`). Preferred zero-extra-commit path: `git stash push -u -m "may16-cleanup-snapshot"` and confirm with `git stash list`. A backup branch is acceptable only if it stays local and is never pushed.
+2. Prepare one clean small PR branch from updated `main` (this repo uses `main`, not `master`). Current working branch is `audit/stage1-7-manual-check`; after protection, pull/update `main` and branch off as `release/thesis-sync-may17`.
+3. Stage only the small thesis/release files for one commit: `WORKLOG.md`, `README.md`, `thesis/chapters/appendix_c_reproducibility.tex`, `thesis/chapters/ch4_data_model_development.tex`, `thesis/chapters/ch5_pipeline_implementation.tex`, `thesis/chapters/ch6_monitoring_drift_retraining.tex`, `thesis/chapters/ch8_discussion_conclusion.tex`, and `thesis/references.bib`. Include `REPRODUCE.md` only if its diff is clean and relevant. Include `thesis/chapters/appendix_b_tech.tex` only if it really changed. Verify the final staged size with `git diff --stat` and `git diff --cached --stat` before commit.
+4. Run `C:\Users\shali\anaconda3\envs\thesis-mlops\python.exe -m pytest tests/ -q` immediately before opening the PR. Use the `thesis-mlops` environment, not base Anaconda pytest. Do not assume `86/86` after branching from `main`; require green first, then update thesis/worklog test-count wording to the actual clean-branch result if it differs.
+5. Run the Stage 11 calibration experiment on labeled User 7 with a calibration/test split; fit temperature scaling and report ECE, NLL, Brier score, mean confidence, uncertain-window rate, and unchanged accuracy. Guardrail: do not lower the 0.50 uncertainty threshold unless calibration/coverage metrics justify it.
+6. Decide whether User 7 distribution-consistent augmentation is useful only as calibration/sensitivity support. Keep the real held-out User 7 split untouched and do not present augmented data as new external evidence.
+7. Fix the 8 must-change thesis figures: `fig_03_scope_map`, `fig_04_stage_evolution`, `fig_05_core_vs_conditional_pipeline`, `fig_07_ablation_config_comparison`, `fig_08_trigger_policy_comparison`, `fig_09_actual_vs_synthetic`, `fig_10_old_vs_new_model_comparison`, and `model_compare_E_dashboard`.
+8. Fix the Appendix C oversized-float warning (`Float too large for page by 20.22511pt`) by splitting the table, shrinking the font, or moving it to a landscape page.
+9. Rebuild the thesis PDF after figure/report polish and verify no undefined references, no missing citations, and no remaining Appendix C layout warning.
+10. Verify Appendix C test-count wording matches the actual count from the clean branch after rebase and after any new calibration tests; update `appendix_c_reproducibility.tex` if the count changes.
+11. Write a closing `WORKLOG.md` entry for May 17 recording calibration results, PR status, regenerated figures, guardrail decisions, and the actual clean-branch test count.
 
-## 2026-05-12 (late evening) - Board Reconciliation, CI/Test Cleanup, and ABC Scope Tightening
+### Git / PR Hygiene Decision - Defer to May 17, 2026
 
-### Today in 5 lines
+- Do not commit the full current worktree as-is. Current diff scale is too noisy for a clean GitHub review: `256 files changed`, `663 insertions`, and `246,755 deletions`.
+- Do not use `git add .` for this state. The large repo cleanup, archive/deletion wave, runtime-contract rename, and test-suite trimming must not be mixed into the small thesis/release sync commit.
+- Tomorrow's safe path is: protect the current work, pull/update from `main` only after the dirty-tree risk is handled, create a fresh PR branch from updated `main`, apply only the small thesis/release patch, and open one small PR with one commit.
+- The small PR should stage only the release/thesis documentation sync: `WORKLOG.md`, `README.md`, the edited thesis chapter files, and `thesis/references.bib`. Include `RELEASE.md` or `REPRODUCE.md` only if their diffs are intentionally reviewed and still belong in the small PR.
+- Any heavy cleanup should be a separate later PR, preferably squashed into one reviewable commit, so GitHub history does not grow into another long multi-commit branch. The branch already has roughly 120 commits, so the next public PR should be intentionally minimal.
 
-- Reconciled the thesis/defense sprint with the later 2026-05-12 commits so the documentation reflects the full day, not only the overnight P0 closeout.
-- Closed the remaining README, DVC, bibliography, appendix, slide, and demo-runbook follow-up items in code/docs history.
-- Fixed CI-oriented hygiene issues: whitespace/lint cleanup, formatter pass, API upload scaler-contract alignment, and `pytest --basetemp` path handling for Windows/CI stability.
-- Added a repo-cleanup audit document but did not move or delete files yet; cleanup remains deferred behind submission-safe documentation.
-- The working tree still contains uncommitted ABC evidence refreshes that remove `all_users_diagnostic` from the active comparison outputs, plus the new cleanup-candidates note.
+### Thesis Reviewer Polish Queue - Figures and Report
 
-### Done Today (committed after the main P0 sprint)
+- Reviewer-style figure count: the compiled thesis currently has 22 rendered figures in the List of Figures, with 20 unique figure assets because Chapter 8 repeats two earlier closing figures.
+- Must-change figure count for the polished version: 8 unique figures. The priority is not to add more figures; it is to remove hard-coded image numbering, fix readability, and reduce defense risk.
+- Must change: `fig_03_scope_map.png` because the image title says `Fig. 3` while LaTeX renders it as Figure 1.1 and repeats it as Figure 8.2.
+- Must change: `fig_04_stage_evolution.png` because it has hard-coded `Fig. 4`, visible text overlap, and cramped/cropped stage labels.
+- Must change: `fig_05_core_vs_conditional_pipeline.png` because it has hard-coded `Fig. 5`, is repeated later as Figure 8.1, and the mutation-path arrows/labels are visually busy.
+- Must change: `fig_07_ablation_config_comparison.png` because it has hard-coded `Fig. 7`; the data is useful, but the title/annotation style should be regenerated under LaTeX-controlled numbering.
+- Must change: `fig_08_trigger_policy_comparison.png` because it has hard-coded `Fig. 8` and the legend/callout/labels are crowded enough to slow reviewer interpretation.
+- Must change: `fig_09_actual_vs_synthetic.png` because it has hard-coded `Fig. 9` and combines performance plus drift panels into a tall figure that is hard to read quickly.
+- Must change: `fig_10_old_vs_new_model_comparison.png` because it has hard-coded `Fig. 10` and the long title/callouts should be simplified for thesis style.
+- Must change: `model_compare_E_dashboard.png` because the six-panel dashboard is too dense for the thesis page, especially the heatmap/y-axis labels; split or simplify before final PDF.
+- Optional figure polish: `ch4_channel_boxplots.png` can be split or re-rendered with smaller labels; `chart_04_26sessions_dominant_before_vs_after.png` and `chart_05_26sessions_review_before_vs_after.png` can be restyled to match the thesis palette; `fig_ch7_abc_comparison.png` can remove the internal `Fig.` prefix and simplify callouts.
+- Report polish items: consider removing one of the repeated Chapter 8 closing figures or replacing both with textual cross-references; fix the Appendix C float warning (`Float too large for page by 20.22511pt`); keep `ch8_garmin_evaluation.tex` out of the compiled thesis or archive it because it contains placeholder captions; after Stage 11 calibration, update the uncertainty discussion only if calibrated results are actually produced.
 
-- `5e9cf3d` `docs: clarify DVC role in thesis reproducibility`
-  - DVC boundary is now explicit: data/artifact versioning only; `run_pipeline.py` remains the defended orchestration path.
-- `57ddb75` `docs(readme): align Model A description and scaler wording with final contract`
-  - README now consistently frames Model A as the defended proof-of-concept runtime candidate with the Garmin train-only scaler in the runtime contract.
-- `0f0f92a` `docs: clean bibliography and soften BFRB scope wording`
-  - Bibliography cleanup landed; thesis language around BFRBs was softened to keep the scope at behavior recognition rather than diagnosis.
-- `7064293` `docs: add stage-by-stage technical confidence audit`
-  - Added `internal/writing/STAGE_BY_STAGE_TECHNICAL_CONFIDENCE.md` as a defense-prep support artifact.
-- `bd212c0` `slides: finalize defense deck after QA pass`
-  - Defense deck moved beyond first-draft status and was finalized after a QA pass.
-- `9e74884` `docs: update worklog after defense prep sprint`
-  - Worklog was refreshed once already, but it stopped before the later afternoon CI/test/doc updates; this entry closes that gap.
-- `82e1f5b` `fix(thesis): update title page and final build settings`
-  - Reinforced the submission-date/final-build state in thesis sources.
-- `48d8a7c` `docs: add defense demo runbook`
-  - Runbook committed in final form.
-- `2e8de29` `docs: add formal defense cleanup and reproducibility appendix`
-  - Added formal supporting appendix material for defense/reproducibility.
-- `b56c79c` `fix: resolve CI lint whitespace errors`
-- `38bdd4b` `style: apply black and isort formatting`
-- `8ff925d` `test: align API upload scaler contract`
-- `dfdd44c` `fix(test): use relative path for basetemp to fix CI file not found error`
-  - Afternoon engineering pass made the repo safer for CI and local Windows execution without changing the defended model story.
+### Additional TODOs Found During Cross-Check
 
-### Also Done Today (uncommitted working tree)
-
-- `reports/abc_comparison/abc_results.csv`
-- `reports/abc_comparison/abc_results.json`
-- `reports/abc_comparison/comparison_summary.json`
-- `reports/abc_comparison/contract_runtime_verification.json`
-- `reports/abc_comparison/dataset_validation_summary.json`
-
-These edits tighten the active ABC evidence scope from three datasets to two:
-- keep `user7_labeled_external`
-- keep `garmin_unlabeled_production_style`
-- drop `all_users_diagnostic` from the generated output bundle
-
-Impact:
-- This makes the evidence pack more defense-safe because `all_users_diagnostic` was always secondary/internal and not primary external evidence.
-- If kept, the surrounding markdown/report text must be checked so it no longer claims the active bundle contains all three datasets.
-- Because these files are not committed yet, the current source-of-truth remains the committed May 11 ABC evidence unless this refresh is intentionally reviewed and committed.
-
-### Leftover and Risk
-
-- `reports/abc_comparison/` is currently dirty. That is the most important unresolved workspace state because it touches defended evidence files.
-- `docs/REPO_CLEANUP_CANDIDATES_2026-05.md` is new and useful, but it is only an audit. No archive wave has been executed yet.
-- The finish board still needs to treat repo cleanup as deferred and distinguish:
-  - thesis/defense content that is done
-  - CI/test/documentation hardening that is done
-  - evidence refreshes that are present but not yet committed
+- Sync `docs/MASTER_THESIS_FINISH_TODO_MAY_JUNE_2026.md` with this worklog after the safe-branch plan is executed. That tracker still contains older status/history lines, so the current User 7 rerun, 8-figure polish queue, 120-page PDF build, and 86-test/runtime-contract wording should be made visible there too.
+- After applying the small patch on a clean branch, run a stale-claim sweep before opening the PR: search for old `models/production_contract`, `--adapt adabn`, `92-test`, stale Stage 11 future-work wording, and any hard-coded `Fig. N` text in rendered figure assets or figure source files.
+- Run verification after the clean PR patch lands: `pytest tests/ -q --tb=short`, a Stage 1-7 User 7 smoke run if the environment is stable, and a thesis PDF rebuild. Do not rely only on the already-built PDF.
+- Verify the final release patch contents before commit with `git diff --cached --stat` and `git diff --cached --name-only`; the staged set must remain a small docs/thesis/release patch, not the 256-file cleanup diff.
+- Confirm whether `REPRODUCE.md` also belongs in the small PR. It is currently modified in the worktree, but the earlier small staging list omitted it; include it only if its diff is limited to runtime-contract/reproducibility wording and does not pull in unrelated cleanup.
 
 ### Writing Impact
 
-- The defended thesis story is now stable enough that the remaining work is mainly curation and packaging, not model or architecture changes.
-- The strongest near-term documentation move is to state clearly that `all_users_diagnostic` is internal/secondary and optional, regardless of whether it remains in the ABC evidence bundle.
-- Submission risk has shifted away from chapter contradictions and toward final evidence hygiene, repo cleanliness, and rehearsal materials.
+- Thesis text already contains the core limitation: Model A reaches 37.6% on User 7 with mean confidence 0.359 and 80.5% uncertain windows.
+- Remaining sync items are documentation hygiene: replace stale `production_contract` paths with `runtime_contract`, update current test-count wording, and make the release baseline explicit.
+
+---
+
+## 2026-05-14 (session 2) — Citation Mining from 250-Paper Library + P1-02 + PDF Rebuild
+
+### Today in 5 lines
+
+- Mined 250-PDF research library for citations not yet in thesis bib; identified 8 high-relevance papers across monitoring, OOD, continual learning, HAR calibration, and behavioral drift.
+- Added 8 BibTeX entries to references.bib: prinster2025watch (ICML 2025), roy2021calibratedhar (Sensors 2021), jha2021continual (Information Sciences 2021), tolosa2026behavioural (Electronics 2026), liu2020energy (NeurIPS 2020), boyer2021ood (Sensors 2021), qiu2024coda (arXiv 2024), akbari2019transfer (IPSN 2019).
+- Added 8 targeted \cite{} calls in Ch2 (tolosa2026behavioural), Ch5 (roy2021calibratedhar), and Ch6 (WATCH, OOD, continual learning, transfer, CODA).
+- P1-02 (dense table move): Ch4 channel stats table moved to Appendix B, cross-reference added; dense paragraph replaced.
+- PDF rebuilt: 120 pages, 3,404,059 bytes, no undefined references, no missing citations.
+
+### Done (2026-05-14 session 2)
+
+- **Citation mining** — Searched paper library for 8 candidate papers; looked up bibliographic details via WebSearch; added all 8 as BibTeX entries with correct DOIs/arXiv IDs.
+- **Ch2** — Added sentence citing tolosa2026behavioural after jacobson2021anxiety: behavioral drift from longitudinal smartphone/wearable data, personalized deviation baselines.
+- **Ch5** — Added \cite{guo2017calibration,roy2021calibratedhar} to Stage 11 calibration methods sentence.
+- **Ch6** — Five insertions: (1) WATCH conformal martingales sentence after drift taxonomy; (2) energy-based OOD (liu2020energy) + HAR-specific OOD (boyer2021ood) in unlabeled metrics; (3) akbari2019transfer added to dhekane2024transfer cite group in retraining section; (4) jha2021continual benchmark sentence; (5) qiu2024coda CODA sentence.
+- **references.bib** — 57 → 65 entries; all 65 cited in thesis body, no unused entries.
+- **PDF** — 119 → 120 pages; 3-pass + bibtex build, no undefined reference warnings.
+
+### Leftover and Risk
+
+- P0-12 (repo cleanup archive wave) still deferred.
+- 4 unidentified papers in needs-review/ subfolder still pending manual check.
+- 100 auto-generated CSV rows still flagged for review.
+
+### Writing Impact
+
+- Bibliography grows from 57 → 65 cited references; stays within 55–70 target range.
+- Ch6 monitoring section now grounded in 3 additional drift/OOD/monitoring references.
+- Ch2 mental-health section gains a 2026 behavioral drift paper directly relevant to the application domain.
 
 ### Next Session Start Point
 
-1. Decide whether to keep the late-evening ABC refresh that removes `all_users_diagnostic` from the active comparison outputs.
-2. If yes, update the human-readable ABC report and any references that still say "all three datasets."
-3. Commit `docs/REPO_CLEANUP_CANDIDATES_2026-05.md` only as an audit note, not as an archive action.
-4. Then review the remaining open list: threshold-justification wording, dense-table trimming, abstract wording sweep, and the eventual archive wave.
+- P0-12 repo cleanup if needed before submission.
+- Manual review of 4 unidentified papers in needs-review/.
+- Final PDF review for any last-minute corrections.
+
+---
+
+## 2026-05-14 - P1 Writing Sprint: Bibliography, Stage 11, CI, Threshold
+
+### Today in 5 lines
+
+- Completed all remaining open P1 thesis writing items in one sprint: bibliography cleanup, Stage 11 calibration wording, CI filter fix, and threshold justification confirmation.
+- Bibliography: removed 18 unused/padding entries from references.bib; added 10 strong targeted citations across Ch2/Ch4/Ch5/Ch6 (garmin API, DVC, supervisor's review paper, UCI HAR, PAMAP2, concept drift, Jacobson anxiety).
+- Bibliography count: 47 → 57 cited references, all present in bib, no unused entries — within the 55–65 target.
+- Stage 11 calibration: added paragraph in Ch5 explaining temperature scaling and isotonic regression are implemented but deferred as future work due to insufficient external labeled data.
+- CI: dropped `not slow and not integration` marker filter; all 240 tests now run with 30-minute timeout.
+
+### Done (2026-05-14)
+
+- **P1-05 bibliography** — 18 padding entries removed (corbin2023deployr, shankar2022operationalizing, sugiyama2012nonstationary, mark2021batch, tdkMpu6050Spec, lima2019inertialoverview, olivares2012inactivity, yurtman2017orientation, page1954cusum, alomar2024cnnrnn, khatun2022deepcnnlstm, jain2024anxiety, duan2023multitask, saha2024accel, tsai2022panic, diazramos2023wearable, ng2019sensor, sadhu2023careportal). 10 citations added: garminAccelerometerData/garminGyroscopeData (Ch4), kuprieiev2023dvc (Ch5), oleh2024harreview (Ch2), uciHar2013 + reiss2012pamap (Ch2), gama2014survey + webb2016characterizing + zenisek2019drift (Ch6), jacobson2021anxiety (Ch2).
+- **P1-07 Stage 11 wording** — paragraph added in Ch5 §"Single Entrypoint and Stage Orchestration": Stage 11 implements temperature scaling/isotonic regression but is deferred to future work; 989 User 7 windows insufficient for reliable post-hoc calibration.
+- **P1-08 CI** — `.github/workflows/ci.yml` unit-tests job: dropped `-m "not slow and not integration"`, increased timeout 20 → 30 min; all 240 tests now run.
+- **P1-04 confirmed DONE** — verified that Ch6 §"Threshold Calibration and Remaining Scope" fully covers the threshold justification requirement.
+- **docs/MASTER_THESIS_FINISH_TODO_MAY_JUNE_2026.md** — P1-04/05/07/08 marked DONE; Next Priority block updated; Completed section updated; Writing Board updated.
+
+### Leftover and Risk
+
+- **P1-02** (dense table simplification) is the last open P1 writing item: move full confusion matrices and Ch4 channel stats table to appendix.
+- **P0-12** (repo cleanup archive wave) deferred until after P1-02 is stable.
+- PDF needs a fresh rebuild after all Ch2/Ch4/Ch5/Ch6 edits today to confirm no undefined references.
+
+### Writing Impact
+
+- Bibliography reaches 57 cited entries — within the 55–65 target; supervisor's review paper (oleh2024harreview) now cited; concept-drift taxonomy grounded; garmin API documented.
+- Stage 11 calibration boundary is now explicit in Ch5, avoiding examiner confusion about why calibration is not a defended runtime component.
+- Ch2 now cites UCI HAR, PAMAP2, and Jacobson anxiety paper for stronger related-work positioning.
+
+### Next Session Start Point
+
+- Rebuild PDF: `thesis/build_thesis.ps1` — verify no undefined references after today's Ch2/Ch4/Ch5/Ch6 citation edits.
+- P1-02: move Ch4 channel statistics table and Ch7 full confusion matrix/ABC metrics to appendix (3–4 hours).
+- P0-12: archive root noise files once P1-02 is stable.
+
+---
+
+## 2026-05-13 - Papers Folder Cleanup and CSV/XLSX Update
+
+### Today in 5 lines
+
+- Deduplicated and flattened "papers needs to read/" folder: 500+ files across nested subfolders → 250 unique PDFs in a single flat root directory.
+- Renamed ~70 cryptic DOI/arxiv-ID filenames to proper paper titles via CrossRef and arxiv batch lookups.
+- Updated papers_summary.csv from 151 rows → 250 rows: all 250 PDFs now have a CSV entry; 100 new rows are auto-generated and flagged for manual review.
+- Regenerated papers_summary.xlsx and Research_Papers_Summary.xlsx from updated CSV via Excel COM automation; deleted PApers.xlsx, Final_resorecs_paper_list.xlsx, papers_temp.csv, .py and .ipynb scripts.
+- 4 papers need manual title identification; 1 off-topic geochemistry paper flagged for deletion.
+
+### Done (2026-05-13)
+
+- Removed all duplicate PDFs from "papers needs to read/": `_2`/`_3` suffix copies, `(1)` copies, content-identical pairs confirmed by file-size match (e.g., 2304.06489v1 = Domain Adaptation IMU Human, 1806.05208v2 = Enabling End-To-End Machine Learning, 2403.15422v1 = sensors-24-07975, etc.).
+- Moved all papers from 5 nested subfolders (`papers/core`, `papers/sorted`, `papers/triage`, `papers/`, `papers_triage/`) into root and deleted empty subfolders.
+- Renamed ~70 DOI/arxiv-ID filenames using CrossRef works, CrossRef search, and arxiv batch API endpoints.
+- Found and flagged off-topic paper: `applsci-15-12661.pdf` (geochemistry/geology, not ML/HAR) → renamed to `Geochemistry West Kendewula Granites (OFF-TOPIC - verify deletion).pdf`.
+- papers_summary.csv: 13 stale filenames corrected, 1 duplicate row deleted, 100 new rows added (status=`auto-generated`).
+- papers_summary.xlsx and Research_Papers_Summary.xlsx regenerated from updated CSV (89 KB each).
+- Deleted: `PApers.xlsx`, `Final_resorecs_paper_list.xlsx`, `papers_temp.csv`, `extract_paper_info.py`, `generate_paper_summary_excel.py`, all `.dvc`, `.gitignore`, `.txt` clutter files from the papers folder.
+
+### Leftover and Risk
+
+- 4 papers still need manual identification: `AUCS10080`, `Medium Blog Post`, `ICTH 2016`, `EHB 2025` — filenames are now descriptive but no proper titles yet.
+- 100 auto-generated CSV rows have placeholder summaries; manual review needed before bibliography cleanup.
+- Off-topic paper `Geochemistry West Kendewula Granites (OFF-TOPIC - verify deletion).pdf` needs user confirmation to delete.
+- Topic-based subfolder organization (Ch2-Mental-Health, Ch3-Wearables-HAR, Ch4-Data-Model, etc.) not yet started — deferred to a later session.
+
+### Writing Impact
+
+- 250 papers now indexed with a consistent CSV entry — reduces bibliography research friction.
+- No thesis chapter edits today; all work was folder/data hygiene.
+
+### Next Session Start Point
+
+- Topic-organize the 250 papers into chapter-aligned subfolders (Ch2, Ch3-HAR, Ch4, Ch5-MLOps, Ch6-Monitoring, Ch7, references).
+- Manually identify the 4 flagged papers and write proper summaries for the 100 auto-generated rows.
+- Confirm deletion of the off-topic geochemistry paper.
+- Continue with P1-02 (dense table simplification) or P1-04 (threshold justification paragraph in Ch6).
+
+---
 
 ## 2026-05-11/12 - PDF Review and Full Chapter Consistency Audit
 
