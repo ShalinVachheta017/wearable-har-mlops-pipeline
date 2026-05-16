@@ -78,7 +78,7 @@ def test_millig_accelerometer_values_are_converted():
     converted, applied = _maybe_convert_accel_units(df, ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
 
     assert applied is True
-    assert converted["Ax"].iloc[0] == pytest.approx(9.81)
+    assert converted["Ax"].iloc[0] == pytest.approx(9.80665)
     assert converted["Gx"].iloc[0] == 1.0
 
 

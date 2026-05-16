@@ -183,7 +183,7 @@ class ModelEvaluation:
                 logger.warning("Labels file configured but not found: %s", labels_path)
                 return None, False
 
-            labels_raw = np.load(labels_path)
+            labels_raw = np.load(labels_path, allow_pickle=True)
             if labels_raw.ndim != 1:
                 raise ValueError(f"Labels must be 1D, got shape {labels_raw.shape}")
             labels_float = labels_raw.astype(float)

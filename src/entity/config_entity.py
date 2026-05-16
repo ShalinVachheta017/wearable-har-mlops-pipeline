@@ -267,11 +267,10 @@ class TriggerEvaluationConfig:
 
 @dataclass
 class ModelRetrainingConfig:
-    """Configuration for model retraining (including domain adaptation)."""
+    """Configuration for supervised model retraining on labeled data."""
 
     # Data paths
     source_data_path: Optional[Path] = None  # labeled training CSV
-    target_data_npy: Optional[Path] = None  # unlabeled production .npy
     labels_path: Optional[Path] = None  # user-provided labels (optional)
 
     # Training hyperparameters
@@ -280,12 +279,6 @@ class ModelRetrainingConfig:
     learning_rate: float = 0.001
     n_folds: int = 5
     skip_cv: bool = False
-
-    # Domain adaptation
-    enable_adaptation: bool = False
-    adaptation_method: str = "none"  # none | adabn | tent | adabn_tent | pseudo_label
-    # NOTE: mmd and dann are NOT implemented.
-    adabn_n_batches: int = 10  # batches for AdaBN / TENT steps
 
     # Output
     output_dir: Optional[Path] = None
@@ -311,8 +304,7 @@ class ModelRegistrationConfig:
     # Default 0.005 (0.5 %) tolerates normal retraining noise while blocking
     # genuine regressions.  Set to 0.0 for zero-tolerance strict mode.
     degradation_tolerance: float = 0.005
-    # When True, block deployment if accuracy metrics are absent (e.g., AdaBN/TENT
-    # unsupervised adaptation produces no labeled val_accuracy).
+    # When True, block deployment if accuracy metrics are absent.
     # Default False preserves current behaviour (register but do NOT auto-deploy).
     block_if_no_metrics: bool = False
 

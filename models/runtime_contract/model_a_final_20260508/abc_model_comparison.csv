@@ -1,0 +1,4 @@
+model,name,path_or_source,contract,garmin_or_all_users_macro_f1,user7_macro_f1,classes_used,dominant_class_pct,decision
+A,Clean-contract Model A,models\production_contract\model_a_final_20260508\fine_tuned_clean_model.keras,"row-wise (200,6), Garmin train-only scaler, no legacy reshape",0.3100526692204049,0.3397320068723934,11,0.1722338204592902,selected for final clean-contract package
+B,Mentor/vendor legacy model,6th may vendor notebooks / legacy diagnostic matrix,"full-data scaler, random overlapping window split, legacy tensor reshape",0.908931,0.41859,11,,not selected; forensic evidence only because contract is not production-safe
+C,Previous current pipeline/default model,models/pretrained/fine_tuned_model_1dcnnbilstm.keras under current clean row-wise pipeline,previous raw/no-scaler pipeline contract; mismatch with vendor checkpoint,0.035797,0.024797,4,,rejected for final model; severe contract mismatch/collapse

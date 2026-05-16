@@ -1,7 +1,0 @@
-artifact_or_finding,thesis_chapter,defense_slide,mentor_review,why
-Dataset inventory + unit harmonization protocol,Chapter 3 (Data and Methodology),Yes (1 concise process slide),Yes (full details),Shows scientific control of measurement units before any model claim.
-Scale comparison chart (same-unit baseline),Chapter 4 (Results: Data Comparison),Yes (core visual #1),Yes,Quickly communicates where production diverges after harmonization.
-Feature-wise shift heatmap (Wasserstein),Chapter 4 (Results: Distribution Shift),Yes (core visual #2),Yes,Pinpoints which axes are mismatch drivers.
-Out-of-range rate chart + quantile profile chart,Chapter 4 (Robustness/Generalization),Yes (combine as core visual #3),Yes (expanded discussion),Supports confidence-score behavior and failure-mode interpretation.
-Transformation ranking (safe vs unsafe for inference),Chapter 5 (Discussion and Deployment Decisions),Yes (decision table summary),Yes,Justifies final pipeline choice: same-unit + linear calibration.
-Barrier-to-solution table + full feature metric CSVs,Appendix,No (unless asked in Q&A),Yes (recommended),Keeps thesis concise while preserving technical auditability.

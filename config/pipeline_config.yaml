@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 # Pipeline Configuration
 # ============================================================================
 # This file controls the production pipeline behavior.
@@ -45,7 +45,7 @@ preprocessing:
   #      normalization_variant controls WHICH scaler: "zscore" | "robust" | "none"
   enable_normalization: true
   normalization_variant: "zscore"  # zscore | robust | none
-  scaler_path: "models/production_contract/model_a_final_20260508/garmin_train_scaler.json"
+  scaler_path: "models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json"
 
   # Gravity removal filter parameters (only used if enable_gravity_removal: true)
   gravity_filter:

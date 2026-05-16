@@ -85,7 +85,7 @@ def print_planned_stages(args) -> None:
         ("7", "trigger", "Automated retraining decision (HEALTHY/WARNING/CRITICAL)"),
     ]
     retrain_stages = [
-        ("8", "retraining", f"Domain adaptation: {args.adapt} -> retrained .keras"),
+        ("8", "retraining", "Supervised retraining on labeled data -> retrained .keras"),
         ("9", "registration", "Version, validate proxy metrics, deploy or rollback"),
         ("10", "baseline_update", "Rebuild drift + calibration baselines from new data"),
     ]
@@ -126,7 +126,6 @@ def print_planned_stages(args) -> None:
     _safe_print("    [ always ]        inference/     FastAPI service  (docker/ or src/api/)")
     _safe_print("    [ always ]        monitoring/    Post-prediction monitoring layer")
     _safe_print("    [ on demand ]     deployment/    Model deploy / rollback manager")
-    _safe_print("    [ retraining ]    domain_adaptation/  AdaBN / TENT / pseudo-label")
 
     _safe_print("\n" + "=" * 70)
     _safe_print("  Starting execution ...")

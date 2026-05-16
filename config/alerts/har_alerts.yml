@@ -35,7 +35,7 @@ groups:
         annotations:
           summary: "HAR model confidence is low"
           description: "Mean confidence {{ $value | printf \"%.3f\" }} < 0.65 for 5m. Historical optional rule; pipeline monitoring threshold is 0.70 and trigger warning threshold is 0.65."
-          runbook: "Check for data drift or model degradation. Consider --retrain."
+          runbook: "Review Stage 6 monitoring artifacts and trigger decision. Queue labeling/QA if persistent; do not retrain from unlabeled data alone."
 
       - alert: HARHighEntropy
         expr: har_entropy_mean > 1.8
@@ -75,7 +75,7 @@ groups:
         annotations:
           summary: "HAR Layer 3 z-score drift WARNING raised"
           description: "At least one sensor channel exceeds drift_zscore_threshold=2.0 std deviations from the training baseline for 5m."
-          runbook: "1. Review Stage 6 monitoring_report.json for drifted channels. 2. Consider --retrain --update-baseline."
+          runbook: "1. Review Stage 6 monitoring_report.json for drifted channels. 2. Check data QA and labels. 3. Queue review; do not update baseline or retrain automatically from unlabeled data."
 
   # --------------------------------------------------------------------------
   # Group 3: Service availability
@@ -122,8 +122,8 @@ groups:
           team: ml-ops
         annotations:
           summary: "HAR drift baseline is stale ({{ $value | printf \"%.0f\" }} days old)"
-          description: "models/normalized_baseline.json is {{ $value | printf \"%.0f\" }}d old. Limit: PostInferenceMonitoringConfig.max_baseline_age_days=90. Layer 3 scores computed vs stale reference."
-          runbook: "Run: python run_pipeline.py --retrain --update-baseline"
+          description: "The configured Stage 6 drift baseline is {{ $value | printf \"%.0f\" }}d old. The defended default is models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json. Limit: PostInferenceMonitoringConfig.max_baseline_age_days=90."
+          runbook: "Review baseline provenance and model contract. Rebuild/promote a baseline only after QA review; do not use --retrain as an automatic response to baseline age."
 
       - alert: HARMissingDriftBaseline
         expr: har_baseline_age_days == -1
@@ -132,6 +132,6 @@ groups:
           severity: critical
           team: ml-ops
         annotations:
-          summary: "HAR drift baseline file missing — Layer 3 silently disabled"
-          description: "models/normalized_baseline.json not found. Layer 3 z-score drift check is skipped on every request."
-          runbook: "Run: python run_pipeline.py --stages baseline_update --update-baseline"
+          summary: "HAR drift baseline file missing — Layer 3 disabled"
+          description: "The configured Stage 6 drift baseline was not found. The defended default is models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json."
+          runbook: "Restore the final Model A package or set BASELINE_PATH to the reviewed baseline. Do not create a new runtime baseline from production/upload data without QA approval."

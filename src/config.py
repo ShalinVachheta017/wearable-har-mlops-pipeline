@@ -20,7 +20,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 # Model directories
 MODELS_DIR = PROJECT_ROOT / "models"
 MODELS_PRETRAINED = MODELS_DIR / "pretrained"
-MODEL_A_FINAL_DIR = MODELS_DIR / "production_contract" / "model_a_final_20260508"
+MODEL_A_FINAL_DIR = MODELS_DIR / "runtime_contract" / "model_a_final_20260508"
 
 # API
 API_DIR = PROJECT_ROOT / "api"
@@ -70,6 +70,7 @@ WINDOW_SIZE = 200  # 4 seconds at 50Hz
 OVERLAP = 0.5  # 50% overlap
 NUM_SENSORS = 6  # Ax, Ay, Az, Gx, Gy, Gz
 NUM_CLASSES = 11  # 11 activity types
+MILLIG_TO_MS2 = 0.00980665  # exact standard gravity / 1000
 
 # Activity labels (from labeled dataset)
 ACTIVITY_LABELS = [

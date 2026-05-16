@@ -650,21 +650,11 @@ class ProductionPipeline:
         )
 
     def _run_retraining(self, result: PipelineResult, ctx: Dict[str, Any]):
-        adaptation_method = (self.retraining_config.adaptation_method or "none").lower()
-        unlabeled_supported = {"adabn", "tent", "adabn_tent", "pseudo_label"}
-        if not ctx["dataset_has_labels"] and adaptation_method not in unlabeled_supported:
+        # Defended runtime: supervised retraining only. Labeled data is required.
+        if not ctx["dataset_has_labels"]:
             logger.info(
-                "Stage 8 SKIPPED: dataset is UNLABELED and supervised retraining is blocked. "
-                "Provide --labels for supervised retraining, or use --adapt one of: %s.",
-                ", ".join(sorted(unlabeled_supported)),
-            )
-            ctx["retraining_art"] = None
-            return "SKIP"
-        if self._should_block_unlabeled_retraining(ctx, adaptation_method, unlabeled_supported):
-            logger.warning(
-                "Stage 8 BLOCKED - critical collapse or low-motion collapse risk was detected. "
-                "Unlabeled adaptation method '%s' is unsafe for this run, even with force_retraining=True.",
-                adaptation_method,
+                "Stage 8 SKIPPED: dataset is UNLABELED. "
+                "Supervised retraining requires labels (provide --labels)."
             )
             ctx["retraining_art"] = None
             return "SKIP"
@@ -674,7 +664,6 @@ class ProductionPipeline:
         ):
             logger.info(
                 "Stage 8 SKIPPED: trigger decision is REVIEW with should_retrain=False. "
-                "Unlabeled production data requires human review before retraining. "
                 "Stages 9-10 will also skip (no retraining artifact). "
                 "Stage 11 (calibration) will continue if requested."
             )
@@ -690,22 +679,6 @@ class ProductionPipeline:
         ).initiate_model_retraining()
         result.retraining = art
         ctx["retraining_art"] = art
-
-    def _should_block_unlabeled_retraining(
-        self,
-        ctx: Dict[str, Any],
-        adaptation_method: str,
-        unlabeled_supported: set[str],
-    ) -> bool:
-        """
-        Method Name :   _should_block_unlabeled_retraining
-        Description :   Check whether critical collapse makes unlabeled adaptation unsafe.
-
-        Output      :   Returns True when Stage 8 must be blocked.
-        On Failure  :   Logs the error and raises the exception.
-        """
-        gate = getattr(self, "safety_gate", PipelineSafetyGate())
-        return gate.should_block_unlabeled_retraining(ctx, adaptation_method, unlabeled_supported)
 
     def _run_registration(self, result: PipelineResult, ctx: Dict[str, Any]):
         if ctx["retraining_art"] is None:
