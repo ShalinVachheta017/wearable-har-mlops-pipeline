@@ -42,7 +42,9 @@ from src.config import MODELS_DIR, PROJECT_ROOT
 from src.utils.common import get_timestamp
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -151,7 +153,11 @@ class ModelRegistry:
             created_at=datetime.now().isoformat(),
             deployed_at=None,
             metrics=metrics,
-            config_hash=self._compute_hash(registry_path) if registry_path.exists() else "unknown",
+            config_hash=(
+                self._compute_hash(registry_path)
+                if registry_path.exists()
+                else "unknown"
+            ),
             data_version=data_version,
             status="archived",
         )
@@ -352,7 +358,9 @@ class RollbackValidator:
             input_shape = model.input_shape
             output_shape = model.output_shape
 
-            self.logger.info(f"Model loaded: input={input_shape}, output={output_shape}")
+            self.logger.info(
+                f"Model loaded: input={input_shape}, output={output_shape}"
+            )
 
             del model
             tf.keras.backend.clear_session()
@@ -406,18 +414,35 @@ class RollbackValidator:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Model rollback manager for HAR MLOps pipeline")
+    parser = argparse.ArgumentParser(
+        description="Model rollback manager for HAR MLOps pipeline"
+    )
 
     parser.add_argument("--list", action="store_true", help="List all model versions")
-    parser.add_argument("--current", action="store_true", help="Show current deployed version")
-    parser.add_argument("--history", action="store_true", help="Show deployment history")
-    parser.add_argument("--rollback", action="store_true", help="Rollback to previous version")
-    parser.add_argument("--version", type=str, default=None, help="Specific version to rollback to")
     parser.add_argument(
-        "--register", type=str, default=None, help="Register a new model (path to model file)"
+        "--current", action="store_true", help="Show current deployed version"
     )
-    parser.add_argument("--deploy", type=str, default=None, help="Deploy a specific version")
-    parser.add_argument("--validate", type=str, default=None, help="Validate a model file")
+    parser.add_argument(
+        "--history", action="store_true", help="Show deployment history"
+    )
+    parser.add_argument(
+        "--rollback", action="store_true", help="Rollback to previous version"
+    )
+    parser.add_argument(
+        "--version", type=str, default=None, help="Specific version to rollback to"
+    )
+    parser.add_argument(
+        "--register",
+        type=str,
+        default=None,
+        help="Register a new model (path to model file)",
+    )
+    parser.add_argument(
+        "--deploy", type=str, default=None, help="Deploy a specific version"
+    )
+    parser.add_argument(
+        "--validate", type=str, default=None, help="Validate a model file"
+    )
 
     args = parser.parse_args()
 
@@ -471,7 +496,9 @@ def main():
         print(f"\nValidating model: {model_path}")
 
         file_valid = validator.validate_model_file(model_path)
-        inference_valid = validator.validate_inference(model_path) if file_valid else False
+        inference_valid = (
+            validator.validate_inference(model_path) if file_valid else False
+        )
 
         if file_valid and inference_valid:
             print("✓ Model validation passed")

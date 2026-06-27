@@ -99,6 +99,80 @@ def load_validation_config(config_path: str) -> DataValidationConfig:
     return config
 
 
+def _ensure_runtime_contract_consistency(
+    transformation_cfg: DataTransformationConfig,
+    inference_cfg: ModelInferenceConfig,
+) -> None:
+    """Guarantee the active scaler comes from the active model's contract folder.
+
+    The pipeline reads `model_path` from CLI / `src.config.DEFAULT_MODEL_PATH`
+    and `scaler_path` from `config/pipeline_config.yaml` — two independent
+    sources of truth. If they disagree, inference silently runs with the wrong
+    normalisation. This helper:
+
+      * Resolves the model's contract folder (parent of the model file/dir).
+      * If `scaler_path` is missing OR lives in a different folder, overrides
+        it to the matching scaler in the active model's folder.
+      * Fails fast if no compatible scaler exists alongside the model.
+
+    Behaviour: warn-and-correct on mismatch, raise on missing.
+    """
+    if not transformation_cfg.enable_normalization:
+        return
+
+    # Resolve the active model path. CLI/config override, otherwise the project
+    # default (src.config.DEFAULT_MODEL_PATH).
+    model_path = inference_cfg.model_path
+    if model_path is None:
+        from src.config import DEFAULT_MODEL_PATH
+
+        model_path = Path(DEFAULT_MODEL_PATH)
+    contract_dir = Path(model_path).parent
+    expected_scaler = contract_dir / "garmin_train_scaler.json"
+
+    scaler_path = transformation_cfg.scaler_path
+    if scaler_path is None:
+        if not expected_scaler.exists():
+            raise RuntimeError(
+                "Runtime contract incomplete: enable_normalization=True but no "
+                f"scaler_path is set and no scaler exists at {expected_scaler}. "
+                "Set scaler_path in config/pipeline_config.yaml or place a "
+                "garmin_train_scaler.json next to the model artefact."
+            )
+        transformation_cfg.scaler_path = expected_scaler
+        logger.info(
+            "Runtime contract: derived scaler_path from active model folder -> %s",
+            expected_scaler,
+        )
+        return
+
+    scaler_dir = Path(scaler_path).resolve().parent
+    if scaler_dir == contract_dir.resolve():
+        logger.info(
+            "Runtime contract OK: model and scaler both from %s", contract_dir.name
+        )
+        return
+
+    # Mismatch. Try to recover by using the scaler from the active model folder.
+    if not expected_scaler.exists():
+        raise RuntimeError(
+            f"Runtime contract mismatch: model is in {contract_dir} but "
+            f"scaler_path points at {scaler_dir}. No scaler exists at "
+            f"{expected_scaler} to recover from. Either fix scaler_path in "
+            "config/pipeline_config.yaml to point at the active model folder, "
+            "or roll model + scaler back together to the previous contract."
+        )
+    logger.warning(
+        "Runtime contract mismatch CORRECTED: model is in %s but scaler_path "
+        "was in %s. Overriding scaler to %s. Fix config/pipeline_config.yaml "
+        "to keep the YAML in sync with src.config.DEFAULT_MODEL_PATH.",
+        contract_dir.name,
+        scaler_dir.name,
+        expected_scaler,
+    )
+    transformation_cfg.scaler_path = expected_scaler
+
+
 def build_runtime_configs(args) -> PipelineRuntimeConfigs:
     """
     Method Name :   build_runtime_configs
@@ -115,7 +189,9 @@ def build_runtime_configs(args) -> PipelineRuntimeConfigs:
     enable_calibration = yaml_preproc.get(
         "enable_calibration", yaml_preproc.get("enable_domain_calibration", False)
     )
-    unit_conversion_factor = float(yaml_preproc.get("unit_conversion_factor", 0.00980665))
+    unit_conversion_factor = float(
+        yaml_preproc.get("unit_conversion_factor", 0.00980665)
+    )
     enable_normalization = yaml_preproc.get("enable_normalization", False)
     normalization_variant = yaml_preproc.get("normalization_variant", "zscore")
     scaler_path = yaml_preproc.get("scaler_path")
@@ -148,15 +224,28 @@ def build_runtime_configs(args) -> PipelineRuntimeConfigs:
         normalization_variant=normalization_variant,
         scaler_path=Path(scaler_path) if scaler_path else None,
     )
-    inference_cfg = ModelInferenceConfig(model_path=Path(args.model) if args.model else None)
-    evaluation_cfg = ModelEvaluationConfig(labels_path=Path(args.labels) if args.labels else None)
+    inference_cfg = ModelInferenceConfig(
+        model_path=Path(args.model) if args.model else None
+    )
+
+    # Enforce: the scaler must come from the same runtime contract folder as
+    # the active model. Mismatched scaler+model pairs silently corrupt inference
+    # (the model receives inputs scaled by another contract's statistics).
+    # See WORKLOG 2026-05-26 session 2 for the incident that motivated this guard.
+    _ensure_runtime_contract_consistency(transformation_cfg, inference_cfg)
+
+    evaluation_cfg = ModelEvaluationConfig(
+        labels_path=Path(args.labels) if args.labels else None
+    )
     retraining_cfg = ModelRetrainingConfig(
         epochs=args.epochs,
         skip_cv=args.skip_cv,
         labels_path=Path(args.labels) if args.labels else None,
     )
     registration_cfg = ModelRegistrationConfig(auto_deploy=args.auto_deploy)
-    calibration_cfg = CalibrationUncertaintyConfig(mc_forward_passes=args.mc_dropout_passes)
+    calibration_cfg = CalibrationUncertaintyConfig(
+        mc_forward_passes=args.mc_dropout_passes
+    )
     monitoring_cfg = load_monitoring_config()
     trigger_cfg = load_trigger_config()
 
@@ -194,7 +283,10 @@ def _log_config_summary(
         "  Unit Conversion (milliG->m/s^2): %s",
         "ON" if transformation_cfg.enable_unit_conversion else "OFF",
     )
-    logger.info("  Unit conversion factor:         %.8f", transformation_cfg.unit_conversion_factor)
+    logger.info(
+        "  Unit conversion factor:         %.8f",
+        transformation_cfg.unit_conversion_factor,
+    )
     logger.info(
         "  Gravity Removal:               %s",
         "ON" if transformation_cfg.enable_gravity_removal else "OFF",
@@ -210,10 +302,21 @@ def _log_config_summary(
     )
     logger.info("  Labels file:                   %s", labels_path or "NOT PROVIDED")
     logger.info("Validation configuration (from %s):", config_path)
-    logger.info("  Expected frequency:            %.2f Hz", validation_cfg.expected_frequency_hz)
     logger.info(
-        "  Sampling tolerance:            %.0f%%", validation_cfg.sampling_rate_tolerance * 100
+        "  Expected frequency:            %.2f Hz", validation_cfg.expected_frequency_hz
     )
-    logger.info("  Max missing ratio:             %.2f%%", validation_cfg.max_missing_ratio * 100)
-    logger.info("  Max acceleration:              %.2f m/s^2", validation_cfg.max_acceleration_ms2)
-    logger.info("  Max gyroscope:                 %.2f deg/s", validation_cfg.max_gyroscope_dps)
+    logger.info(
+        "  Sampling tolerance:            %.0f%%",
+        validation_cfg.sampling_rate_tolerance * 100,
+    )
+    logger.info(
+        "  Max missing ratio:             %.2f%%",
+        validation_cfg.max_missing_ratio * 100,
+    )
+    logger.info(
+        "  Max acceleration:              %.2f m/s^2",
+        validation_cfg.max_acceleration_ms2,
+    )
+    logger.info(
+        "  Max gyroscope:                 %.2f deg/s", validation_cfg.max_gyroscope_dps
+    )

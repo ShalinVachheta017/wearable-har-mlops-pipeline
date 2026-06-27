@@ -1,128 +1,288 @@
-\chapter{MLOps Pipeline Implementation}
+
+\chapter{Pipeline Implementation}
 \label{chap:implementation}
 
-This chapter explains implementation details and engineering decisions for the active runtime path.
+This chapter explains how the architecture from Chapter~\ref{chap:architecture} and the data--model contract from Chapter~\ref{chap:data_model} are realized in the repository implementation. The aim is not to provide a code listing, but to make the implementation auditable. Every architectural rule from Chapter~\ref{chap:architecture} and every contract element from Chapter~\ref{chap:data_model} maps to a specific Python module, configuration source, runtime package, or run-scoped artifact in the repository.
 
-\section{Single Entrypoint and Stage Orchestration}
+\section{Repository Layout and Execution Entry Point}
+\label{sec:repository_layout}
 
-The implemented system uses \path{run_pipeline.py} as the single command-line entrypoint. It constructs typed configuration objects, applies YAML overrides, and invokes the stage orchestrator in \path{src/pipeline/production_pipeline.py}. Centralizing the entrypoint reflects a recurring MLOps architecture recommendation: stage boundaries and their execution order should be inspectable from one place rather than spread across ad hoc scripts, so that lifecycle decisions remain traceable to a single definition of the operational path \cite{amershi2019mlops,kreuzberger2023mlops}.
+The repository separates source code, configuration, runtime contract packages, execution utilities, and run-scoped evidence into distinct areas. This separation supports the offline-first claim: the pipeline can be inspected and executed from local files without relying on a managed cloud platform. Runtime model packages are kept together with their companion artifacts (the scaler, label order, monitoring baseline, contract metadata, and evaluation evidence), so that each promoted runtime contract is a self-contained, inspectable unit. Preprocessing and monitoring thresholds are externalized as configuration rather than hidden inside notebooks, which makes them part of the reproducibility boundary.
 
-By default, execution covers stages 1--7. Retraining stages (8--10) and the optional calibration stage (11) are explicitly enabled by runtime flags. Keeping mutation stages behind explicit flags is consistent with the distinction between observation and state-changing operations that MLOps tooling surveys identify as an essential property of reproducible pipeline tooling \cite{hewage2022mlops}.
+The main scripted execution path is concentrated in a single entry point that assembles the layered configuration, resolves the active runtime contract, and invokes the stage-oriented pipeline. Concentrating execution this way keeps the thesis evidence reproducible from one command, rather than dependent on disconnected notebooks or ad-hoc scripts. A runbook of all reproducibility commands is provided in Appendix~\ref{app:commands}.
 
-Stage~11 implements post-hoc confidence calibration as an optional uncertainty extension. Temperature scaling and isotonic regression are available as calibration methods \cite{guo2017calibration,roy2021calibratedhar}; however, fitting a reliable calibrator requires a substantial held-out labeled reference pool whose size is sufficient to estimate the calibration mapping without overfitting. In this thesis, the available external labeled data consist of 989 User~7 windows, which is insufficient for producing a calibrated model that generalizes beyond the calibration sample. Stage~11 is therefore retained as an implemented extension for future work rather than as a component of the defended runtime path.
+\section{Technology and Design Rationale}
+\label{sec:technology_rationale}
 
-\section{Component Wiring for Stages 1--7}
+The implementation choices in this chapter are deliberate rather than incidental; the main choices below each map to an offline-first, contract-driven goal defined in Chapters~\ref{chap:architecture} and~\ref{chap:data_model}. This section states the main technology and design decisions together with their rationale, so that the implementation reads as a set of engineering choices rather than as defaults; the broader problem of selecting an open-source MLOps tool stack is itself an active research topic~\cite{ruf2021demystifying,hewage2022mlops}. A detailed tool and version reference is collected in the technology-stack appendix.
 
-The base operational path is implemented via dedicated stage components:
+\renewcommand{\arraystretch}{1.25}
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption[Main technology and design choices and their rationale.]{Main technology and design choices and their rationale.}
+\label{tab:technology_rationale}
+\begin{tabularx}{\textwidth}{p{3.2cm} X}
+\toprule
+\textbf{Choice} & \textbf{Why it is used} \\
+\midrule
+Python with TensorFlow/Keras
+& The HAR model is trained and frozen in Keras, so keeping training and serving in the same framework avoids a re-implementation gap between the training notebook and the runtime path. \\
 
-\begin{itemize}
-	\item stage 1: \texttt{src/components/data\_ingestion.py}
-	\item stage 2: \texttt{src/components/data\_validation.py}
-	\item stage 3: \texttt{src/components/data\_transformation.py}
-	\item stage 4: \texttt{src/components/model\_inference.py}
-	\item stage 5: \texttt{src/components/model\_evaluation.py}
-	\item stage 6: \texttt{src/components/post\_inference\_monitoring.py}
-	\item stage 7: \texttt{src/components/trigger\_evaluation.py}
-\end{itemize}
+Persisted scikit-learn \texttt{StandardScaler} (train-only)
+& A saved, train-only scaler guarantees train--serve parity. Recomputing a scaler on each inference batch would leak batch statistics and silently change the feature space the model was trained on. \\
 
-The runtime dependency map is explicitly documented so chapter claims remain tied to concrete source files.
+YAML configuration layering
+& Preprocessing flags, thresholds, and stage activation are externalized so that controlled variation is reproducible without editing code, making configuration part of the reproducibility boundary rather than a hidden constant. \\
 
-The May~2 audit pass simplified the Stage~4 and Stage~5 ownership model without changing the operational contract. Stage~4 inference logic is concentrated in \path{src/components/model_inference.py}; the remaining \path{src/run_inference.py} file is only a thin CLI wrapper. Stage~5 evaluation logic is concentrated in \path{src/components/model_evaluation.py}, so distribution analysis, unlabeled-mode handling, and dominance warnings are no longer delegated to a second evaluator script. This keeps the stage map defensible: each runtime stage has one component file as the source of truth, while command-line wrappers remain outside the core pipeline contract.
+Stage-oriented components
+& Bounded, single-responsibility stages are independently testable and each emits an inspectable artifact, which is what makes the run-scoped evidence trail and contract checks possible. \\
 
-\section{Configuration Layering Strategy}
+FastAPI serving layer
+& A lightweight, same-language entry point consumes the identical runtime contract as the batch path, so the API does not become a second preprocessing path with different assumptions. \\
 
-Implementation behavior is controlled by three layers:
+DVC for data and model versioning
+& Large data and model artifacts are versioned alongside Git-tracked code without bloating the repository, supporting the artifact-lineage and reproducibility claims~\cite{kuprieiev2023dvc}. \\
 
-\begin{itemize}
-	\item stage and preprocessing defaults in code/dataclasses,
-	\item project-level YAML defaults in \path{config/pipeline_config.yaml},
-	\item runtime override values in \path{config/pipeline_overrides.yaml}.
-\end{itemize}
+Docker for environment control
+& Containerization pins dependency versions and provides a repeatable execution boundary for local and CI runs; it is used as a reproducibility aid, not as a cloud-deployment claim. \\
 
-This layering supports reproducibility while still allowing controlled threshold tuning. Externalizing behavior-shaping parameters in versioned configuration files rather than embedding them in code is a well-documented prerequisite for end-to-end replicability: once preprocessing, threshold, and orchestration choices are captured in declarative files, a later rerun can be matched against the original experiment without reverse-engineering the runtime state from logs \cite{gardner2018enabling,bahaidarah2021reusable}.
+\texttt{pytest} contract tests
+& Automated tests guard the runtime contract (model, scaler, baseline, label order, API/batch parity) against silent drift as the code changes. \\
 
-The same principle applies to downstream use: in health-adjacent contexts, reproducibility requires that the configuration surface be explicit enough for an external reviewer to reconstruct the run without assumptions about implicit defaults \cite{ghosh2025reproducible}. In this thesis, the files \path{config/pipeline_config.yaml} and \path{config/pipeline_overrides.yaml} carry the complete set of knobs that change pipeline behavior, so that the configuration layer is itself part of the thesis evidence rather than an undocumented dependency.
+Offline-first, single-machine execution
+& Local, file-based execution prioritizes reproducibility, inspectability, and auditable evidence over cloud-scale automation, matching the defended Level~1 scope (Section~\ref{sec:mlops_maturity_position}). \\
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+\end{table}
 
-\section{Reproducible Operational Command Path}
+Every design choice in this section keeps the runtime contract explicit and the evidence inspectable, reflecting the MLOps principle that reliable systems depend on the surrounding lifecycle rather than the model alone~\cite{amershi2019mlops,kreuzberger2023mlops,sculley2015debt}. Tools are selected for reproducibility and contract safety in an offline-first setting, not for production-scale serving or orchestration, which are outside the defended scope.
 
-The thesis baseline run path follows \texttt{REPRODUCE.md}. A representative command is:
+\section{Configuration Layering}
+\label{sec:configuration_layering}
 
-\begin{verbatim}
-python run_pipeline.py \
-	--stages ingestion validation transformation \
-	inference evaluation monitoring \
-	trigger \
-	--accel-file data/raw/2025-08-19-08-58-40_accelerometer.csv \
-	--gyro-file data/raw/2025-08-19-08-58-40_gyroscope.csv
-\end{verbatim}
+The pipeline uses layered configuration rather than hard-coded stage behavior. This is necessary because the same codebase is used for labeled evaluation, deployment-style inference, monitoring, API execution, and controlled diagnostic runs. The configuration layer defines which model package is active, which scaler and baseline are used, which preprocessing path is applied, and which stages are enabled.
 
-This explicit command style is used to ensure the exact stages and inputs are visible in logs and in thesis evidence.
+\renewcommand{\arraystretch}{1.15}
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption[Configuration source precedence in the pipeline implementation.]{Configuration source precedence in the pipeline implementation.}
+\label{tab:configuration_precedence}
+\begin{tabularx}{\textwidth}{p{3.0cm} X X}
+\toprule
+\textbf{Configuration source} & \textbf{Typical responsibility} & \textbf{Precedence role} \\
+\midrule
+Code-level defaults
+& Defines default runtime model paths, contract artifact paths, and fallback constants.
+& Baseline source of truth when no override is provided. \\
 
-\section{Tracking and Artifact Persistence}
+Declarative pipeline configuration
+& Defines stage settings, preprocessing flags, thresholds, and pipeline-level behavior.
+& Main declarative configuration for ordinary thesis runs. \\
 
-Implementation outputs are persisted in run-scoped artifact directories and pipeline result logs. Experiment metadata is tracked through MLflow configuration under \path{config/mlflow_config.yaml} \cite{zaharia2018mlflow}. DVC is used in the repository for data and model artifact versioning as reproducibility support, but pipeline orchestration is handled by \path{run_pipeline.py} rather than by \texttt{dvc repro}. A full DVC stage graph is not configured for the defended thesis version, which is acceptable because the defended Stage~1--7 pipeline is executed through the Python stage orchestrator while DVC supports artifact traceability. Together, these outputs provide the evidence backbone used by Chapters 6 and 7.
+Runtime overrides / CLI arguments
+& Select input files, output locations, optional stage flags, or diagnostic alternatives.
+& Override YAML values for a specific execution. \\
 
-\section{Defended Runtime Model A and Contract Verification}
-\label{sec:defended_runtime_contract}
+Environment variables
+& Override selected deployment-facing paths such as model, scaler, or baseline locations.
+& Used for API, smoke-test, or rollback scenarios without editing repository code. \\
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+\end{table}
 
-The implementation chapter would be incomplete without recording which model artifact the runtime actually loads, under what input contract, and how that contract is verified before being treated as the defended runtime path. This section records those facts so that later monitoring, evaluation, and governance claims can be traced to a single frozen artifact package rather than to an implicit model state.
+This layering supports reproducibility and controlled variation. A normal thesis run uses the proposed model's default runtime contract and the standard preprocessing settings defined in the layered configuration. A diagnostic run can then change a specific flag, such as a preprocessing option or an alternative model path, without editing the underlying implementation. This keeps experimental variation explicit and reviewable.
 
-\subsection{Model A as the Defended Proof-of-Concept Runtime Candidate}
+Configuration changes must not silently break the runtime contract. A changed model path must remain compatible with the corresponding scaler, label order, and monitoring baseline. A changed preprocessing flag must be interpreted as a new runtime condition unless the model and baseline were prepared under the same assumption. For this reason, configuration assembly is part of the system's contract-enforcement mechanism.
 
-The runtime model is \path{models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras}, referred to throughout the thesis as Model~A. Model~A is selected as the defended clean proof-of-concept runtime candidate and is frozen as the A1 baseline; it is not presented as an operationally released system. Two contrast models are retained in the registry as evidence rather than as runtime alternatives. Model~B (legacy/native diagnostic reference, \path{models/pretrained/fine_tuned_model_1dcnnbilstm.keras}, 499{,}131 parameters) is retained as a diagnostic reference only. Model~C uses the same checkpoint as Model~B but under the clean row-wise layout with no scaler, and is retained as checkpoint-contract mismatch evidence only. The full decision rationale is documented in \path{docs/MODEL_DECISION_2026-05.md} and cross-referenced in \path{docs/MODEL_ABC_MENTOR_BRIEF_2026-05.md}.
+\section{Runtime Contract Implementation and Artifact Loading}
+\label{sec:contract_loading}
 
-\subsection{Input and Preprocessing Contract}
+The runtime contract defined in Chapter~\ref{chap:data_model} is realized in code through three coordinated mechanisms: a single source of path defaults, a scaler-loading utility that validates artifact provenance, and a configuration-build step that binds the model artifact to its accompanying scaler and monitoring baseline. The implementation goal is not only to load files, but to ensure that the model receives input prepared under the same assumptions that defined its training and fine-tuning.
 
-Model~A's input contract is fixed and recorded in \path{model_contract.json}. The model accepts row-wise time-major windows of shape \((\text{batch}, 200, 6)\): 200 samples per window, 6 wrist-IMU channels in the order \(\langle \text{Ax}, \text{Ay}, \text{Az}, \text{Gx}, \text{Gy}, \text{Gz}\rangle\), at a 50~Hz sampling rate, with stride 100 (50\% overlap). The accelerometer unit is \(\mathrm{m/s^2}\) (with Garmin milliG conversion applied at ingest when needed); the gyroscope unit is \(\mathrm{deg/s}\). The contract explicitly disables the legacy mentor reshape (\texttt{legacy\_mentor\_reshape=false}, \texttt{row\_wise\_windows=true}) and disables runtime gravity removal and runtime calibration. The 11-class label order is fixed and persisted in \path{label_order.json}, and is SHA-256 verified at runtime.
+The path defaults are concentrated in a single configuration module that references the active runtime contract directory of the proposed model. That directory holds all artifacts that must be interpreted together: the model checkpoint, the train-only scaler, the label-order file, the monitoring baseline, the contract metadata, the integrity record, and the evaluation evidence. Earlier runtime candidates are retained through separate constants so that rollback or diagnostic comparison remains possible without restructuring the configuration layer.
 
-\subsection{Train-Only Scaler with Persisted Verification}
+Before the inference path consumes the scaler, a provenance check confirms that it declares train-only origin and carries the expected six-channel layout. This guards against the case where a syntactically valid but contractually incompatible scaler is loaded into the inference path. The scaler is loaded from the promoted runtime contract and is never fitted on User~7 or deployment-style sessions; this preserves the train--serve feature space defined during Garmin users~1--6 training.
 
-The Model~A scaler is a StandardScaler fit on Garmin training-set windows only; validation and the User~7 external set are excluded from the fit. The scaler is persisted in two redundant forms, \path{garmin_train_scaler.json} (mean and scale constants) and \path{garmin_train_scaler.joblib} (joblib copy), and JSON/joblib parity is verified at evaluation time with a maximum absolute difference of \(0.0\) across both \texttt{mean} and \texttt{scale}. The model, scaler, label-order, and monitoring-baseline artefacts are verified through the registry contract at \path{models/model_registry/model_a_clean_contract.json}, so that the runtime loads exactly the artefacts that the defended evidence was generated from.
+The API layer consumes the runtime contract through the same default constants as the batch path, all of which can be overridden by environment variables when needed. Environment overrides allow ad-hoc rollback or side-by-side comparison, while the unmodified defaults keep the pipeline aligned with the defended contract.
 
-\subsection{Same Tensor Shape Is Not Enough: ABC Contract Diagnostics}
-\label{sec:abc_contract_diagnostics}
+\subsection{Same-Folder Invariant Enforcement}
+\label{sec:contract_invariant}
 
-A single fact justifies the heavy emphasis on contract verification: all three models load with the same nominal Keras input shape \((\text{batch}, 200, 6)\), yet they produce materially different behaviour because their tensor semantics, scaler policy, and layout differ. Model~B accepts a legacy channel-major reshape and fits a StandardScaler on the entire evaluation dataframe at run time; Model~C uses the same checkpoint as Model~B but under the clean row-wise layout with no scaler at all. On the User~7 external set, Model~C collapses to 7.6\% accuracy with predictions concentrated in only 4 of 11 classes, while Model~B reaches 43.8\% in its native diagnostic mode; the full ABC numbers are reported in Chapter~\ref{chap:experiments}, Section~\ref{sec:abc_comparison}. Tensor shape parity is therefore a necessary but not sufficient runtime condition: tensor semantics, scaler, and layout must match end-to-end. Model~B remains a diagnostic reference only because its non-persisted full-evaluation scaler and legacy native setup limit transferability; Model~C remains direct evidence that a checkpoint without the matching preprocessing contract is not a runnable runtime artifact.
+Chapter~\ref{chap:architecture} introduced the same-folder invariant as an architectural rule: the model, scaler, label order, and monitoring baseline must live in one runtime contract folder and must be promoted together. The implementation of this rule is centralized in the configuration-assembly step, which is invoked at configuration-build time, before preprocessing or inference starts.
 
-\subsection{Legacy Pretrained Model Gating}
+The helper resolves the runtime contract folder from the active model path and compares it against the configured scaler path. The three resulting outcomes correspond to the rules stated in Chapter~\ref{chap:architecture}, Table~\ref{tab:runtime_contract_rules}.
 
-The historical undocumented-provenance pretrained model is structurally prevented from being loaded as the runtime model. In \path{src/config.py}, the legacy artifact is marked with an excluded-provenance status; the runtime default model path is set to the frozen Model~A package, and the legacy pretrained path is not selected by default. This is a runtime-code-level governance gate, not a documentation note: changing the default model requires an explicit code edit, not only a configuration override.
+If the configured scaler already lives in the active model folder, the configuration is accepted unchanged and the runtime contract is treated as coherent. If the scaler path points outside the active model folder but a compatible scaler exists inside the active folder, the helper corrects the stale path and records a warning. If no compatible same-folder scaler exists, the helper fails fast before inference begins.
 
-\subsection{API and Batch Inference Parity on User 7}
+The monitoring baseline is aligned through the API and pipeline configuration defaults, which both resolve to the active contract folder, and is validated by the pytest contract tests. The invariant is enforced before any preprocessing or inference artifact is written. A misconfigured run therefore either proceeds under the coherent contract that the operator likely intended, or fails before producing misleading outputs. This implementation does not solve every possible form of contract drift, but it removes a high-risk failure mode: loading a model from one runtime package while scaling inputs with an artifact from another package.
 
-The same Model~A artifact is loaded through two execution paths: the API endpoint and the batch-pipeline path. To verify that the two paths agree, both were run on the User~7 labeled session (989 windows). All 989 window-level predictions matched (100\% prediction agreement), and the maximum absolute difference between the two paths' softmax probability vectors was \(1.9 \times 10^{-6}\). API and batch parity is therefore not an implementation assumption; it is a verified property of the defended runtime, recorded in \path{reports/FINAL_RUNTIME_RUN_SUMMARY_2026-05-09.md}.
+\section{Stage Execution and Artifact Trail}
+\label{sec:stage_oriented_pipeline}
 
-\section{End-to-End Stage 1--7 Evidence Runs}
-\label{sec:end_to_end_evidence_runs}
+The pipeline is implemented as a sequence of stage-oriented components. Each stage has a bounded responsibility and writes outputs that can be inspected after execution. The assessment path can therefore be written as the composition
+\[
+R = S_7\!\left(S_6\!\left(S_5\!\left(S_4\!\left(S_3\!\left(S_2\!\left(S_1(x)\right)\right)\right)\right)\right)\right),
+\]
+where $x$ is the input session and $R$ is the run result, including the governance decision. On unlabeled runs $S_5$ acts as the identity, since evaluation metrics require labels; the composition is otherwise unconditional. This composition mirrors the architectural separation introduced in Chapter~\ref{chap:architecture}: Stages~1--7 form the operational assessment path, while Stages~8--10 belong to the governed mutation path and are not part of this default composition.
 
-The defended runtime path was exercised end-to-end on two real sessions whose artifacts are kept under \path{artifacts/} as primary thesis evidence. The first run consumed a real unlabeled Garmin session (\path{artifacts/20260508_235323/}; 130{,}500 rows, 1{,}304 windows, 50~Hz, with milliG-to-\(\mathrm{m/s^2}\) conversion applied at ingest). The second run consumed the User~7 labeled external session (\path{artifacts/20260508_235356/}; 99{,}017 rows, 989 windows, 50~Hz, no unit conversion). On both runs, all stages 1--7 completed with status \texttt{SUCCESS} as recorded in the per-run \path{run_info.json}. The corresponding \path{trigger_decision.json} files report \texttt{action=review} and \texttt{should\_retrain=false} on both runs. These are the runtime-side facts; the monitoring-severity interpretation and the trigger-policy reasoning are presented in Chapter~\ref{chap:monitoring}, and the cross-user accuracy interpretation is presented in Chapter~\ref{chap:experiments}.
+\renewcommand{\arraystretch}{1.15}
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption[Mapping between architecture stages and repository implementation...]{Mapping between architecture stages and repository implementation modules.}
+\label{tab:stage_module_map}
+\begin{tabularx}{\textwidth}{p{2.4cm} p{1.1cm} X}
+\toprule
+\textbf{Path} & \textbf{Stage} & \textbf{Key output artifact and responsibility} \\
+\midrule
+Assessment & S1 & Ingestion metadata; standardizes session input access. \\
+Assessment & S2 & Validation report covering schema, unit, and timestamp checks. \\
+Assessment & S3 & Preprocessing metadata and model-ready transformed windows. \\
+Assessment & S4 & Prediction probabilities and class outputs. \\
+Assessment & S5 & Evaluation metrics when ground-truth labels are available. \\
+Assessment & S6 & Monitoring report with confidence, temporal, drift, and collapse signals. \\
+Assessment & S7 & Trigger decision and governance outcome. \\
+Mutation & S8 & Candidate model and training artifacts. \\
+Mutation & S9 & Model registry or promotion metadata. \\
+Mutation & S10 & Updated baseline and runtime-contract package. \\
+Optional & S11 & Calibration or uncertainty evidence when enabled. \\
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+\end{table}
 
-\section{Batch Ingestion Design and Rationale}
-\label{sec:batch_ingestion}
+To make the mapping concrete, it is useful to trace a single execution. When the pipeline entry point is invoked on a recorded session, it first assembles the layered configuration and resolves the active runtime contract of the proposed model. Stage~1 ingests the session and standardizes column access; Stage~2 validates schema, units, and timestamps; Stage~3 converts units where required, applies the saved train-only scaler, and constructs the row-wise windows of shape $(200,6)$; Stage~4 runs inference and records per-class probabilities; Stage~5 computes evaluation metrics when labels are present; Stage~6 derives the confidence, temporal, drift, and dominant-class signals; and Stage~7 combines them into a single governance decision. On the labeled User~7 external session, for example, this path produced 989 windows and routed the run to \texttt{REVIEW} with \texttt{auto\_retrain=false}, writing the full evidence chain shown in Figure~\ref{fig:run_scoped_artifact_trail}. No mutation stage is entered unless review, labels, and validation evidence justify it.
 
-Data ingestion in this thesis system is implemented as bounded session-level batch processing rather than continuous streaming. Each run consumes fixed input files and produces a run-scoped artifact set. In the thesis context, this is a deliberate architecture choice: governance decisions are made at session granularity and require replayable inputs. For the present system, batch ingestion is therefore not merely a pragmatic convenience but a design choice grounded in four interdependent constraints specific to offline wearable HAR.
+\subsection{Run-Scoped Artifact Trail}
+\label{sec:run_scoped_artifacts}
 
-The first constraint is imposed by the data source. Garmin Venu 3 sessions are exported as complete CSV files through the Garmin Connect platform; there is no supported API for real-time stream access to raw accelerometer and gyroscope readings during a session. Each file represents a bounded recording interval, and the ingestion stage is therefore designed to accept exactly one accelerometer file and one gyroscope file per run. Attempting to superimpose a streaming architecture on a source that produces discrete, session-bounded exports would introduce artificial complexity without any corresponding benefit.
+Each pipeline execution writes run-scoped artifacts so that the path from input data to trigger decision can be reconstructed after the run. This is the implementation side of the lineage principle discussed in Chapter~\ref{chap:architecture}. The pipeline does not rely only on console output; it writes structured files that preserve validation, transformation, inference, monitoring, and trigger evidence.
 
-The second constraint arises from the statistical requirements of the monitoring layer. Governance decisions at Stage 6 depend on signals computed over an entire session worth of windowed predictions: the mean confidence score, the dominant class share, the temporal transition rate, and a baseline-relative drift summary. None of these can be computed meaningfully from a single window in isolation. The calibrated MMD branch evaluated later in the thesis is also inherently batch-level; evaluating one window at a time would either defer the metric to a later aggregation step or produce unstable single-sample estimates with limited shift interpretability \cite{dhekane2024transfer,chakma2023imuda}. Batch ingestion resolves this structural tension by guaranteeing that the monitoring stage operates on a complete, fixed-size population of windows.
+Run outputs are stored under an \texttt{artifacts/<run\_id>/} convention and are also summarized in pipeline logs. A run identifier connects the input session, intermediate artifacts, and final decision, as illustrated in Figure~\ref{fig:run_scoped_artifact_trail}. This makes it possible to inspect a single execution later without rerunning the full pipeline.
 
-The third constraint concerns labeling and offline annotation. In the training and evaluation workflow, activity labels are provided by pre-annotated session files using the same schema as Table~\ref{tab:activity_classes}. Annotation is inherently a batch-level operation: a human annotator or automated labeling tool processes a completed recording, not a live stream. Requiring the ingestion stage to handle streaming inputs would therefore create an asymmetry between the training data path and the inference data path that could introduce subtle preprocessing mismatches \cite{munappy2019data}.
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=4.2mm,
+  box/.style={rectangle, rounded corners, draw, align=center, text width=9cm, inner sep=4pt, font=\footnotesize},
+  io/.style={box, fill=gray!22},
+  asmt/.style={box, fill=blue!18},
+  dec/.style={box, fill=orange!30},
+  res/.style={box, fill=green!22},
+  arr/.style={-{Latex[length=2mm]}, thick}
+]
+\node[io]   (n1) {Input wearable session \;$+$\; run identity record \;(S1)};
+\node[asmt, below=of n1] (n2) {Validation report \;(S2)};
+\node[asmt, below=of n2] (n3) {Preprocessing metadata \;$+$\; transformed windows \;(S3)};
+\node[asmt, below=of n3] (n4) {Prediction output \;(S4)};
+\node[asmt, below=of n4] (n5) {Evaluation record \;(S5)\; / \;Monitoring report \;(S6)};
+\node[dec,  below=of n5] (n6) {Trigger decision \;(S7)};
+\node[res,  below=of n6] (n7) {Full run summary \;(orchestration)};
+\draw[arr] (n1)--(n2); \draw[arr] (n2)--(n3); \draw[arr] (n3)--(n4);
+\draw[arr] (n4)--(n5); \draw[arr] (n5)--(n6); \draw[arr] (n6)--(n7);
+\end{tikzpicture}
+\caption[Run-scoped artifact trail produced by the offline-first pipeline]{Run-scoped artifact trail produced by the offline-first pipeline. Each execution links the input session, validation report, preprocessed windows, prediction output, evaluation or monitoring record, trigger decision, and full run summary into one inspectable evidence chain.}
+\label{fig:run_scoped_artifact_trail}
+\end{figure}
+\FloatBarrier
 
-The fourth constraint is reproducibility. A batch is a fixed, versioned artifact. Once a session file has been ingested and registered in the artifact directory under a unique run identifier, it can be replayed exactly at any future time with identical inputs. This property is central to the thesis's reproducibility claim, as detailed in Section~\ref{sec:reproducibility}, and is well documented as a prerequisite for end-to-end verifiable research software \cite{gardner2018enabling,bahaidarah2021reusable}. A streaming ingestion design would make exact replay considerably harder, because the boundaries of what constitutes a single ``run'' would become ambiguous. The choice of batch ingestion is therefore not a limitation of the offline-first architecture described in Chapter~\ref{chap:architecture}; it is a direct implementation of that architecture's reproducibility and governance requirements.
+This artifact trail supports debugging and reproducibility. If a run produces unexpected predictions or a severe trigger decision, the stored files allow the reviewer to inspect whether the issue came from input validation, preprocessing, inference, monitoring, or trigger evaluation. The same convention also supports later experimental comparisons because different runs can be compared by their artifacts rather than by informal notes.
 
-\section{MLOps Maturity Level Assessment}
-\label{sec:mlops_maturity}
+\section{Interfaces, Reproducibility, and Maturity}
+\label{sec:api_execution_interfaces}
 
-MLOps maturity frameworks provide a structured vocabulary for describing the extent to which a machine learning system is operationalized, automated, and governed. Kreuzberger et al.\ identify a three-level maturity model that has become widely referenced in the MLOps literature \cite{kreuzberger2023mlops}. Hewage and Meedeniya extend this view through a survey of available tooling, noting that maturity level selection should reflect the operational context of the system rather than a generic aspiration toward maximum automation \cite{hewage2022mlops}. Against this background, it is possible to locate the present thesis precisely within the maturity spectrum and to justify why the level implemented is the appropriate one.
+The repository supports both scripted execution and API-based inference. Scripted execution is used for reproducible thesis runs because it makes input paths, configuration values, and output folders explicit. The API interface provides a serving-style entry point for submitting wearable sensor files and receiving predictions or monitoring outputs.
 
-Level 0 represents the baseline condition of most published wearable HAR research: models are trained offline, evaluated once on a held-out test set, and the resulting accuracy metric is reported in the paper. There is no deployment lifecycle, no artifact lineage, no monitoring of post-deployment behavior, and no mechanism for updating the model when conditions change. Amershi et al.\ document the broader consequences of this pattern in production ML systems, arguing that operational failures frequently emerge at the interfaces between lifecycle stages precisely because those interfaces are left informal and undocumented at Level 0 \cite{amershi2019mlops}. Paleyes et al.\ survey a range of deployed ML case studies and find that the absence of structured deployment practices is a leading source of reliability gaps in real-world systems \cite{paleyes2022challenges}. The present thesis treats Level 0 as the baseline against which its contribution is measured, not as an acceptable operational target.
+The API does not redefine the runtime contract. It uses the same model path, scaler path, label order, baseline, and configuration defaults as the batch pipeline. This prevents the API from becoming a parallel inference path with different preprocessing assumptions. When environment variables are used to override paths, they are treated as explicit runtime changes rather than hidden defaults.
 
-Level 1 introduces an automated, stage-based pipeline with experiment tracking, artifact lineage, and governed deployment decisions. The present implementation satisfies Level 1 across all its defining characteristics. The single command-line entrypoint \path{run_pipeline.py} encapsulates the complete operational path, ensuring that stage execution order, configuration values, and input files are specified explicitly at runtime rather than encoded in notebook cells or shell scripts. MLflow \cite{zaharia2018mlflow} provides per-run experiment tracking, linking each run identifier to the configuration values, input files, and output artifacts that produced it. DVC \cite{kuprieiev2023dvc} is used in the project workspace for dataset and model artifact versioning so the data and model state linked to a run can be traced across commits; it is not the orchestration layer for the defended runtime path, and \texttt{dvc repro} is not configured for the full Stage~1--7 pipeline in this thesis version. The governed retraining gate at Stage 7 ensures that model updates are conditional on explicit trigger conditions rather than on the routine availability of new data. Repository automation supports this level through continuous-integration checks and an optional release-image smoke workflow; it does not constitute production continuous deployment. Together, these characteristics establish Level 1 maturity as defined by the MLOps literature.
+The serving interface is a browser-based dashboard. The upload screen presents three modes
+and a stage strip that makes the pipeline boundary visible before any file is submitted.
+The strip shows which stages run automatically on the server (Stages~1--3: ingestion,
+validation, and transformation), which stages produce the visible results (Stages~4--7:
+inference, evaluation, monitoring, and trigger decision), and which stages are review-gated
+and require a human action before they execute (Stages~8--10). The three upload modes
+differ in how the raw recording is supplied. The first mode accepts two separate CSV files,
+one containing the accelerometer channels and one the gyroscope channels; the preprocessing
+pipeline fuses them using the same channel-alignment logic as the batch path. The second
+mode accepts a single pre-fused activity CSV without a label column, which the dashboard
+routes as an unlabeled deployment-style session and processes using only the proxy monitoring
+signals. The third mode accepts the same pre-fused format with an additional ground-truth
+label column, enabling a labeled evaluation session where accuracy and quality metrics are
+also computed.
 
-Level 2 extends Level 1 with fully automated continuous training loops, CI/CD pipelines that retrain and redeploy models without operator intervention, and infrastructure for real-time or near-real-time feedback between monitoring telemetry and model updates. Level 2 is intentionally out of scope for the present thesis, and this exclusion is a deliberate governance decision rather than a technical limitation. In health-adjacent settings, automated retraining without access to ground-truth labels at inference time poses a safety risk that is not adequately addressed by unsupervised monitoring signals alone \cite{khattak2023mlhops}. The negative result documented in Section~7.7 of this thesis provides direct empirical evidence for this concern: a plausible intervention combining unit-fix and abstain-review routing changed the distribution of prediction labels but left mean confidence unchanged at 0.8578, demonstrating that observable routing changes cannot be conflated with genuine improvements in prediction quality. Automating retraining on the basis of such signals would produce a system that mutates its own model in response to governance artifacts, not in response to verified learning signals. Sculley et al.\ identify premature automation as a primary source of hidden technical debt in ML systems, noting that automation pipelines that are triggered without adequate validation introduce new failure modes faster than they eliminate manual effort \cite{sculley2015debt}. Level 1 MLOps, with its explicit governance gate, is therefore the appropriate maturity target for an offline, single-machine, label-scarce wearable HAR system in which the cost of a false retraining decision materially exceeds the cost of a missed one.
+After upload, the results are returned in three panels. The monitoring panel reports the
+three-layer signal summary: session mean confidence with its uncertain-window percentage,
+temporal transition rate shown as both a raw session value and a smoothed per-window trace,
+and per-channel distribution drift score, each with a color-coded severity status. The
+governance panel reports the trigger decision, the retraining status, and, when applicable,
+the reason for escalation or cooldown suppression. The prediction panel lists each window's
+predicted activity class and confidence score. When the upload carries ground-truth labels,
+the dashboard additionally shows an evaluation card with session-level accuracy,
+macro-averaged F1, and their temporally smoothed variants, together with a per-class
+confusion matrix. Appendix~\ref{app:walkthrough} provides annotated screenshots of both a
+labeled and an unlabeled session walking through each panel in turn.
+
+The API and batch paths are treated as contract-equivalent execution interfaces: both resolve the same promoted runtime package, apply the same scaler and label order, and must therefore remain behaviorally aligned. This alignment is verified as an implementation test rather than asserted as a separate model-performance claim; the contract and upload-mode tests check that both paths consume the identical runtime contract so that the API cannot silently diverge into a different preprocessing path.
+
+Verification and portability are supported by the test suite and the promoted package rather than by ad-hoc scripts. Automated contract tests verify that the active proposed-model package loads correctly, that the model, scaler, baseline, and label order stay aligned, and that the API and batch upload modes behave consistently. In the defended runtime, both the batch pipeline and the FastAPI serving path load the native \texttt{.keras} model from the promoted contract folder; the SavedModel-compatible export is kept alongside it for cross-environment portability, not as a separate serving path.
+
+\subsection{Experiment Tracking Across the Two Execution Paths}
+\label{sec:experiment_tracking}
+
+Both execution interfaces record evidence to MLflow as two separate experiments, mirroring the contract-equivalent but operationally distinct relationship described above. The batch path logs to the \texttt{har-production-pipeline} experiment, where each stage contributes its own metrics so that an entire governed run, from ingestion through the trigger decision, is reconstructable from the tracking record. The serving path logs to the \texttt{inference-production} experiment, capturing the focused inference-and-monitoring evidence of a single upload. Keeping the experiments separate prevents interactive serving runs from diluting the batch-run history while still recording both under one local tracking store.
+
+Each run logs a curated set of essential signals rather than raw telemetry. For the batch pipeline this is one or two metrics per stage: the input shape, the validation-gate result, the window count, inference timing and mean confidence, the temporal, drift, and dominant-class monitoring signals, and the final retraining decision with its alert level. Redundant confidence statistics and constant configuration flags, which either repeat across stages or never vary between runs, are deliberately excluded so the tracking record stays auditable rather than noisy. The serving path logs the analogous proxy set: confidence, drift, the raw and smoothed transition rate, per-activity counts, and, only when the upload carries ground-truth labels, accuracy and macro-F1. MLflow therefore records what the pipeline observed on a specific run, making it possible to compare monitoring severity or trigger outcomes across sessions without rerunning the pipeline~\cite{zaharia2018mlflow}. Representative screenshots of the dashboard and of both MLflow experiments are collected in Appendix~\ref{app:walkthrough}.
+
+\subsection{Reproducibility and Environment Control}
+\label{sec:reproducibility_environment}
+
+The implementation is designed for local reproducibility, following reproducibility practice for scientific machine learning~\cite{gardner2018enabling,bahaidarah2021reusable,munappy2019data}. Configuration files, runtime contract folders, run-scoped artifacts, and tests are kept inside the repository structure so that a run can be reproduced or inspected without a managed production platform. Docker and dependency files support environment consistency, while local execution keeps the defended runtime aligned with the offline-first scope.
+
+A specific reproducibility issue concerns model format portability across environments. Training and conversion may occur in an environment using older TensorFlow/Keras conventions, while thesis execution may occur in a newer environment. To reduce this compatibility risk, the runtime contract retains the native \texttt{.keras} artifact used by the defended batch and API paths together with a SavedModel-compatible export for portability, while additional legacy or environment-specific artifacts may be kept as supporting material. This decision belongs to implementation reproducibility: the model package must be loadable by the defended inference environment, not only by the training notebook.
+
+Automated tests provide another reproducibility layer. The defended suite contains 88 tests across 11 files. Its largest families guard exactly the thesis-critical behavior: Stage~6 monitoring (16 tests), Stage~7 trigger policy (14), end-to-end pipeline execution (12), API upload modes (10), and runtime-contract consistency (5). The remaining tests cover ingestion, schema validation, unit conversion, preprocessing, and component-level checks. Contract tests verify that configuration defaults, model paths, scaler paths, API defaults, and runtime assumptions remain aligned, and a continuous integration workflow runs the full suite on every push, so contract regressions surface before they reach the defended branch. These tests are not substitutes for model evaluation, but they reduce the risk that code changes silently break the runtime contract. In an offline-first thesis setting, such checks are valuable because reproducibility depends on local files staying consistent over time.
+
+The roles of the two artifact-management tools are distinct. DVC \emph{is} part of the defended reproducibility mechanism: the raw, processed, and prepared data, the pretrained models, the promoted runtime-contract folder, and the defended evidence run are DVC-tracked, so they can be restored from content-addressed storage through Git-tracked pointer files~\cite{kuprieiev2023dvc}. MLflow records what the pipeline observed on a run; DVC or the release bundle supplies the artifacts the pipeline consumed. The proposed model's runtime package also includes an integrity manifest, so the model, scaler, baseline, and label-order files can be verified as one coherent package.
+
+Containerization follows the same contract discipline. Two Docker images are defined: a training image with the full training stack and Stage~1--7 entry point, and a lean inference image that mounts the proposed model's contract folder as a read-only volume. This keeps the frozen assessment path separate from the mutation path described in Chapter~\ref{chap:architecture}. Data and models are not baked into either image; the deployment unit remains the runtime-contract folder, and Docker is used as a local reproducibility aid rather than as a Kubernetes-style production-serving claim.
+
+\subsection{MLOps Maturity Position}
+\label{sec:mlops_maturity_position}
+
+The implementation places this thesis most closely at MLOps Level~1: pipeline automation with reproducible batch execution~\cite{kreuzberger2023mlops,hewage2022mlops}. It exceeds a manual notebook workflow because ingestion, validation, transformation, inference, monitoring, and trigger evaluation are staged, configuration-controlled, and artifact-producing. It remains below Level~2 because retraining, baseline update, deployment, and orchestration are governance-gated rather than automatic.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.08}
+\caption[MLOps maturity position of the defended thesis pipeline.]{MLOps maturity position of the defended thesis pipeline.}
+\label{tab:mlops_maturity_position}
+\begin{tabularx}{\textwidth}{p{2.5cm} X X}
+\toprule
+\textbf{Maturity level} & \textbf{Typical meaning} & \textbf{Position in this thesis} \\
+\midrule
+Level~0 / manual ML
+& Notebook-driven or manually connected scripts.
+& Exceeded: staged execution, controlled configuration, runtime contracts, and run-scoped artifacts. \\
+Level~1 / pipeline automation
+& Repeatable pipeline execution with controlled configuration and artifact tracking.
+& Matched: Stages~1--7 run offline with validation, inference, monitoring, and trigger evidence. \\
+Level~2 / automated training/deployment
+& Automated retraining, promotion, or production deployment.
+& Not claimed: retraining and baseline update remain governance-gated and are not automatic. \\
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+\end{table}
+
+This positioning matches the offline-first boundary defended in Chapter~\ref{chap:architecture} and motivates the cloud and continuous-deployment directions discussed as future work in Chapter~\ref{chap:discussion_conclusion}.
 
 \section{Chapter Summary}
+\label{sec:chapter5_summary}
 
-This chapter mapped the architecture claims from Chapter~\ref{chap:architecture} to concrete implementation anchors. The operational path is explicit: stages 1--7 run by default, while stages 8--10 and stage 11 are guarded behind runtime flags so that state-mutating actions remain deliberate.
-
-Configuration layering, run-scoped artifact persistence, the frozen Model~A contract package and its SHA-256-verified scaler (Section~\ref{sec:defended_runtime_contract}), the Stage 1--7 evidence runs on Garmin and User~7 (Section~\ref{sec:end_to_end_evidence_runs}), and session-bounded batch ingestion together provide the reproducibility substrate for later evidence. This implementation substrate, together with the structural gating of the legacy pretrained model path, is what enables Chapters~\ref{chap:monitoring} and~\ref{chap:experiments} to interpret monitoring and retraining behavior as auditable system outcomes rather than as isolated script effects.
+This chapter mapped the thesis architecture and data--model contract to the repository implementation. It covered configuration layering, runtime-contract loading, the same-folder invariant, stage-to-module correspondence, run-scoped artifacts, API and batch alignment, and the reproducibility controls that support the evidence in Chapter~\ref{chap:experiments}. The defended pipeline is a Level~1 MLOps implementation: offline, manually triggered, and reproducible from versioned artifacts without requiring cloud infrastructure or continuous deployment. Chapter~\ref{chap:monitoring} next focuses on the monitoring and trigger-governance logic built on top of this implementation.

@@ -223,7 +223,9 @@ class PredictionAnalyzer:
             )
 
         # Structured dominance flag: informational, does not trigger retraining.
-        dominance_threshold = PostInferenceMonitoringConfig.dominant_class_critical_threshold
+        dominance_threshold = (
+            PostInferenceMonitoringConfig.dominant_class_critical_threshold
+        )
         distribution_dominance_warning = dominant_pct >= dominance_threshold
         if distribution_dominance_warning:
             self.logger.warning(
@@ -277,7 +279,9 @@ class PredictionAnalyzer:
         # Per-class confidence
         self.logger.info("\n   Per-Activity Mean Confidence:")
         per_class = (
-            df.groupby("predicted_activity")["confidence"].mean().sort_values(ascending=False)
+            df.groupby("predicted_activity")["confidence"]
+            .mean()
+            .sort_values(ascending=False)
         )
         for activity, mean_conf in per_class.items():
             self.logger.info(f"      {activity:20s}: {100*mean_conf:.1f}%")
@@ -308,7 +312,9 @@ class PredictionAnalyzer:
         n_uncertain = len(uncertain)
         pct_uncertain = 100 * n_uncertain / len(df)
 
-        self.logger.info(f"   Uncertain predictions: {n_uncertain} ({pct_uncertain:.1f}%)")
+        self.logger.info(
+            f"   Uncertain predictions: {n_uncertain} ({pct_uncertain:.1f}%)"
+        )
 
         if n_uncertain == 0:
             self.logger.info("   ✅ No uncertain predictions!")
@@ -374,7 +380,9 @@ class PredictionAnalyzer:
         transitions = sum(
             1 for i in range(1, len(activities)) if activities[i] != activities[i - 1]
         )
-        transition_rate = transitions / (len(activities) - 1) if len(activities) > 1 else 0
+        transition_rate = (
+            transitions / (len(activities) - 1) if len(activities) > 1 else 0
+        )
 
         self.logger.info(f"   Total windows: {len(activities)}")
         self.logger.info(f"   Activity transitions: {transitions}")
@@ -405,7 +413,9 @@ class PredictionAnalyzer:
 
         self.logger.info("\n   Longest sustained sequences:")
         for activity, length in sorted(longest.items(), key=lambda x: -x[1])[:5]:
-            duration_sec = length * 4  # 4 seconds per window (50% overlap @ 200 samples, 50Hz)
+            duration_sec = (
+                length * 4
+            )  # 4 seconds per window (50% overlap @ 200 samples, 50Hz)
             self.logger.info(f"      {activity}: {length} windows ({duration_sec}s)")
 
         return {
@@ -433,7 +443,10 @@ class ClassificationEvaluator:
         self.logger = logger
 
     def compute_metrics(
-        self, y_true: np.ndarray, y_pred: np.ndarray, y_prob: Optional[np.ndarray] = None
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        y_prob: Optional[np.ndarray] = None,
     ) -> Dict:
         """
         Compute classification metrics.
@@ -461,7 +474,9 @@ class ClassificationEvaluator:
 
         # Overall metrics
         accuracy = accuracy_score(y_true, y_pred)
-        precision_macro = precision_score(y_true, y_pred, average="macro", zero_division=0)
+        precision_macro = precision_score(
+            y_true, y_pred, average="macro", zero_division=0
+        )
         recall_macro = recall_score(y_true, y_pred, average="macro", zero_division=0)
         f1_macro = f1_score(y_true, y_pred, average="macro", zero_division=0)
 
@@ -500,7 +515,9 @@ class ClassificationEvaluator:
             "confusion_matrix": cm.tolist(),
         }
 
-    def compute_calibration(self, y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> Dict:
+    def compute_calibration(
+        self, y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10
+    ) -> Dict:
         """
         Compute calibration metrics.
 
@@ -567,7 +584,9 @@ class ClassificationEvaluator:
         elif ece < 0.15:
             self.logger.info("   ⚠️ Model is moderately calibrated")
         else:
-            self.logger.warning("   ❌ Model is poorly calibrated - confidence unreliable")
+            self.logger.warning(
+                "   ❌ Model is poorly calibrated - confidence unreliable"
+            )
 
         return {"ece": ece, "bins": bin_data}
 
@@ -614,7 +633,9 @@ class ReportGenerator:
                 for activity, data in results["distribution"].items():
                     if activity.startswith("_") or not isinstance(data, dict):
                         continue
-                    f.write(f"{activity:20s}: {data['count']:5d} ({data['percentage']:5.1f}%)\n")
+                    f.write(
+                        f"{activity:20s}: {data['count']:5d} ({data['percentage']:5.1f}%)\n"
+                    )
                 f.write("\n")
 
             # Confidence Stats
@@ -633,7 +654,9 @@ class ReportGenerator:
                 unc = results["uncertainty"]
                 f.write("UNCERTAINTY ANALYSIS\n")
                 f.write("-" * 40 + "\n")
-                f.write(f"Uncertain predictions: {unc['count']} ({unc['percentage']:.1f}%)\n")
+                f.write(
+                    f"Uncertain predictions: {unc['count']} ({unc['percentage']:.1f}%)\n"
+                )
                 f.write("\n")
 
             f.write("=" * 70 + "\n")
@@ -699,7 +722,13 @@ class EvaluationPipeline:
 
                     # Map predicted activity names → integer class indices
                     inv_classes = {name: idx for idx, name in ACTIVITY_CLASSES.items()}
-                    y_pred = df["predicted_activity"].map(inv_classes).fillna(-1).astype(int).values
+                    y_pred = (
+                        df["predicted_activity"]
+                        .map(inv_classes)
+                        .fillna(-1)
+                        .astype(int)
+                        .values
+                    )
 
                     n = min(len(y_true), len(y_pred))
                     if len(y_true) != len(y_pred):
@@ -713,12 +742,16 @@ class EvaluationPipeline:
                     y_true, y_pred = y_true[:n], y_pred[:n]
 
                     evaluator = ClassificationEvaluator(self.config, self.logger)
-                    results["classification_metrics"] = evaluator.compute_metrics(y_true, y_pred)
+                    results["classification_metrics"] = evaluator.compute_metrics(
+                        y_true, y_pred
+                    )
                     self.logger.info(
                         "LABELED evaluation complete — classification_metrics computed."
                     )
                 except Exception as label_err:
-                    self.logger.warning("Labeled evaluation skipped due to error: %s", label_err)
+                    self.logger.warning(
+                        "Labeled evaluation skipped due to error: %s", label_err
+                    )
 
             # Generate reports
             results["output_files"] = {
@@ -757,7 +790,9 @@ Examples:
         """,
     )
 
-    parser.add_argument("--input", "-i", type=str, default=None, help="Path to predictions CSV")
+    parser.add_argument(
+        "--input", "-i", type=str, default=None, help="Path to predictions CSV"
+    )
 
     parser.add_argument(
         "--output", "-o", type=str, default=None, help="Output directory for reports"

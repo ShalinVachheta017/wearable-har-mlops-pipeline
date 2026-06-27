@@ -123,7 +123,9 @@ class ModelEvaluation:
 
             missing_probs = [c for c in self.probability_columns if c not in df.columns]
             if missing_probs:
-                raise ValueError(f"Prediction CSV missing probability columns: {missing_probs}")
+                raise ValueError(
+                    f"Prediction CSV missing probability columns: {missing_probs}"
+                )
 
             numeric_cols = [
                 "window_id",
@@ -142,7 +144,9 @@ class ModelEvaluation:
 
             pred_class = numeric["predicted_class"].astype(int)
             if not pred_class.between(0, len(ACTIVITY_CLASSES) - 1).all():
-                raise ValueError("predicted_class values are outside the canonical range.")
+                raise ValueError(
+                    "predicted_class values are outside the canonical range."
+                )
 
             expected_names = pred_class.map(ACTIVITY_CLASSES).astype(str)
             actual_names = df["predicted_activity"].astype(str)
@@ -168,7 +172,9 @@ class ModelEvaluation:
             logger.exception("Stage 5 prediction contract validation failed.")
             raise exc
 
-    def read_labels(self, labels_path: Optional[Path]) -> Tuple[Optional[np.ndarray], bool]:
+    def read_labels(
+        self, labels_path: Optional[Path]
+    ) -> Tuple[Optional[np.ndarray], bool]:
         """
         Method Name :   read_labels
         Description :   Read optional paired window labels for supervised metrics.
@@ -191,13 +197,17 @@ class ModelEvaluation:
                 raise ValueError("Labels contain NaN or inf values.")
             labels = labels_raw.astype(int)
             if not np.isin(labels, list(ACTIVITY_CLASSES.keys())).all():
-                raise ValueError("Labels contain class ids outside the canonical mapping.")
+                raise ValueError(
+                    "Labels contain class ids outside the canonical mapping."
+                )
             return labels, True
         except Exception as exc:
             logger.exception("Failed to read Stage 5 labels.")
             raise exc
 
-    def validate_label_alignment(self, labels: Optional[np.ndarray], n_predictions: int) -> None:
+    def validate_label_alignment(
+        self, labels: Optional[np.ndarray], n_predictions: int
+    ) -> None:
         """
         Method Name :   validate_label_alignment
         Description :   Ensure labels and predictions are exactly paired.
@@ -226,13 +236,17 @@ class ModelEvaluation:
         """
         try:
             predictions_csv = Path(
-                self.config.predictions_csv or self.inference_artifact.predictions_csv_path
+                self.config.predictions_csv
+                or self.inference_artifact.predictions_csv_path
             )
             output_dir = Path(
-                self.config.output_dir or self.pipeline_config.outputs_dir / "evaluation"
+                self.config.output_dir
+                or self.pipeline_config.outputs_dir / "evaluation"
             )
             output_dir.mkdir(parents=True, exist_ok=True)
-            labels_path = Path(self.config.labels_path) if self.config.labels_path else None
+            labels_path = (
+                Path(self.config.labels_path) if self.config.labels_path else None
+            )
 
             df = self.read_predictions(predictions_csv)
             self.validate_prediction_contract(df)
@@ -242,7 +256,9 @@ class ModelEvaluation:
             if has_labels:
                 logger.info("Evaluation mode: LABELED (labels file: %s)", labels_path)
             else:
-                logger.info("Evaluation mode: UNLABELED (distribution/confidence/temporal only)")
+                logger.info(
+                    "Evaluation mode: UNLABELED (distribution/confidence/temporal only)"
+                )
 
             distribution = self._prediction_distribution(df)
             confidence = self._confidence_summary(df)
@@ -282,7 +298,9 @@ class ModelEvaluation:
                 classification_metrics=report["classification_metrics"],
                 dominant_class=str(report["dominant_class"]),
                 dominant_pct=float(report["dominant_pct"]),
-                distribution_dominance_warning=bool(report["distribution_dominance_warning"]),
+                distribution_dominance_warning=bool(
+                    report["distribution_dominance_warning"]
+                ),
             )
         except Exception as exc:
             logger.exception("Stage 5 prediction evaluation failed.")
@@ -323,7 +341,9 @@ class ModelEvaluation:
             logger.exception("Stage 5 model evaluation failed.")
             raise exc
 
-    def save_reports(self, report: Dict[str, Any], output_dir: Path) -> Tuple[Path, Path]:
+    def save_reports(
+        self, report: Dict[str, Any], output_dir: Path
+    ) -> Tuple[Path, Path]:
         """
         Method Name :   save_reports
         Description :   Save the Stage 5 JSON and text reports.
@@ -386,17 +406,22 @@ class ModelEvaluation:
                     .items()
                 )
             },
-            "levels": {str(k): int(v) for k, v in df["confidence_level"].value_counts().items()},
+            "levels": {
+                str(k): int(v) for k, v in df["confidence_level"].value_counts().items()
+            },
         }
 
     def _uncertainty_summary(self, df: pd.DataFrame) -> Dict[str, Any]:
-        uncertain_mask = df["is_uncertain"].astype(str).str.lower().isin({"true", "1", "yes"})
+        uncertain_mask = (
+            df["is_uncertain"].astype(str).str.lower().isin({"true", "1", "yes"})
+        )
         uncertain = df[uncertain_mask]
         return {
             "count": int(len(uncertain)),
             "percentage": float(100.0 * len(uncertain) / len(df)),
             "by_class": {
-                str(k): int(v) for k, v in uncertain["predicted_activity"].value_counts().items()
+                str(k): int(v)
+                for k, v in uncertain["predicted_activity"].value_counts().items()
             },
         }
 
@@ -432,7 +457,9 @@ class ModelEvaluation:
             "n_windows": int(len(activities)),
             "transitions": int(transitions),
             "transition_rate": (
-                float(transitions / (len(activities) - 1)) if len(activities) > 1 else 0.0
+                float(transitions / (len(activities) - 1))
+                if len(activities) > 1
+                else 0.0
             ),
             "longest_sequences": longest_by_class,
             "longest_sequence_activity": str(longest_activity),
@@ -468,8 +495,12 @@ class ModelEvaluation:
             "precision_macro": float(
                 precision_score(y_true, y_pred, average="macro", zero_division=0)
             ),
-            "recall_macro": float(recall_score(y_true, y_pred, average="macro", zero_division=0)),
-            "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
+            "recall_macro": float(
+                recall_score(y_true, y_pred, average="macro", zero_division=0)
+            ),
+            "f1_macro": float(
+                f1_score(y_true, y_pred, average="macro", zero_division=0)
+            ),
             "per_class": classification_report(
                 y_true,
                 y_pred,
@@ -497,7 +528,10 @@ class ModelEvaluation:
             "-" * 40,
         ]
         for activity, values in report["distribution"].items():
-            lines.append(f"{activity:20s}: {values['count']:5d} " f"({values['percentage']:5.1f}%)")
+            lines.append(
+                f"{activity:20s}: {values['count']:5d} "
+                f"({values['percentage']:5.1f}%)"
+            )
 
         conf = report["confidence"]
         temporal = report["temporal"]

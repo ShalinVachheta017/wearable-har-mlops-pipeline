@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mxfile host="app.diagrams.net" modified="2026-05-28T00:00:00.000Z" agent="ChatGPT" version="24.7.17" type="device">
+  <diagram name="Figure 3.2 - Runtime Contract Folder">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="760" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="t2" value="Figure 3.2 — Model D1 Runtime Contract Folder" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;fontStyle=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="250" y="15" width="620" height="40"/>
+        </mxCell>
+        <mxCell id="folder" value="models/runtime_contract/&lt;br&gt;&lt;b&gt;model_d1_final_20260528/&lt;/b&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;shape=folder;fontStyle=1;fillColor=#E0F2FE;strokeColor=#0369A1;strokeWidth=2;tabWidth=80;tabHeight=18;tabPosition=left;html=1;whiteSpace=wrap;align=center;verticalAlign=top;spacingTop=30;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="55" y="75" width="565" height="600"/>
+        </mxCell>
+        <mxCell id="f1" value="&lt;b&gt;model/&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;trained or promoted model artifact&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;align=left;verticalAlign=middle;spacingLeft=14;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="100" y="145" width="470" height="56"/>
+        </mxCell>
+        <mxCell id="f2" value="&lt;b&gt;scaler.json&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;train-only preprocessing parameters&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;align=left;verticalAlign=middle;spacingLeft=14;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="100" y="215" width="470" height="56"/>
+        </mxCell>
+        <mxCell id="f3" value="&lt;b&gt;label_order.json&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;canonical class-index mapping&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;align=left;verticalAlign=middle;spacingLeft=14;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="100" y="285" width="470" height="56"/>
+        </mxCell>
+        <mxCell id="f4" value="&lt;b&gt;monitoring_baseline.json&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;reference distribution for monitoring&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;align=left;verticalAlign=middle;spacingLeft=14;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="100" y="355" width="470" height="56"/>
+        </mxCell>
+        <mxCell id="f5" value="&lt;b&gt;model_contract.json&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;schema, units, windowing, validation protocol&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;align=left;verticalAlign=middle;spacingLeft=14;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="100" y="425" width="470" height="56"/>
+        </mxCell>
+        <mxCell id="f6" value="&lt;b&gt;artifact_hashes.json&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;integrity metadata&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;align=left;verticalAlign=middle;spacingLeft=14;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="100" y="495" width="470" height="56"/>
+        </mxCell>
+        <mxCell id="f7" value="&lt;b&gt;evaluation_summary.json&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;validation and review evidence&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;align=left;verticalAlign=middle;spacingLeft=14;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="100" y="565" width="470" height="56"/>
+        </mxCell>
+        <mxCell id="rule" value="Same-folder invariant&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Model, scaler, label order, monitoring baseline, metadata, and evidence are promoted together.&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;rounded=1;arcSize=12;fillColor=#F3E8FF;strokeColor=#7E22CE;strokeWidth=2;fontStyle=1;align=center;verticalAlign=middle;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="685" y="140" width="330" height="115"/>
+        </mxCell>
+        <mxCell id="accept" value="OK&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;all required artifacts inside active folder&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;rounded=1;arcSize=12;fillColor=#DCFCE7;strokeColor=#16A34A;strokeWidth=2;fontStyle=1;align=center;verticalAlign=middle;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="705" y="305" width="290" height="70"/>
+        </mxCell>
+        <mxCell id="correct" value="Mismatch corrected&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;stale path overridden by matching same-folder artifact&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;rounded=1;arcSize=12;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=2;fontStyle=1;align=center;verticalAlign=middle;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="705" y="405" width="290" height="82"/>
+        </mxCell>
+        <mxCell id="fail" value="Fail fast&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;no compatible same-folder artifact found&lt;/span&gt;" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;rounded=1;arcSize=12;fillColor=#F1F5F9;strokeColor=#64748B;strokeWidth=2;align=center;verticalAlign=middle;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="705" y="525" width="290" height="75"/>
+        </mxCell>
+        <mxCell id="deploy" value="Inference-ready&lt;br&gt;runtime package" style="fontSize=16;fontFamily=Helvetica;html=1;whiteSpace=wrap;rounded=1;arcSize=12;fillColor=#DBEAFE;strokeColor=#1D4ED8;strokeWidth=2;fontStyle=1;align=center;verticalAlign=middle;" parent="1" vertex="1">
+          <mxGeometry as="geometry" x="395" y="700" width="270" height="45"/>
+        </mxCell>
+        <mxCell id="erule" style="endArrow=block;html=1;rounded=0;strokeWidth=2;strokeColor=#334155;" parent="1" edge="1" source="folder" target="rule">
+          <mxGeometry as="geometry" relative="1"/>
+        </mxCell>
+        <mxCell id="eok" style="endArrow=block;html=1;rounded=0;strokeWidth=2;strokeColor=#334155;" parent="1" edge="1" source="rule" target="accept">
+          <mxGeometry as="geometry" relative="1"/>
+        </mxCell>
+        <mxCell id="ecor" style="endArrow=block;html=1;rounded=0;strokeWidth=2;strokeColor=#334155;" parent="1" edge="1" source="rule" target="correct">
+          <mxGeometry as="geometry" relative="1"/>
+        </mxCell>
+        <mxCell id="efail" style="endArrow=block;html=1;rounded=0;strokeWidth=2;strokeColor=#334155;" parent="1" edge="1" source="rule" target="fail">
+          <mxGeometry as="geometry" relative="1"/>
+        </mxCell>
+        <mxCell id="edeploy" style="endArrow=block;html=1;rounded=0;strokeWidth=2;strokeColor=#334155;" parent="1" edge="1" source="folder" target="deploy">
+          <mxGeometry as="geometry" relative="1"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

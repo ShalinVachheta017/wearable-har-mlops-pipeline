@@ -99,7 +99,9 @@ class TriggerEvaluation:
             # Governance fields — propagated from TriggerDecision so the artifact
             # exposes the full review-gate contract without extra dict access.
             decision=(
-                decision._decision_label() if hasattr(decision, "_decision_label") else "HEALTHY"
+                decision._decision_label()
+                if hasattr(decision, "_decision_label")
+                else "HEALTHY"
             ),
             auto_retrain=getattr(decision, "auto_retrain", False),
             review_required=getattr(decision, "review_required", False),
@@ -120,10 +122,16 @@ class TriggerEvaluation:
         layer1 = self.monitoring_artifact.layer1_confidence or raw_report.get(
             "layer1_confidence", {}
         )
-        layer2 = self.monitoring_artifact.layer2_temporal or raw_report.get("layer2_temporal", {})
-        layer3 = self.monitoring_artifact.layer3_drift or raw_report.get("layer3_drift", {})
+        layer2 = self.monitoring_artifact.layer2_temporal or raw_report.get(
+            "layer2_temporal", {}
+        )
+        layer3 = self.monitoring_artifact.layer3_drift or raw_report.get(
+            "layer3_drift", {}
+        )
         collapse = raw_report.get("collapse_signals", {}) or {}
-        motion_context = layer2.get("motion_context", {}) if isinstance(layer2, dict) else {}
+        motion_context = (
+            layer2.get("motion_context", {}) if isinstance(layer2, dict) else {}
+        )
 
         return {
             "confidence_report": {
@@ -137,7 +145,9 @@ class TriggerEvaluation:
             "temporal_report": {
                 "metrics": {
                     "flip_rate": layer2.get("transition_rate", 0.0) / 100.0,
-                    "mean_dwell_time_seconds": layer2.get("mean_dwell_time_seconds", 0.0),
+                    "mean_dwell_time_seconds": layer2.get(
+                        "mean_dwell_time_seconds", 0.0
+                    ),
                     "short_dwell_ratio": layer2.get("short_dwell_ratio", 0.0),
                 }
             },
@@ -155,10 +165,16 @@ class TriggerEvaluation:
             },
             "collapse_signals": {
                 "dominance_warning": self._as_bool(
-                    collapse.get("dominance_warning", layer1.get("dominance_warning", False))
+                    collapse.get(
+                        "dominance_warning", layer1.get("dominance_warning", False)
+                    )
                 ),
-                "dominant_class": collapse.get("dominant_class", layer1.get("dominant_class")),
-                "dominant_pct": collapse.get("dominant_pct", layer1.get("dominant_pct")),
+                "dominant_class": collapse.get(
+                    "dominant_class", layer1.get("dominant_class")
+                ),
+                "dominant_pct": collapse.get(
+                    "dominant_pct", layer1.get("dominant_pct")
+                ),
                 "collapse_level": collapse.get("collapse_level"),
                 "mean_confidence": collapse.get(
                     "mean_confidence", layer1.get("mean_confidence", 0.0)
@@ -171,7 +187,9 @@ class TriggerEvaluation:
                     "top2_margin_mean", layer1.get("top2_margin_mean")
                 ),
                 "low_gyro_motion": self._as_bool(
-                    collapse.get("low_gyro_motion", motion_context.get("low_gyro_motion", False))
+                    collapse.get(
+                        "low_gyro_motion", motion_context.get("low_gyro_motion", False)
+                    )
                 ),
                 "low_motion_collapse_risk": self._as_bool(
                     collapse.get(
@@ -179,7 +197,9 @@ class TriggerEvaluation:
                         motion_context.get("low_motion_collapse_risk", False),
                     )
                 ),
-                "g_mag_median": collapse.get("g_mag_median", motion_context.get("g_mag_median")),
+                "g_mag_median": collapse.get(
+                    "g_mag_median", motion_context.get("g_mag_median")
+                ),
                 "gravity_dominant_axis": collapse.get(
                     "gravity_dominant_axis", motion_context.get("gravity_dominant_axis")
                 ),

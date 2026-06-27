@@ -131,7 +131,9 @@ class TriggerThresholds:
 
     # Collapse guard thresholds. The 95% critical value is owned by Stage 6
     # monitoring config so Stage 5/7 do not drift from the dashboard signal.
-    dominant_pct_critical: float = PostInferenceMonitoringConfig.dominant_class_critical_threshold
+    dominant_pct_critical: float = (
+        PostInferenceMonitoringConfig.dominant_class_critical_threshold
+    )
     dominant_pct_static_high_confidence: float = 90.0
 
 
@@ -159,7 +161,9 @@ class TriggerDecision:
     cooldown_active: bool = False
     # Governance fields — always set explicitly; defaults are the safe production values.
     auto_retrain: bool = False  # must remain False for unlabeled production data
-    review_required: bool = False  # True when human review is required before any action
+    review_required: bool = (
+        False  # True when human review is required before any action
+    )
     label_required: bool = False  # True when labels/QA gate must be satisfied first
     qa_required: bool = False  # True when data QA is required before retraining
     required_next_steps: List[str] = field(default_factory=list)
@@ -378,7 +382,9 @@ class TriggerPolicyEngine:
         collapse = monitoring_report.get("collapse_signals", {}) or {}
 
         collapse_level = str(collapse.get("collapse_level") or "NONE").upper()
-        low_motion_collapse_risk = self._to_bool(collapse.get("low_motion_collapse_risk", False))
+        low_motion_collapse_risk = self._to_bool(
+            collapse.get("low_motion_collapse_risk", False)
+        )
         low_gyro_motion = self._to_bool(collapse.get("low_gyro_motion", False))
         g_mag_median = self._to_float(collapse.get("g_mag_median"))
         gravity_dominant_axis = collapse.get("gravity_dominant_axis")
@@ -401,7 +407,10 @@ class TriggerPolicyEngine:
         # 2) dominant pct >= configured critical threshold
         # 3) dominant pct >= 90 with zero transition and high confidence
         cond_1 = dominance_warning
-        cond_2 = dominant_pct is not None and dominant_pct >= self.thresholds.dominant_pct_critical
+        cond_2 = (
+            dominant_pct is not None
+            and dominant_pct >= self.thresholds.dominant_pct_critical
+        )
         cond_3 = (
             dominant_pct is not None
             and dominant_pct >= self.thresholds.dominant_pct_static_high_confidence
@@ -424,7 +433,8 @@ class TriggerPolicyEngine:
         is_low_motion_session = low_gyro_motion
         is_low_transition = transition_rate is None or abs(transition_rate) < 5.0
         is_critical_dominance = (
-            dominant_pct is not None and dominant_pct >= self.thresholds.dominant_pct_critical
+            dominant_pct is not None
+            and dominant_pct >= self.thresholds.dominant_pct_critical
         )
 
         if is_critical_dominance and is_low_motion_session and is_low_transition:
@@ -636,7 +646,9 @@ class TriggerPolicyEngine:
                 "level": level.value,
                 "issues": issues,
                 "reason": (
-                    "; ".join(issues) if issues else "MMD drift score below calibrated threshold"
+                    "; ".join(issues)
+                    if issues
+                    else "MMD drift score below calibrated threshold"
                 ),
                 "metrics": {
                     "drift_detector": "mmd",
@@ -704,7 +716,9 @@ class TriggerPolicyEngine:
             },
         }
 
-    def _aggregate_signals(self, signals: Dict[str, Dict], timestamp: str) -> TriggerDecision:
+    def _aggregate_signals(
+        self, signals: Dict[str, Dict], timestamp: str
+    ) -> TriggerDecision:
         """
         Aggregate individual signals using voting logic.
 
@@ -831,14 +845,16 @@ class TriggerPolicyEngine:
                 time_remaining = cooldown_period - (datetime.now() - last_retrain_dt)
 
                 self.logger.warning(
-                    "Trigger suppressed: cooldown active. " f"Time remaining: {time_remaining}"
+                    "Trigger suppressed: cooldown active. "
+                    f"Time remaining: {time_remaining}"
                 )
 
                 decision.should_trigger = False
                 decision.action = TriggerAction.QUEUE_RETRAIN
                 decision.cooldown_active = True
                 decision.recommendations.insert(
-                    0, f"Cooldown active - retrain queued (wait {time_remaining.seconds//3600}h)"
+                    0,
+                    f"Cooldown active - retrain queued (wait {time_remaining.seconds//3600}h)",
                 )
 
         return decision
@@ -855,7 +871,10 @@ class TriggerPolicyEngine:
             self.state["consecutive_warnings"] = 0
 
         # Consecutive warnings escalate to REVIEW — never to automatic retraining.
-        if self.state["consecutive_warnings"] >= self.thresholds.consecutive_warnings_for_trigger:
+        if (
+            self.state["consecutive_warnings"]
+            >= self.thresholds.consecutive_warnings_for_trigger
+        ):
             decision.should_trigger = False
             decision.action = TriggerAction.REVIEW
             decision.auto_retrain = False
@@ -946,7 +965,9 @@ class ProxyModelValidator:
         self.logger = logging.getLogger(f"{__name__}.ProxyValidator")
 
     def compare_models(
-        self, old_predictions: Dict[str, np.ndarray], new_predictions: Dict[str, np.ndarray]
+        self,
+        old_predictions: Dict[str, np.ndarray],
+        new_predictions: Dict[str, np.ndarray],
     ) -> Dict[str, Any]:
         """
         Compare old and new model predictions using proxy metrics.
@@ -997,7 +1018,9 @@ class ProxyModelValidator:
             improvements.append("entropy")
 
         # Flip rate (lower is better)
-        flip_diff = old_metrics["internal_flip_rate"] - new_metrics["internal_flip_rate"]
+        flip_diff = (
+            old_metrics["internal_flip_rate"] - new_metrics["internal_flip_rate"]
+        )
         comparisons["flip_rate"] = {
             "old": old_metrics["internal_flip_rate"],
             "new": new_metrics["internal_flip_rate"],
@@ -1082,12 +1105,16 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument("--report", type=str, required=True, help="Path to monitoring report JSON")
+    parser.add_argument(
+        "--report", type=str, required=True, help="Path to monitoring report JSON"
+    )
     parser.add_argument(
         "--state-file", type=str, default=None, help="Path to state persistence file"
     )
     parser.add_argument("--reset", action="store_true", help="Reset trigger state")
-    parser.add_argument("--summary", action="store_true", help="Show trigger state summary")
+    parser.add_argument(
+        "--summary", action="store_true", help="Show trigger state summary"
+    )
 
     args = parser.parse_args()
 

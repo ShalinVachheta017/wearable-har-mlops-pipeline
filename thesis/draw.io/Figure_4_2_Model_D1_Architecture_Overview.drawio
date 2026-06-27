@@ -1,0 +1,61 @@
+<mxfile host="app.diagrams.net" modified="2026-05-30T00:00:00.000Z" agent="ChatGPT" version="24.7.17" type="device">
+  <diagram name="Figure_4_2_Model_D1_Architecture_Overview_UPDATED" id="Figure_4_2_Model_D1_Architecture_Overview_UPDATED">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+    <mxCell id="title" value="Model D1 Architecture Overview" style="text;html=1;strokeColor=none;fillColor=none;fontFamily=Helvetica;fontSize=34;fontStyle=1;fontColor=#0b214a;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+      <mxGeometry x="170" y="35" width="860" height="55" as="geometry"/>
+    </mxCell>
+    <mxCell id="mi1" value="▦" style="rounded=1;whiteSpace=wrap;html=1;arcSize=15;fillColor=#0b5cad;strokeColor=#0a3d78;strokeWidth=2;fontFamily=Helvetica;fontSize=28;fontStyle=1;fontColor=#ffffff;align=center;verticalAlign=middle;" vertex="1" parent="1">
+      <mxGeometry x="145" y="135" width="58" height="58" as="geometry"/>
+    </mxCell>
+    <mxCell id="mi2" value="∿" style="rounded=1;whiteSpace=wrap;html=1;arcSize=15;fillColor=#0b5cad;strokeColor=#0a3d78;strokeWidth=2;fontFamily=Helvetica;fontSize=28;fontStyle=1;fontColor=#ffffff;align=center;verticalAlign=middle;" vertex="1" parent="1">
+      <mxGeometry x="145" y="275" width="58" height="58" as="geometry"/>
+    </mxCell>
+    <mxCell id="mi3" value="↔" style="rounded=1;whiteSpace=wrap;html=1;arcSize=15;fillColor=#0b5cad;strokeColor=#0a3d78;strokeWidth=2;fontFamily=Helvetica;fontSize=28;fontStyle=1;fontColor=#ffffff;align=center;verticalAlign=middle;" vertex="1" parent="1">
+      <mxGeometry x="145" y="415" width="58" height="58" as="geometry"/>
+    </mxCell>
+    <mxCell id="mi4" value="●" style="rounded=1;whiteSpace=wrap;html=1;arcSize=15;fillColor=#0b5cad;strokeColor=#0a3d78;strokeWidth=2;fontFamily=Helvetica;fontSize=28;fontStyle=1;fontColor=#ffffff;align=center;verticalAlign=middle;" vertex="1" parent="1">
+      <mxGeometry x="145" y="555" width="58" height="58" as="geometry"/>
+    </mxCell>
+    <mxCell id="mi5" value="▥" style="rounded=1;whiteSpace=wrap;html=1;arcSize=15;fillColor=#0b5cad;strokeColor=#0a3d78;strokeWidth=2;fontFamily=Helvetica;fontSize=28;fontStyle=1;fontColor=#ffffff;align=center;verticalAlign=middle;" vertex="1" parent="1">
+      <mxGeometry x="145" y="705" width="58" height="58" as="geometry"/>
+    </mxCell>
+    <mxCell id="b1" value="&lt;b&gt;Input window (200, 6)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:16px&quot;&gt;4 seconds of six-channel wearable sensor data at 50 Hz&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;fillColor=#f8fbff;strokeColor=#1f5fae;strokeWidth=2;fontFamily=Helvetica;fontSize=22;fontColor=#0b214a;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+      <mxGeometry x="240" y="120" width="720" height="90" as="geometry"/>
+    </mxCell>
+    <mxCell id="b2" value="&lt;b&gt;1D-CNN feature extraction&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:16px&quot;&gt;Temporal convolution filters&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;fillColor=#f8fbff;strokeColor=#1f5fae;strokeWidth=2;fontFamily=Helvetica;fontSize=22;fontColor=#0b214a;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+      <mxGeometry x="240" y="260" width="720" height="90" as="geometry"/>
+    </mxCell>
+    <mxCell id="b3" value="&lt;b&gt;BiLSTM sequence modelling&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:16px&quot;&gt;Captures temporal dependencies across the full window&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;fillColor=#f8fbff;strokeColor=#1f5fae;strokeWidth=2;fontFamily=Helvetica;fontSize=22;fontColor=#0b214a;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+      <mxGeometry x="240" y="400" width="720" height="90" as="geometry"/>
+    </mxCell>
+    <mxCell id="b4" value="&lt;b&gt;Dense classification block&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:16px&quot;&gt;Transforms learned motion features into class-discriminative representations&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;fillColor=#f8fbff;strokeColor=#1f5fae;strokeWidth=2;fontFamily=Helvetica;fontSize=22;fontColor=#0b214a;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+      <mxGeometry x="240" y="540" width="720" height="95" as="geometry"/>
+    </mxCell>
+    <mxCell id="b5" value="&lt;b&gt;11-class softmax output&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:16px&quot;&gt;Fixed label order&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;fillColor=#f8fbff;strokeColor=#1f5fae;strokeWidth=2;fontFamily=Helvetica;fontSize=22;fontColor=#0b214a;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+      <mxGeometry x="240" y="690" width="720" height="90" as="geometry"/>
+    </mxCell>
+    <mxCell id="me1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1f5fae;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="b1" target="b2">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="me2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1f5fae;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="b2" target="b3">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="me3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1f5fae;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="b3" target="b4">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="me4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1f5fae;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="b4" target="b5">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="contract" value="&lt;b&gt;Runtime contract&lt;/b&gt;&lt;br&gt;The model must be used with the same channel order, unit convention, saved scaler, and monitoring baseline defined from the training data." style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#eef6ff;strokeColor=#1f5fae;strokeWidth=2;fontFamily=Helvetica;fontSize=18;fontColor=#0b214a;align=center;verticalAlign=middle;spacing=14;" vertex="1" parent="1">
+      <mxGeometry x="160" y="840" width="880" height="105" as="geometry"/>
+    </mxCell>
+    <mxCell id="footer" value="Final runtime model: Model D1, 967,499 total parameters" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#0b5cad;strokeColor=#0a3d78;strokeWidth=2;fontFamily=Helvetica;fontSize=22;fontStyle=1;fontColor=#ffffff;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+      <mxGeometry x="220" y="985" width="760" height="70" as="geometry"/>
+    </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

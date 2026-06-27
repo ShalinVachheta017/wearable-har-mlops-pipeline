@@ -103,7 +103,9 @@ def load_model(path: Union[str, Path]) -> Any:
         import tensorflow as tf
 
         model = tf.keras.models.load_model(str(path))
-        logger.info("Loaded model: %s  (params=%s)", path.name, f"{model.count_params():,}")
+        logger.info(
+            "Loaded model: %s  (params=%s)", path.name, f"{model.count_params():,}"
+        )
         return model
     except Exception as exc:
         raise RuntimeError(f"Failed to load model {path}: {exc}") from exc
@@ -153,7 +155,10 @@ def load_predictions(csv_path: Union[str, Path]) -> pd.DataFrame:
     validate_file_exists(csv_path, "Predictions CSV")
     df = pd.read_csv(csv_path)
     logger.info(
-        "Loaded predictions: %s  rows=%d  cols=%s", csv_path.name, len(df), list(df.columns)
+        "Loaded predictions: %s  rows=%d  cols=%s",
+        csv_path.name,
+        len(df),
+        list(df.columns),
     )
     return df
 
@@ -243,7 +248,9 @@ def setup_stage_logger(
     stage_logger.setLevel(level)
 
     # File handler (per-stage)
-    fh = logging.FileHandler(log_dir / f"{stage_name}_{get_timestamp()}.log", encoding="utf-8")
+    fh = logging.FileHandler(
+        log_dir / f"{stage_name}_{get_timestamp()}.log", encoding="utf-8"
+    )
     fh.setLevel(level)
     fmt = logging.Formatter(
         "%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",

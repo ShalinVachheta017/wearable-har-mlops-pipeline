@@ -89,14 +89,18 @@ class PostInferenceMonitor:
         self.transition_rate_threshold = transition_rate_threshold
         self.drift_threshold = drift_threshold
         self.drift_detector_mode = drift_detector_mode
-        self.mmd_reference_path = Path(mmd_reference_path) if mmd_reference_path else None
+        self.mmd_reference_path = (
+            Path(mmd_reference_path) if mmd_reference_path else None
+        )
         self.mmd_threshold = mmd_threshold
         self.mmd_sample_size = int(mmd_sample_size)
         self.mmd_bootstrap_iterations = int(mmd_bootstrap_iterations)
         self.mmd_random_seed = int(mmd_random_seed)
         self.calibration_temperature = float(calibration_temperature)
         self.dominant_class_warn_threshold = float(dominant_class_warn_threshold)
-        self.dominant_class_critical_threshold = float(dominant_class_critical_threshold)
+        self.dominant_class_critical_threshold = float(
+            dominant_class_critical_threshold
+        )
         self.low_gyro_motion_threshold = float(low_gyro_motion_threshold)
         self.low_motion_dominance_threshold = float(low_motion_dominance_threshold)
         self.window_duration_seconds = float(window_duration_seconds)
@@ -131,7 +135,10 @@ class PostInferenceMonitor:
         predictions_df = pd.read_csv(predictions_path)
 
         # Apply post-hoc temperature scaling when T != 1.0
-        if self.calibration_temperature != 1.0 and "confidence" in predictions_df.columns:
+        if (
+            self.calibration_temperature != 1.0
+            and "confidence" in predictions_df.columns
+        ):
             T = self.calibration_temperature
             p = predictions_df["confidence"].clip(1e-10, 1.0 - 1e-10).values
             p_cal = p ** (1.0 / T) / (p ** (1.0 / T) + (1.0 - p) ** (1.0 / T))
@@ -176,7 +183,9 @@ class PostInferenceMonitor:
             self.logger.info("\n" + "=" * 60)
             self.logger.info("LAYER 3: DRIFT ANALYSIS")
             self.logger.info("=" * 60)
-            report.layer3_drift = self._analyze_drift(production_data_path, baseline_path)
+            report.layer3_drift = self._analyze_drift(
+                production_data_path, baseline_path
+            )
         elif baseline_missing_reason in (
             "DRIFT_BASELINE_MISSING",
             "DRIFT_BASELINE_MISMATCH_REVIEW",
@@ -190,7 +199,7 @@ class PostInferenceMonitor:
             if baseline_missing_reason == "DRIFT_BASELINE_MISSING":
                 alert = (
                     "Raw physical baseline not found. "
-                    "Run scripts/build_raw_physical_baseline.py to create it. "
+                    "Build it via src/monitoring/baseline_builder.py. "
                     "Drift severity cannot be trusted until baseline is available."
                 )
             else:
@@ -213,7 +222,10 @@ class PostInferenceMonitor:
                 self.logger.warning("No baseline provided — drift analysis skipped")
             elif not Path(baseline_path).exists():
                 self.logger.warning(f"Baseline not found: {baseline_path}")
-            report.layer3_drift = {"status": "SKIPPED", "reason": "No baseline available"}
+            report.layer3_drift = {
+                "status": "SKIPPED",
+                "reason": "No baseline available",
+            }
 
         report.overall_status = self._determine_overall_status(report)
         report.metadata = {
@@ -278,7 +290,8 @@ class PostInferenceMonitor:
             eps = 1e-10
             confs = df["confidence"].clip(eps, 1.0 - eps).values
             entropy_vals = -(
-                confs * np.log(confs) + (1 - confs) * np.log((1 - confs) / (K - 1) + eps)
+                confs * np.log(confs)
+                + (1 - confs) * np.log((1 - confs) / (K - 1) + eps)
             )
             mean_entropy = float(np.mean(entropy_vals))
             results["entropy_source"] = "approximated_from_max_confidence"
@@ -289,7 +302,9 @@ class PostInferenceMonitor:
             results["top2_margin_std"] = float(top2_margin.std())
             results["top2_margin_min"] = float(top2_margin.min())
             results["top2_margin_max"] = float(top2_margin.max())
-        self.logger.info(f"Mean entropy ({results['entropy_source']}): {mean_entropy:.4f}")
+        self.logger.info(
+            f"Mean entropy ({results['entropy_source']}): {mean_entropy:.4f}"
+        )
         self.logger.info(
             f"Uncertain predictions: {uncertain_count}/{len(df)} ({uncertain_pct:.1f}%)"
         )
@@ -303,10 +318,18 @@ class PostInferenceMonitor:
             dominant_pct = float(counts.iloc[0] * 100.0)
         results["dominant_class"] = dominant_class
         results["dominant_pct"] = dominant_pct
-        results["dominant_class_warn_threshold"] = float(self.dominant_class_warn_threshold)
-        results["dominant_class_critical_threshold"] = float(self.dominant_class_critical_threshold)
-        results["dominance_warning"] = dominant_pct >= self.dominant_class_warn_threshold
-        results["dominance_critical"] = dominant_pct >= self.dominant_class_critical_threshold
+        results["dominant_class_warn_threshold"] = float(
+            self.dominant_class_warn_threshold
+        )
+        results["dominant_class_critical_threshold"] = float(
+            self.dominant_class_critical_threshold
+        )
+        results["dominance_warning"] = (
+            dominant_pct >= self.dominant_class_warn_threshold
+        )
+        results["dominance_critical"] = (
+            dominant_pct >= self.dominant_class_critical_threshold
+        )
         if dominant_class is not None:
             self.logger.info(
                 f"Dominant class: {dominant_class} at {dominant_pct:.1f}% "
@@ -365,7 +388,9 @@ class PostInferenceMonitor:
 
         activities = df["predicted_activity"].values
         transitions = np.sum(activities[1:] != activities[:-1])
-        transition_rate = 100 * transitions / (len(activities) - 1) if len(activities) > 1 else 0
+        transition_rate = (
+            100 * transitions / (len(activities) - 1) if len(activities) > 1 else 0
+        )
 
         results["total_windows"] = len(df)
         results["transitions"] = int(transitions)
@@ -384,7 +409,9 @@ class PostInferenceMonitor:
                 dwell_lengths.append(current_length)
                 if current_activity not in sequences:
                     sequences[current_activity] = 0
-                sequences[current_activity] = max(sequences[current_activity], current_length)
+                sequences[current_activity] = max(
+                    sequences[current_activity], current_length
+                )
                 current_activity = activities[i]
                 current_length = 1
 
@@ -398,12 +425,14 @@ class PostInferenceMonitor:
         SHORT_DWELL_WINDOWS = 2
         if dwell_lengths:
             dwell_durations = [
-                self.window_duration_seconds + max(0, d - 1) * self.prediction_stride_seconds
+                self.window_duration_seconds
+                + max(0, d - 1) * self.prediction_stride_seconds
                 for d in dwell_lengths
             ]
             mean_dwell_secs = float(np.mean(dwell_durations))
             short_dwell_ratio = float(
-                sum(1 for d in dwell_lengths if d <= SHORT_DWELL_WINDOWS) / len(dwell_lengths)
+                sum(1 for d in dwell_lengths if d <= SHORT_DWELL_WINDOWS)
+                / len(dwell_lengths)
             )
         else:
             mean_dwell_secs = 0.0
@@ -415,7 +444,9 @@ class PostInferenceMonitor:
         self.logger.info(
             f"Mean dwell time: {mean_dwell_secs:.1f}s  short_dwell_ratio: {short_dwell_ratio:.3f}"
         )
-        self.logger.info(f"Activity transitions: {transitions} ({transition_rate:.1f}%)")
+        self.logger.info(
+            f"Activity transitions: {transitions} ({transition_rate:.1f}%)"
+        )
 
         if transition_rate > self.transition_rate_threshold:
             alert = (
@@ -505,7 +536,9 @@ class PostInferenceMonitor:
                 "gravity_dominant_axis": axis_names[dominant_idx],
                 "gravity_dominant_axis_value": float(accel_axis_mean[dominant_idx]),
                 "low_gyro_motion_threshold": float(self.low_gyro_motion_threshold),
-                "low_motion_dominance_threshold": float(self.low_motion_dominance_threshold),
+                "low_motion_dominance_threshold": float(
+                    self.low_motion_dominance_threshold
+                ),
                 "dominant_pct": float(dominant_pct),
                 "low_gyro_motion": low_gyro_motion,
                 "low_motion_collapse_risk": low_motion_collapse_risk,
@@ -532,13 +565,17 @@ class PostInferenceMonitor:
         On Failure  :   Logs the error and raises the exception.
         """
         if windows.ndim != 3:
-            raise ValueError(f"Expected window tensor with shape (n, t, c), got {windows.shape}")
+            raise ValueError(
+                f"Expected window tensor with shape (n, t, c), got {windows.shape}"
+            )
         means = windows.mean(axis=1)
         stds = windows.std(axis=1)
         return np.concatenate([means, stds], axis=1).astype(np.float64, copy=False)
 
     @staticmethod
-    def _sample_rows(values: np.ndarray, sample_size: int, rng: np.random.Generator) -> np.ndarray:
+    def _sample_rows(
+        values: np.ndarray, sample_size: int, rng: np.random.Generator
+    ) -> np.ndarray:
         """
         Method Name :   _sample_rows
         Description :   Sample rows without replacement for efficient drift estimation.
@@ -663,10 +700,14 @@ class PostInferenceMonitor:
         drift_channel_threshold = 1.0
         n_drifted_channels = int(np.sum(mean_diff > drift_channel_threshold))
         results["n_drifted_channels"] = n_drifted_channels
-        self.logger.info(f"Max drift: {max_drift:.3f}  drifted channels: {n_drifted_channels}")
+        self.logger.info(
+            f"Max drift: {max_drift:.3f}  drifted channels: {n_drifted_channels}"
+        )
 
         if max_drift > self.drift_threshold:
-            alert = f"Distribution drift detected: {max_drift:.3f} > {self.drift_threshold}"
+            alert = (
+                f"Distribution drift detected: {max_drift:.3f} > {self.drift_threshold}"
+            )
             results["status"] = "CRITICAL"
             results["alert"] = alert
             self.logger.warning(f"{alert}")
@@ -689,7 +730,9 @@ class PostInferenceMonitor:
                 "Use transformed reference windows from the baseline replay set."
             )
         if not self.mmd_reference_path.exists():
-            raise FileNotFoundError(f"MMD reference windows not found: {self.mmd_reference_path}")
+            raise FileNotFoundError(
+                f"MMD reference windows not found: {self.mmd_reference_path}"
+            )
 
         reference_data = np.load(self.mmd_reference_path)
         ref_features = self._window_summary_features(reference_data)
@@ -711,7 +754,9 @@ class PostInferenceMonitor:
                 b = self._sample_rows(ref_features, sample_size, rng)
                 null_scores.append(self._mmd2_rbf(a, b, bandwidth))
             threshold = float(np.percentile(null_scores, 95))
-            threshold_method = "95th percentile of reference-vs-reference bootstrap MMD scores"
+            threshold_method = (
+                "95th percentile of reference-vs-reference bootstrap MMD scores"
+            )
         else:
             threshold = float(self.mmd_threshold)
             threshold_method = "configured mmd_threshold"
@@ -745,7 +790,9 @@ class PostInferenceMonitor:
 
         return results
 
-    def _analyze_drift(self, production_data_path: Path, baseline_path: Path) -> Dict[str, Any]:
+    def _analyze_drift(
+        self, production_data_path: Path, baseline_path: Path
+    ) -> Dict[str, Any]:
         """
         Method Name :   _analyze_drift
         Description :   Run the configured Layer 3 distribution-drift detector.
@@ -771,7 +818,9 @@ class PostInferenceMonitor:
                     "max_drift": zscore_results.get("max_drift"),
                     "status": zscore_results.get("status"),
                     "n_drifted_channels": zscore_results.get("n_drifted_channels"),
-                    "per_channel_metrics": zscore_results.get("per_channel_metrics", {}),
+                    "per_channel_metrics": zscore_results.get(
+                        "per_channel_metrics", {}
+                    ),
                 }
             else:
                 raise ValueError(

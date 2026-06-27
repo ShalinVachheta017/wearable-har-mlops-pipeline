@@ -30,7 +30,9 @@
 
 monitoring:
   baseline_mode: normalized
-  normalized_baseline_path: "models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json"
+  # Updated 2026-05-26 to track the deployed Model D1 runtime contract.
+  # Rollback target (archived): _archive/presubmission_2026-06-27/models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json
+  normalized_baseline_path: "models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json"
 
 # Stage 7 - Trigger Evaluation thresholds
 # (src/entity/config_entity.py:TriggerEvaluationConfig)

@@ -1,0 +1,38 @@
+<mxfile host="app.diagrams.net" modified="2026-06-04T00:00:00.000Z" agent="ChatGPT" version="24.7.17" type="device">
+  <diagram id="Figure_6_1_Monitoring_Governance_Flow" name="Figure 6.1 Monitoring Governance Flow">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="800" pageHeight="590" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Monitoring and governance flow" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;fontColor=#1E3A8A;" vertex="1" parent="1">
+          <mxGeometry x="60" y="20" width="700" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s6pred" value="Stage 6 prediction&lt;br&gt;per-window class probabilities" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#1D4ED8;strokeWidth=2;fontSize=14;fontColor=#111827;align=center;verticalAlign=middle;fontStyle=0;shadow=0;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="145" y="80" width="530" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="s6mon" value="Stage 6 monitoring&lt;br&gt;confidence/uncertainty + transition rate + drift + dominant-class collapse" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=2;fontSize=14;fontColor=#111827;align=center;verticalAlign=middle;fontStyle=0;shadow=0;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="145" y="165" width="530" height="66" as="geometry"/>
+        </mxCell>
+        <mxCell id="s7policy" value="Stage 7 trigger policy&lt;br&gt;collapse guard + signal vote + conservative warning escalation + cooldown" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=2;fontSize=14;fontColor=#111827;align=center;verticalAlign=middle;fontStyle=0;shadow=0;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="145" y="270" width="530" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="action" value="Action outcome&lt;br&gt;accept / warning / review + open review queue&lt;br&gt;(labels + re-evaluation evidence required)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;strokeWidth=2;fontSize=14;fontColor=#111827;align=center;verticalAlign=middle;fontStyle=0;shadow=0;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="145" y="390" width="530" height="84" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#374151;dashed=0;" edge="1" parent="1" source="s6pred" target="s6mon">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#374151;dashed=0;" edge="1" parent="1" source="s6mon" target="s7policy">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#374151;dashed=0;" edge="1" parent="1" source="s7policy" target="action">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="note" value="Severity routes to governance; it does not automatically mutate the model." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F9FAFB;strokeColor=#9CA3AF;strokeWidth=1;fontSize=12;fontColor=#111827;align=center;verticalAlign=middle;fontStyle=0;shadow=0;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="505" width="620" height="42" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -12,7 +12,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from src.components.model_inference import ACTIVITY_CLASSES, run_model_inference_from_paths
+from src.components.model_inference import (
+    ACTIVITY_CLASSES,
+    run_model_inference_from_paths,
+)
 from src.config import DATA_PREPARED, DEFAULT_MODEL_PATH
 
 
@@ -46,7 +49,9 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_MODEL_PATH,
         help="Path to Keras model.",
     )
-    parser.add_argument("--batch-size", type=int, default=32, help="Offline batch size.")
+    parser.add_argument(
+        "--batch-size", type=int, default=32, help="Offline batch size."
+    )
     parser.add_argument(
         "--threshold",
         "-t",

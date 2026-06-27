@@ -54,7 +54,9 @@ class PipelineConfig:
     models_pretrained_dir: Optional[Path] = field(default=None)
     outputs_dir: Optional[Path] = field(default=None)
     logs_dir: Optional[Path] = field(default=None)
-    scripts_dir: Optional[Path] = field(default=None)  # legacy CLI-wrapper compatibility path
+    scripts_dir: Optional[Path] = field(
+        default=None
+    )  # legacy CLI-wrapper compatibility path
 
     def __post_init__(self):
         if self.data_raw_dir is None:
@@ -102,9 +104,16 @@ class DataIngestionConfig:
 class DataValidationConfig:
     """Configuration for data validation."""
 
-    sensor_columns: List[str] = field(default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
+    sensor_columns: List[str] = field(
+        default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"]
+    )
     timestamp_columns: List[str] = field(
-        default_factory=lambda: ["true_time", "timestamp", "timestamp_iso", "timestamp_ms"]
+        default_factory=lambda: [
+            "true_time",
+            "timestamp",
+            "timestamp_iso",
+            "timestamp_ms",
+        ]
     )
     expected_frequency_hz: float = 50.0
     sampling_rate_tolerance: float = 0.1
@@ -124,15 +133,22 @@ class DataTransformationConfig:
 
     input_csv: Optional[Path] = None
     unit_conversion_factor: float = 0.00980665
-    enable_unit_conversion: bool = True  # milliG to m/s^2 when input is raw Garmin milliG.
-    enable_gravity_removal: bool = False  # Optional A/B only; not part of the paper path.
+    enable_unit_conversion: bool = (
+        True  # milliG to m/s^2 when input is raw Garmin milliG.
+    )
+    enable_gravity_removal: bool = (
+        False  # Optional A/B only; not part of the paper path.
+    )
     enable_calibration: bool = False  # Optional A/B only; not part of the paper path.
     window_size: int = WINDOW_SIZE  # 4 seconds at 50 Hz
     overlap: float = OVERLAP  # 50 % overlap
-    sensors: List[str] = field(default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
+    sensors: List[str] = field(
+        default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"]
+    )
     output_dir: Optional[Path] = None
-    # Paper-aligned default is raw physical units. Enable normalization only for A/B checks.
-    #   "zscore" -> StandardScaler with saved stats
+    # Deployed runtime contract: unit conversion + Garmin train-only z-score scaler.
+    # Enable/disable normalization for A/B diagnostic checks only.
+    #   "zscore" -> StandardScaler with saved stats (deployed default)
     #   "none"   -> no amplitude normalization
     #   "robust" -> RobustScaler with saved stats
     enable_normalization: bool = False
@@ -194,23 +210,33 @@ class PostInferenceMonitoringConfig:
     # Layer 1 -- confidence
     confidence_warn_threshold: float = 0.70  # mean confidence below this -> WARNING
     uncertain_pct_threshold: float = 20.0  # % of low-confidence windows -> WARNING
-    uncertain_window_threshold: float = 0.50  # per-window cutoff: max_prob < this -> uncertain
+    uncertain_window_threshold: float = (
+        0.50  # per-window cutoff: max_prob < this -> uncertain
+    )
     # Layer 1b -- dominant-class collapse guard (A27, 2026-04-21)
     dominant_class_warn_threshold: float = 85.0  # % of windows in one class -> WARNING
-    dominant_class_critical_threshold: float = 95.0  # -> CRITICAL (review, no auto-retrain)
+    dominant_class_critical_threshold: float = (
+        95.0  # -> CRITICAL (review, no auto-retrain)
+    )
     # Layer 2 -- temporal
     transition_rate_threshold: float = 35.0  # % transition rate above this -> WARNING
     window_duration_seconds: float = 4.0  # 200 samples / 50 Hz
     prediction_stride_seconds: float = 2.0  # 50% overlap -> 100-sample stride / 50 Hz
-    low_gyro_motion_threshold: float = 1.1  # deg/s median; empirical 28-session collapse separator
-    low_motion_dominance_threshold: float = 70.0  # % dominance plus low G_mag -> collapse risk
+    low_gyro_motion_threshold: float = (
+        1.1  # deg/s median; empirical 28-session collapse separator
+    )
+    low_motion_dominance_threshold: float = (
+        70.0  # % dominance plus low G_mag -> collapse risk
+    )
     # Layer 3 -- drift
     drift_zscore_threshold: float = 1.8  # per-channel z-score above this -> WARNING
     # Defended runtime default is lightweight z-score mean-shift.
     # MMD remains available for calibrated offline/experimental audit runs.
     drift_detector_mode: str = "zscore_mean_shift"  # zscore_mean_shift | mmd
     mmd_reference_npy: Optional[Path] = None
-    mmd_threshold: Optional[float] = None  # if None, calibrated from reference bootstrap
+    mmd_threshold: Optional[float] = (
+        None  # if None, calibrated from reference bootstrap
+    )
     mmd_sample_size: int = 384
     mmd_bootstrap_iterations: int = 40
     mmd_random_seed: int = 42
@@ -228,15 +254,20 @@ class PostInferenceMonitoringConfig:
     is_training_session: bool = False
 
     # Baseline mode — must match the inference preprocessing contract.
-    # Production inference uses raw physical units (no scaler), so the default
-    # is raw_physical.  Changing this to "normalized" without a matching
-    # scaler-enabled pipeline will produce fake critical drift (raw Az ≈ -9.8 m/s²
-    # vs normalized baseline mean ≈ 0).
-    #   "raw_physical"  → use models/raw_physical_baseline.json
-    #   "normalized"    → use models/normalized_baseline.json (A/B only)
+    # The deployed runtime contract applies the train-only scaler, so the
+    # runtime-contract folder baseline is in the scaled feature space ("normalized").
+    # The batch audit path defaults to "raw_physical" to match its physical-space
+    # baseline. Mismatching mode and pipeline produces fake critical drift
+    # (e.g., scaled Az ≈ 0 vs raw Az ≈ -9.8 m/s²).
+    #   "raw_physical"  → use models/raw_physical_baseline.json (batch audit path)
+    #   "normalized"    → use runtime-contract folder baseline (API / deployed path)
     baseline_mode: str = "raw_physical"
-    raw_baseline_path: Optional[Path] = None  # default: models/raw_physical_baseline.json
-    normalized_baseline_path: Optional[Path] = None  # default: models/normalized_baseline.json
+    raw_baseline_path: Optional[Path] = (
+        None  # default: models/raw_physical_baseline.json
+    )
+    normalized_baseline_path: Optional[Path] = (
+        None  # default: models/normalized_baseline.json
+    )
 
 
 # ============================================================================
@@ -251,7 +282,7 @@ class TriggerEvaluationConfig:
     confidence_warn: float = 0.65
     confidence_critical: float = 0.50
     # Drift metric is a z-score of mean-shift per channel, NOT PSI.
-    # 2.0ÃÆ’ Ã¢â€°Ë† 95th percentile (warn), 3.0ÃÆ’ Ã¢â€°Ë† 99.7th percentile (critical).
+    # 2.0 sigma ~ 95th percentile (warn), 3.0 sigma ~ 99.7th percentile (critical).
     drift_zscore_warn: float = 2.0
     drift_zscore_critical: float = 3.0
     temporal_flip_warn: float = 0.35
@@ -272,6 +303,9 @@ class ModelRetrainingConfig:
     # Data paths
     source_data_path: Optional[Path] = None  # labeled training CSV
     labels_path: Optional[Path] = None  # user-provided labels (optional)
+    base_model_path: Optional[Path] = (
+        None  # current deployed model to fine-tune (defaults to D1)
+    )
 
     # Training hyperparameters
     epochs: int = 100
@@ -279,6 +313,13 @@ class ModelRetrainingConfig:
     learning_rate: float = 0.001
     n_folds: int = 5
     skip_cv: bool = False
+    augment_multiplier: int = (
+        3  # train-only augmentation factor (matches D1 build recipe)
+    )
+    # Experimental only: permit fine-tuning without the canonical D1 scaler.
+    # The deployed model expects z-score scaled windows; unscaled fine-tuning
+    # produces a candidate that is incompatible with the runtime contract.
+    allow_unscaled_finetune: bool = False
 
     # Output
     output_dir: Optional[Path] = None

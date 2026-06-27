@@ -146,7 +146,12 @@ class ProductionPipeline:
             start_time=datetime.now().isoformat(),
         )
         run_stages = self._resolve_run_stages(
-            stages, enable_retrain, enable_advanced, skip_ingestion, skip_validation, result
+            stages,
+            enable_retrain,
+            enable_advanced,
+            skip_ingestion,
+            skip_validation,
+            result,
         )
         has_labels, label_col, label_src = self._detect_dataset_labels()
         result.dataset_has_labels = has_labels
@@ -243,7 +248,9 @@ class ProductionPipeline:
     def _run_ingestion(self, result: PipelineResult, ctx: Dict[str, Any]) -> None:
         from src.components.data_ingestion import DataIngestion
 
-        art = DataIngestion(self.pipeline_config, self.ingestion_config).initiate_data_ingestion()
+        art = DataIngestion(
+            self.pipeline_config, self.ingestion_config
+        ).initiate_data_ingestion()
         result.ingestion = art
         ctx["ingestion_art"] = art
 
@@ -299,7 +306,9 @@ class ProductionPipeline:
             "validation_report.json",
         )
         self.artifacts_manager.log_stage_completion(
-            "validation", "SUCCESS" if art.is_valid else "FAILED", {"n_errors": len(art.errors)}
+            "validation",
+            "SUCCESS" if art.is_valid else "FAILED",
+            {"n_errors": len(art.errors)},
         )
         if not art.is_valid:
             result.stages_failed.append("validation")
@@ -322,11 +331,15 @@ class ProductionPipeline:
         result.transformation = art
         ctx["transformation_art"] = art
         if art.production_X_path.exists():
-            self.artifacts_manager.save_file(art.production_X_path, "data_transformation")
+            self.artifacts_manager.save_file(
+                art.production_X_path, "data_transformation"
+            )
         if art.metadata_path and art.metadata_path.exists():
             self.artifacts_manager.save_file(art.metadata_path, "data_transformation")
         if art.transformation_report_path and art.transformation_report_path.exists():
-            self.artifacts_manager.save_file(art.transformation_report_path, "data_transformation")
+            self.artifacts_manager.save_file(
+                art.transformation_report_path, "data_transformation"
+            )
         self.artifacts_manager.log_stage_completion(
             "transformation",
             "SUCCESS",
@@ -372,7 +385,8 @@ class ProductionPipeline:
                 "avg_ms_per_window": avg_ms,
                 "activity_distribution": act_dist,
                 "activity_share": {
-                    a: round(cnt / n_pred, 4) if n_pred > 0 else 0.0 for a, cnt in act_dist.items()
+                    a: round(cnt / n_pred, 4) if n_pred > 0 else 0.0
+                    for a, cnt in act_dist.items()
                 },
                 "confidence_stats": art.confidence_stats,
                 "entropy_stats": art.entropy_stats,
@@ -383,7 +397,9 @@ class ProductionPipeline:
                 "model_version": art.model_version,
                 "model_md5": art.model_md5,
                 "inference_report_path": (
-                    str(art.inference_report_path) if art.inference_report_path else None
+                    str(art.inference_report_path)
+                    if art.inference_report_path
+                    else None
                 ),
             },
             "inference",
@@ -450,7 +466,9 @@ class ProductionPipeline:
             "SUCCESS",
             {
                 "mean_confidence": (
-                    art.confidence_summary.get("mean", 0) if art.confidence_summary else 0
+                    art.confidence_summary.get("mean", 0)
+                    if art.confidence_summary
+                    else 0
                 ),
                 "has_labels": art.has_labels,
             },
@@ -470,7 +488,9 @@ class ProductionPipeline:
         ).initiate_post_inference_monitoring()
         result.monitoring = art
         ctx["monitoring_art"] = art
-        collapse_signals = self._augment_collapse_signals(ctx.get("collapse_signals", {}), art, ctx)
+        collapse_signals = self._augment_collapse_signals(
+            ctx.get("collapse_signals", {}), art, ctx
+        )
         ctx["collapse_signals"] = collapse_signals
         if collapse_signals:
             if art.monitoring_report is None:
@@ -483,7 +503,8 @@ class ProductionPipeline:
                     )
                 except Exception as exc:
                     logger.warning(
-                        "Could not update monitoring report with collapse signals: %s", exc
+                        "Could not update monitoring report with collapse signals: %s",
+                        exc,
                     )
         # Additional chunked drift checks every 500 windows using calibrated
         # DriftMonitor reference (models/drift_reference.json).
@@ -499,7 +520,8 @@ class ProductionPipeline:
                     )
                 except Exception as exc:
                     logger.warning(
-                        "Could not append chunked drift report to monitoring output: %s", exc
+                        "Could not append chunked drift report to monitoring output: %s",
+                        exc,
                     )
         if art.report_path and art.report_path.exists():
             self.artifacts_manager.save_file(art.report_path, "monitoring")
@@ -542,9 +564,13 @@ class ProductionPipeline:
         Output      :   Returns the collapse signal dictionary consumed by trigger policy.
         On Failure  :   Logs the error and raises the exception.
         """
-        return self.safety_gate.augment_collapse_signals(collapse_signals, monitoring_art, ctx)
+        return self.safety_gate.augment_collapse_signals(
+            collapse_signals, monitoring_art, ctx
+        )
 
-    def _run_chunked_drift_monitor(self, ctx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _run_chunked_drift_monitor(
+        self, ctx: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Run drift monitor checks in 500-window chunks if reference exists."""
         transformation_art = ctx.get("transformation_art")
         inference_art = ctx.get("inference_art")
@@ -565,7 +591,9 @@ class ProductionPipeline:
 
             monitor = DriftMonitor(
                 reference_path=reference_path,
-                log_path=self.pipeline_config.project_root / "reports" / "drift_log.json",
+                log_path=self.pipeline_config.project_root
+                / "reports"
+                / "drift_log.json",
             )
             windows = np.load(Path(x_path))
 
@@ -719,7 +747,8 @@ class ProductionPipeline:
         ).initiate_calibration()
         result.calibration = art
         output_dir = Path(
-            self.calibration_config.output_dir or self.pipeline_config.outputs_dir / "calibration"
+            self.calibration_config.output_dir
+            or self.pipeline_config.outputs_dir / "calibration"
         )
         for fname in (
             "temperature.json",
@@ -755,7 +784,9 @@ class ProductionPipeline:
             run_stages = [s for s in ALL_STAGES if s in stages]
         else:
             run_stages = [
-                s for s in ALL_STAGES if s not in RETRAIN_STAGES and s not in ADVANCED_STAGES
+                s
+                for s in ALL_STAGES
+                if s not in RETRAIN_STAGES and s not in ADVANCED_STAGES
             ]
             if enable_retrain:
                 run_stages.extend(s for s in ALL_STAGES if s in RETRAIN_STAGES)
@@ -773,7 +804,9 @@ class ProductionPipeline:
         """Detect labels presence from config or CSV header scan."""
         return self.input_resolver.detect_dataset_labels()
 
-    def _log_startup(self, result: PipelineResult, run_dir, run_stages: List[str]) -> None:
+    def _log_startup(
+        self, result: PipelineResult, run_dir, run_stages: List[str]
+    ) -> None:
         logger.info("=" * 70)
         logger.info("HAR MLOPS PRODUCTION PIPELINE - EXECUTION START")
         logger.info("=" * 70)
@@ -783,7 +816,11 @@ class ProductionPipeline:
         logger.info("Preprocessing Settings:")
         logger.info(
             "  - Unit Conversion (milliG\u2192m/s\u00b2): %s",
-            "ENABLED" if self.transformation_config.enable_unit_conversion else "DISABLED",
+            (
+                "ENABLED"
+                if self.transformation_config.enable_unit_conversion
+                else "DISABLED"
+            ),
         )
         logger.info(
             "  - Unit Conversion Factor: %.8f",
@@ -791,7 +828,11 @@ class ProductionPipeline:
         )
         logger.info(
             "  - Gravity Removal: %s",
-            "ENABLED" if self.transformation_config.enable_gravity_removal else "DISABLED",
+            (
+                "ENABLED"
+                if self.transformation_config.enable_gravity_removal
+                else "DISABLED"
+            ),
         )
         logger.info(
             "  - Calibration: %s",
@@ -799,7 +840,11 @@ class ProductionPipeline:
         )
         logger.info(
             "  - Normalization: %s (%s)",
-            "ENABLED" if self.transformation_config.enable_normalization else "DISABLED",
+            (
+                "ENABLED"
+                if self.transformation_config.enable_normalization
+                else "DISABLED"
+            ),
             self.transformation_config.normalization_variant,
         )
         logger.info(
@@ -807,7 +852,9 @@ class ProductionPipeline:
             self.inference_config.confidence_threshold,
         )
         if result.dataset_has_labels:
-            logger.info("Dataset label status: LABELED (%s)", result.dataset_label_source)
+            logger.info(
+                "Dataset label status: LABELED (%s)", result.dataset_label_source
+            )
         else:
             logger.info(
                 "Dataset label status: UNLABELED (no labels file and no label column detected)"

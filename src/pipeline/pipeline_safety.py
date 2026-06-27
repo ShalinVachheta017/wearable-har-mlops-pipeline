@@ -38,13 +38,19 @@ class PipelineSafetyGate:
         signals["dominant_pct"] = getattr(evaluation_art, "dominant_pct", None)
         signals["dominant_class"] = getattr(evaluation_art, "dominant_class", None)
         if signals["dominant_class"] is None:
-            signals["dominant_class"] = dist.get("_dominant_class") or dist.get("dominant_class")
+            signals["dominant_class"] = dist.get("_dominant_class") or dist.get(
+                "dominant_class"
+            )
         if signals["dominant_pct"] is None:
-            signals["dominant_pct"] = dist.get("_dominant_pct") or dist.get("dominant_pct")
+            signals["dominant_pct"] = dist.get("_dominant_pct") or dist.get(
+                "dominant_pct"
+            )
         signals["mean_confidence"] = conf.get("mean") or conf.get("mean_confidence")
 
         self._fill_from_distribution_entries(signals, dist)
-        self._fill_from_report_json(signals, getattr(evaluation_art, "report_json_path", None))
+        self._fill_from_report_json(
+            signals, getattr(evaluation_art, "report_json_path", None)
+        )
         self._coerce_numeric(signals)
         return signals
 
@@ -71,7 +77,9 @@ class PipelineSafetyGate:
                 getattr(inference_art, "top2_margin_stats", {}) or {}
             ).get("mean", signals.get("top2_margin_mean"))
             if signals.get("dominant_class") is None:
-                signals["dominant_class"] = getattr(inference_art, "dominant_class", None)
+                signals["dominant_class"] = getattr(
+                    inference_art, "dominant_class", None
+                )
             if signals.get("dominant_pct") is None:
                 signals["dominant_pct"] = getattr(inference_art, "dominant_pct", None)
 
@@ -90,13 +98,19 @@ class PipelineSafetyGate:
         return signals
 
     @staticmethod
-    def _fill_from_distribution_entries(signals: Dict[str, Any], dist: Dict[str, Any]) -> None:
+    def _fill_from_distribution_entries(
+        signals: Dict[str, Any], dist: Dict[str, Any]
+    ) -> None:
         if signals["dominant_class"] is not None or not dist:
             return
-        class_entries = {k: v for k, v in dist.items() if isinstance(v, dict) and "percentage" in v}
+        class_entries = {
+            k: v for k, v in dist.items() if isinstance(v, dict) and "percentage" in v
+        }
         if not class_entries:
             return
-        dominant = max(class_entries.items(), key=lambda kv: kv[1].get("percentage", 0.0))
+        dominant = max(
+            class_entries.items(), key=lambda kv: kv[1].get("percentage", 0.0)
+        )
         signals["dominant_class"] = dominant[0]
         if signals["dominant_pct"] is None:
             signals["dominant_pct"] = dominant[1].get("percentage")
@@ -112,26 +126,37 @@ class PipelineSafetyGate:
             self._fill_distribution_from_json(signals, d)
             if signals["mean_confidence"] is None:
                 signals["mean_confidence"] = c.get("mean") or c.get("mean_confidence")
-            signals["transition_rate"] = t.get("transition_rate", signals["transition_rate"])
+            signals["transition_rate"] = t.get(
+                "transition_rate", signals["transition_rate"]
+            )
             if "longest_sequence_length" in t:
                 signals["longest_sequence_length"] = t["longest_sequence_length"]
             elif "longest_sequences" in t and isinstance(t["longest_sequences"], dict):
-                values = [v for v in t["longest_sequences"].values() if isinstance(v, (int, float))]
+                values = [
+                    v
+                    for v in t["longest_sequences"].values()
+                    if isinstance(v, (int, float))
+                ]
                 if values:
                     signals["longest_sequence_length"] = max(values)
         except Exception as exc:
             logger.warning(
-                "Could not parse Stage 5 evaluation report for collapse signals: %s", exc
+                "Could not parse Stage 5 evaluation report for collapse signals: %s",
+                exc,
             )
 
     @staticmethod
-    def _fill_distribution_from_json(signals: Dict[str, Any], d: Dict[str, Any]) -> None:
+    def _fill_distribution_from_json(
+        signals: Dict[str, Any], d: Dict[str, Any]
+    ) -> None:
         if "_distribution_dominance_warning" in d:
             signals["dominance_warning"] = as_bool(d["_distribution_dominance_warning"])
         elif "distribution_dominance_warning" in d:
             signals["dominance_warning"] = as_bool(d["distribution_dominance_warning"])
         if signals["dominant_class"] is None:
-            signals["dominant_class"] = d.get("_dominant_class") or d.get("dominant_class")
+            signals["dominant_class"] = d.get("_dominant_class") or d.get(
+                "dominant_class"
+            )
         if signals["dominant_pct"] is None:
             signals["dominant_pct"] = d.get("_dominant_pct") or d.get("dominant_pct")
 

@@ -90,7 +90,9 @@ class ArtifactsManager:
     def get_stage_dir(self, stage_name: str) -> Path:
         """Get directory for a specific stage."""
         if stage_name not in self.dirs:
-            raise ValueError(f"Unknown stage: {stage_name}. Available: {list(self.dirs.keys())}")
+            raise ValueError(
+                f"Unknown stage: {stage_name}. Available: {list(self.dirs.keys())}"
+            )
         return self.dirs[stage_name]
 
     def save_file(

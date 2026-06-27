@@ -1,0 +1,32 @@
+\chapter{Runtime Contract and Artifact Inventory}
+\label{app:artifacts}
+
+This appendix documents the deployable proposed-model package. The deployment unit is not the model file alone but the complete runtime contract: the model, its train-only scaler, the fixed label order, the monitoring baseline, the contract metadata, and the integrity record must be promoted together, as argued in Chapters~\ref{chap:architecture}--\ref{chap:implementation}. All artifacts below reside in the same runtime-contract folder, \path{models/runtime_contract/model_d1_final_20260528/}.
+
+\renewcommand{\arraystretch}{1.0}
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption[Contents of the deployed proposed-model runtime contract.]{Contents of the deployed proposed-model runtime contract.}
+\label{tab:app_artifact_inventory}
+\begin{tabularx}{\textwidth}{p{4.0cm} X}
+\toprule
+\textbf{Artifact} & \textbf{Role} \\
+\midrule
+\path{finetuned_1DCNNBILSTM_HAR_model.keras} & Frozen 1D-CNN-BiLSTM model (967{,}499 parameters), native Keras format. \\
+\path{finetuned_1DCNNBILSTM_HAR_model_savedmodel/} & Portable SavedModel form for cross-environment loading. \\
+\path{garmin_train_scaler.json} & Train-only StandardScaler parameters (per-channel mean and scale), fitted on Garmin users 1--6. \\
+\path{garmin_train_scaler.joblib} & The same scaler in joblib form, used by the inference path. \\
+\path{garmin_train_scaled_baseline.json} & Monitoring baseline in the scaled feature space; drift reference for the API/runtime-contract monitoring path (the batch pipeline's Stage~6 uses the raw-physical baseline, Chapter~\ref{chap:monitoring}). \\
+\path{label_order.json} & Fixed eleven-class label order used to decode the softmax output. \\
+\path{model_contract.json} & Contract metadata: input shape, window, stride, sampling rate, scaler fit users, and result-file pointers. \\
+\path{model_param_count.json} & Parameter-count record for the promoted model: 967{,}499 total parameters, 966{,}347 trainable, and 1{,}152 non-trainable. \\
+\path{artifact_md5.json} & Integrity hashes so the package can be verified as one coherent unit. \\
+\path{user7_blind_probe_summary.json} & Result of the labeled User~7 blind probe. \\
+\path{user7_unlabeled_probe_summary.json} & Result of the unlabeled User~7 monitoring probe. \\
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+\end{table}
+
+The model expects input of shape \((200,6)\) at 50~Hz, a 200-sample window with a 100-sample stride, accelerometer channels in m/s\textsuperscript{2} and gyroscope channels in deg/s, and the eleven-class label order above. Deployment or probe data are never used to fit the scaler; the saved Garmin train-only scaler is reused to preserve train--serve parity.

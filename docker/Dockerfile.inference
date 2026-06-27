@@ -10,9 +10,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    MODEL_PATH=/app/models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras \
-    SCALER_CONFIG_PATH=/app/models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json \
-    BASELINE_PATH=/app/models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json \
+    MODEL_PATH=/app/models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras \
+    SCALER_CONFIG_PATH=/app/models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json \
+    BASELINE_PATH=/app/models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json \
     CONFIG_PATH=/app/config/pipeline_config.yaml \
     # /app and /app/src both on PYTHONPATH so `from src.api.app import app` works
     PYTHONPATH=/app:/app/src

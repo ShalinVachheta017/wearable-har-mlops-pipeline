@@ -85,9 +85,17 @@ def print_planned_stages(args) -> None:
         ("7", "trigger", "Automated retraining decision (HEALTHY/WARNING/CRITICAL)"),
     ]
     retrain_stages = [
-        ("8", "retraining", "Supervised retraining on labeled data -> retrained .keras"),
+        (
+            "8",
+            "retraining",
+            "Supervised retraining on labeled data -> retrained .keras",
+        ),
         ("9", "registration", "Version, validate proxy metrics, deploy or rollback"),
-        ("10", "baseline_update", "Rebuild drift + calibration baselines from new data"),
+        (
+            "10",
+            "baseline_update",
+            "Rebuild drift + calibration baselines from new data",
+        ),
     ]
     advanced_stages = [
         ("11", "calibration", "Temperature scaling + MC Dropout uncertainty"),
@@ -116,14 +124,18 @@ def print_planned_stages(args) -> None:
             status = "  skip  " if explicit and name not in explicit else "  queue "
             _safe_print(f"    [{status}] Stage {num:>2}: {name:<30}  {desc}")
 
-    if args.advanced or (explicit and any(n in explicit for _, n, _ in advanced_stages)):
+    if args.advanced or (
+        explicit and any(n in explicit for _, n, _ in advanced_stages)
+    ):
         _safe_print("\n  -- Advanced Analytics (stage 11, --advanced) ----------------")
         for num, name, desc in advanced_stages:
             status = "  skip  " if explicit and name not in explicit else "  queue "
             _safe_print(f"    [{status}] Stage {num:>2}: {name:<30}  {desc}")
 
     _safe_print("\n  -- Runtime components (not pipeline stages) -----------------")
-    _safe_print("    [ always ]        inference/     FastAPI service  (docker/ or src/api/)")
+    _safe_print(
+        "    [ always ]        inference/     FastAPI service  (docker/ or src/api/)"
+    )
     _safe_print("    [ always ]        monitoring/    Post-prediction monitoring layer")
     _safe_print("    [ on demand ]     deployment/    Model deploy / rollback manager")
 
@@ -175,7 +187,9 @@ def _safe_print(text: str) -> None:
         import sys as _sys
 
         encoding = _sys.stdout.encoding or "utf-8"
-        print(text.encode(encoding, errors="replace").decode(encoding, errors="replace"))
+        print(
+            text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+        )
 
 
 def _print_compact_run_summary(result: PipelineResult) -> None:
@@ -267,7 +281,11 @@ def _dominant_class_line(result: PipelineResult) -> tuple[str, bool]:
     count = dist[dominant]
     total = max(result.inference.n_predictions, 1)
     pct = count / total * 100
-    warn = result.evaluation.distribution_dominance_warning if result.evaluation else pct > 95.0
+    warn = (
+        result.evaluation.distribution_dominance_warning
+        if result.evaluation
+        else pct > 95.0
+    )
     suffix = "  [!] dominance flag" if warn else ""
     return f"{dominant} ({pct:.1f}%){suffix}", bool(warn)
 
@@ -321,7 +339,9 @@ def _print_monitoring_metrics(result: PipelineResult) -> None:
         status = drift.get("status", result.monitoring.overall_status)
         _safe_print(f"    - Drift Score: {score:.4f}")
         if status == "CRITICAL":
-            _safe_print(f"      [!] CRITICAL DRIFT ({score:.3f}) - Retraining recommended")
+            _safe_print(
+                f"      [!] CRITICAL DRIFT ({score:.3f}) - Retraining recommended"
+            )
         elif status == "WARNING":
             _safe_print(f"      [~] WARNING drift ({score:.3f}) - Monitor closely")
         else:
@@ -333,7 +353,9 @@ def _print_trigger_metrics(result: PipelineResult) -> None:
         return
     _safe_print("\n  Retraining Decision:")
     icon = "[retrain]" if result.trigger.should_retrain else "[ok]"
-    _safe_print(f"    {icon} Should Retrain: {'YES' if result.trigger.should_retrain else 'NO'}")
+    _safe_print(
+        f"    {icon} Should Retrain: {'YES' if result.trigger.should_retrain else 'NO'}"
+    )
     _safe_print(f"    - Alert Level: {result.trigger.alert_level}")
     if result.trigger.reasons:
         _safe_print("    - Reasons:")
@@ -347,7 +369,9 @@ def _print_retraining_metrics(result: PipelineResult) -> None:
     _safe_print("\n  Retraining:")
     for key, value in result.retraining.metrics.items():
         _safe_print(
-            f"    - {key}: {value:.4f}" if isinstance(value, float) else f"    - {key}: {value}"
+            f"    - {key}: {value:.4f}"
+            if isinstance(value, float)
+            else f"    - {key}: {value}"
         )
     _safe_print(f"    - Source samples: {result.retraining.n_source_samples}")
     _safe_print(f"    - Target samples: {result.retraining.n_target_samples}")
@@ -358,7 +382,9 @@ def _print_activity_distribution(result: PipelineResult) -> None:
         return
     _safe_print("\n  Top 3 Activities Detected:")
     top = sorted(
-        result.inference.activity_distribution.items(), key=lambda item: item[1], reverse=True
+        result.inference.activity_distribution.items(),
+        key=lambda item: item[1],
+        reverse=True,
     )[:3]
     for activity, count in top:
         pct = count / max(result.inference.n_predictions, 1) * 100

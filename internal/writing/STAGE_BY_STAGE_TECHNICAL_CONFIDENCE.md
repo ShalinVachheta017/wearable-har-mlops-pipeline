@@ -1,8 +1,10 @@
 # Stage-by-Stage Technical Confidence Audit
 
-Date: 2026-05-12
+Date: 2026-05-12 | Updated: 2026-05-28 for D1 runtime
 
 Scope: this is a manual defense aid for the defended Stage 1-7 runtime path. It does not change code, model artifacts, evidence artifacts, thresholds, or training state.
+
+Current runtime note, 2026-05-28: Model D1 `models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras` is now the active runtime. Older Model A sections below remain historical evidence until this defense aid receives a full rewrite.
 
 Defended evidence runs:
 
@@ -11,7 +13,7 @@ Defended evidence runs:
 
 Current defense framing:
 
-- Model A is the defended proof-of-concept runtime candidate.
+- Model D1 is the current defended proof-of-concept runtime candidate.
 - Stage 1-7 is the defended operational path.
 - Stage 8-10 is a gated mutation path, not part of the live runtime demo.
 - `auto_retrain=false` is the safe governance setting in the defended runs.
@@ -24,10 +26,10 @@ The defended runtime path is:
 
 `run_pipeline.py` -> `src/pipeline/production_pipeline.py` -> Stage 1-7 component wrappers.
 
-The defended Model A contract is:
+The defended Model D1 contract is:
 
-- Model path: `models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras`
-- Model contract: `models/production_contract/model_a_final_20260508/model_contract.json`
+- Model path: `models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras`
+- Model contract: `models/runtime_contract/model_d1_final_20260528/model_contract.json`
 - Input shape: `(N, 200, 6)`
 - Feature order: `Ax, Ay, Az, Gx, Gy, Gz`
 - Accelerometer unit after Stage 3: `m/s^2`
@@ -35,8 +37,8 @@ The defended Model A contract is:
 - Window size: `200`
 - Stride: `100`
 - Sampling rate: `50 Hz`
-- Runtime scaler: Garmin train-only StandardScaler from `models/production_contract/model_a_final_20260508/garmin_train_scaler.json`
-- Monitoring baseline: `models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json`
+- Runtime scaler: Garmin users-1-6 train-only StandardScaler from `models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json`
+- Monitoring baseline: `models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json`
 
 ## Stage 1 - Data Ingestion
 
@@ -194,7 +196,7 @@ The defended Model A contract is:
    - `enable_calibration=false`
    - `enable_normalization=true`
    - `normalization_variant=zscore`
-   - `scaler_path=models/production_contract/model_a_final_20260508/garmin_train_scaler.json`
+   - `scaler_path=models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json`
    - `window_size=200`
    - `overlap=0.5`
    - step size: `100`
@@ -205,7 +207,7 @@ The defended Model A contract is:
    - Garmin tensor copy: `artifacts/20260508_235323/data_transformation/production_X.npy`
    - User 7: `artifacts/20260508_235356/data_transformation/transformation_report.json`
    - User 7 tensor copy: `artifacts/20260508_235356/data_transformation/production_X.npy`
-   - runtime scaler: `models/production_contract/model_a_final_20260508/garmin_train_scaler.json`
+   - runtime scaler: `models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json`
 
 7. What can fail
 
@@ -243,7 +245,7 @@ The defended Model A contract is:
 3. Input
 
    - `production_X.npy` from Stage 3.
-   - Model A Keras file from `models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras`.
+   - Model A Keras file from `models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras`.
 
 4. Output
 
@@ -257,7 +259,7 @@ The defended Model A contract is:
 
 5. Config values used
 
-   - default model path: `models/production_contract/model_a_final_20260508/fine_tuned_clean_model.keras`
+   - default model path: `models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras`
    - batch size: `32`
    - confidence threshold: `0.50`
    - expected input shape: `(None, 200, 6)`
@@ -270,7 +272,7 @@ The defended Model A contract is:
    - Garmin summary: `artifacts/20260508_235323/inference/inference_summary.json`
    - User 7: `artifacts/20260508_235356/inference/inference_report.json`
    - User 7 summary: `artifacts/20260508_235356/inference/inference_summary.json`
-   - Model contract: `models/production_contract/model_a_final_20260508/model_contract.json`
+   - Model contract: `models/runtime_contract/model_a_final_20260508/model_contract.json`
 
 7. What can fail
 
@@ -391,7 +393,7 @@ The defended Model A contract is:
    - drift z-score threshold: `1.8`
    - drift detector mode: `zscore_mean_shift`
    - baseline mode override: `normalized`
-   - normalized baseline path: `models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json`
+   - normalized baseline path: `models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json`
    - existing calibration temperature file observed: `outputs/calibration/temperature.json` with `temperature=1.5`, `fitted=false`
 
 6. Evidence artifact path
@@ -400,7 +402,7 @@ The defended Model A contract is:
    - Garmin summary: `artifacts/20260508_235323/monitoring/monitoring_summary.json`
    - User 7: `artifacts/20260508_235356/monitoring/monitoring_report.json`
    - User 7 summary: `artifacts/20260508_235356/monitoring/monitoring_summary.json`
-   - baseline: `models/production_contract/model_a_final_20260508/garmin_train_scaled_baseline.json`
+   - baseline: `models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json`
 
 7. What can fail
 
@@ -514,7 +516,7 @@ The defended Model A contract is:
 7. `src/components/model_evaluation.py`
 8. `src/components/post_inference_monitoring.py`
 9. `src/components/trigger_evaluation.py`
-10. `models/production_contract/model_a_final_20260508/`
+10. `models/runtime_contract/model_a_final_20260508/`
 
 Treat these supporting runtime files as protected too: `config/pipeline_config.yaml`, `config/pipeline_overrides.yaml`, `src/entity/config_entity.py`, `src/entity/artifact_entity.py`, `src/config.py`, `src/utils/label_mapping.py`, `src/utils/config_loader.py`, `src/monitoring/post_inference_monitor.py`, and `src/trigger_policy.py`.
 

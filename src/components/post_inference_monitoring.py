@@ -52,7 +52,9 @@ class PostInferenceMonitoring:
         if calibration_temperature != 1.0:
             return calibration_temperature
 
-        temp_path = self.pipeline_config.outputs_dir / "calibration" / "temperature.json"
+        temp_path = (
+            self.pipeline_config.outputs_dir / "calibration" / "temperature.json"
+        )
         if not temp_path.exists():
             return 1.0
 
@@ -92,7 +94,9 @@ class PostInferenceMonitoring:
         Output      :   Returns the prediction CSV path.
         On Failure  :   Logs the error and raises the exception.
         """
-        return Path(self.config.predictions_csv or self.inference_artifact.predictions_csv_path)
+        return Path(
+            self.config.predictions_csv or self.inference_artifact.predictions_csv_path
+        )
 
     def _resolve_production_data_path(self) -> Optional[Path]:
         """
@@ -139,7 +143,7 @@ class PostInferenceMonitoring:
                 else (self.pipeline_config.models_dir / "normalized_baseline.json")
             )
         else:
-            # Default production path: raw physical units.
+            # Batch pipeline audit path: raw-physical-units baseline.
             candidate = getattr(self.config, "raw_baseline_path", None)
             baseline_json = (
                 Path(candidate)
@@ -150,9 +154,9 @@ class PostInferenceMonitoring:
         if not baseline_json.exists():
             if baseline_mode == "raw_physical":
                 logger.warning(
-                    "Raw physical baseline not found: %s. "
+                    "Raw-physical-units monitoring baseline not found: %s. "
                     "Drift status will be DRIFT_BASELINE_MISSING. "
-                    "Run scripts/build_raw_physical_baseline.py to create it.",
+                    "Build it via src/monitoring/baseline_builder.py.",
                     baseline_json,
                 )
                 return None, "DRIFT_BASELINE_MISSING"
@@ -186,7 +190,7 @@ class PostInferenceMonitoring:
                     "baseline file has feature_space='%s' (%s). "
                     "This would produce fake-critical drift (raw Az ≈ -9.8 m/s² vs "
                     "normalized baseline mean ≈ 0). Drift layer skipped. "
-                    "Rebuild with scripts/build_raw_physical_baseline.py.",
+                    "Rebuild via src/monitoring/baseline_builder.py.",
                     baseline_feature_space,
                     baseline_json,
                 )
@@ -200,7 +204,9 @@ class PostInferenceMonitoring:
                 )
                 return None, "DRIFT_BASELINE_MISMATCH_REVIEW"
         except Exception as exc:
-            logger.warning("Could not read baseline metadata for mismatch check: %s", exc)
+            logger.warning(
+                "Could not read baseline metadata for mismatch check: %s", exc
+            )
 
         age_days = (time.time() - baseline_json.stat().st_mtime) / 86400
         if age_days > self.config.max_baseline_age_days:
@@ -251,7 +257,9 @@ class PostInferenceMonitoring:
             prediction_stride_seconds=self.config.prediction_stride_seconds,
         )
 
-    def _build_artifact(self, report, output_dir: Path) -> PostInferenceMonitoringArtifact:
+    def _build_artifact(
+        self, report, output_dir: Path
+    ) -> PostInferenceMonitoringArtifact:
         """
         Method Name :   _build_artifact
         Description :   Convert the monitoring report object into the Stage 6 artifact.
@@ -288,7 +296,9 @@ class PostInferenceMonitoring:
         production_npy = self._resolve_production_data_path()
         baseline_json, baseline_missing_reason = self._resolve_baseline_path()
         model_path = self.config.model_path or DEFAULT_MODEL_PATH
-        output_dir = Path(self.config.output_dir or self.pipeline_config.outputs_dir / "monitoring")
+        output_dir = Path(
+            self.config.output_dir or self.pipeline_config.outputs_dir / "monitoring"
+        )
         output_dir.mkdir(parents=True, exist_ok=True)
 
         report = monitor.run(

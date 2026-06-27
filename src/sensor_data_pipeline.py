@@ -85,7 +85,10 @@ class LoggerSetup:
         console_handler.setFormatter(formatter)
 
         file_handler = RotatingFileHandler(
-            self.log_dir / "pipeline.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"
+            self.log_dir / "pipeline.log",
+            maxBytes=2_000_000,
+            backupCount=3,
+            encoding="utf-8",
         )
         file_handler.setFormatter(formatter)
 
@@ -132,7 +135,9 @@ def find_latest_sensor_pair(raw_dir: Path) -> Tuple[Path, Path]:
     for accel in accel_files:
         prefix = accel.name.split("accelerometer")[0]
         candidates = [
-            g for g in gyro_files if g.name.startswith(prefix) and "gyroscope" in g.name.lower()
+            g
+            for g in gyro_files
+            if g.name.startswith(prefix) and "gyroscope" in g.name.lower()
         ]
         if candidates:
             gyro = candidates[0]  # candidates are already time-sorted
@@ -152,7 +157,14 @@ class SensorDataLoader:
 
     # Required columns that must be present in input files
     # These are essential for timestamp creation and sensor alignment
-    REQUIRED_COLUMNS = ["timestamp", "timestamp_ms", "sample_time_offset", "x", "y", "z"]
+    REQUIRED_COLUMNS = [
+        "timestamp",
+        "timestamp_ms",
+        "sample_time_offset",
+        "x",
+        "y",
+        "z",
+    ]
 
     # Column name mappings to standardize across sensor types
     # Garmin uses verbose names, we simplify to x/y/z for processing
@@ -161,7 +173,11 @@ class SensorDataLoader:
         "calibrated_accel_y": "y",
         "calibrated_accel_z": "z",
     }
-    GYRO_RENAME_MAP = {"calibrated_gyro_x": "x", "calibrated_gyro_y": "y", "calibrated_gyro_z": "z"}
+    GYRO_RENAME_MAP = {
+        "calibrated_gyro_x": "x",
+        "calibrated_gyro_y": "y",
+        "calibrated_gyro_z": "z",
+    }
 
     def __init__(self, logger: logging.Logger):
         """
@@ -193,14 +209,19 @@ class SensorDataLoader:
         try:
             data = pd.read_excel(file_path)
             self.logger.info(
-                "Loaded %s: %d rows, %d cols", file_path.name, data.shape[0], data.shape[1]
+                "Loaded %s: %d rows, %d cols",
+                file_path.name,
+                data.shape[0],
+                data.shape[1],
             )
             return data
         except Exception as e:
             self.logger.error(f"Failed to load {file_path}: {e}")
             raise  # Re-raise with original traceback for debugging
 
-    def normalize_column_names(self, df: pd.DataFrame, sensor_type: str) -> pd.DataFrame:
+    def normalize_column_names(
+        self, df: pd.DataFrame, sensor_type: str
+    ) -> pd.DataFrame:
         """
         Standardize column names based on sensor type.
 
@@ -365,7 +386,9 @@ class SensorDataLoader:
         """
         valid_mask = df.apply(self.validate_row_lengths, axis=1)
         filtered_df = df.loc[valid_mask].reset_index(drop=True)
-        self.logger.info(f"Filtered to {len(filtered_df)} valid rows from {len(df)} total rows")
+        self.logger.info(
+            f"Filtered to {len(filtered_df)} valid rows from {len(df)} total rows"
+        )
         return filtered_df
 
 
@@ -430,7 +453,10 @@ class DataProcessor:
         """
         base_time = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
         ms_offset = pd.to_timedelta(
-            pd.to_numeric(df["timestamp_ms"], errors="coerce").fillna(0).astype("int64"), unit="ms"
+            pd.to_numeric(df["timestamp_ms"], errors="coerce")
+            .fillna(0)
+            .astype("int64"),
+            unit="ms",
         )
         return base_time + ms_offset
 
@@ -448,7 +474,9 @@ class DataProcessor:
             Achieves millisecond-level accuracy critical for sensor fusion
         """
         sample_offset = pd.to_timedelta(
-            pd.to_numeric(df["sample_time_offset"], errors="coerce").fillna(0).astype("int64"),
+            pd.to_numeric(df["sample_time_offset"], errors="coerce")
+            .fillna(0)
+            .astype("int64"),
             unit="ms",
         )
         return self.create_base_time(df) + sample_offset
@@ -488,7 +516,9 @@ class DataProcessor:
             raise ValueError(f"Unknown sensor type: {sensor_type}")
 
         # Select relevant columns and apply renaming
-        processed_df = df[["base_time", "true_time", "x", "y", "z"]].rename(columns=column_mapping)
+        processed_df = df[["base_time", "true_time", "x", "y", "z"]].rename(
+            columns=column_mapping
+        )
 
         # Ensure sensor columns are numeric (convert any remaining strings)
         sensor_columns = list(column_mapping.values())
@@ -519,7 +549,9 @@ class SensorFusion:
         self.config = config
         self.logger = logger
 
-    def merge_sensor_data(self, accel_df: pd.DataFrame, gyro_df: pd.DataFrame) -> pd.DataFrame:
+    def merge_sensor_data(
+        self, accel_df: pd.DataFrame, gyro_df: pd.DataFrame
+    ) -> pd.DataFrame:
         """
         Merge accelerometer and gyroscope data based on timestamp alignment.
 
@@ -554,7 +586,9 @@ class SensorFusion:
         # Tolerance: Maximum allowed time difference
         merged_df = pd.merge_asof(
             accel_df.sort_values("true_time"),  # Left: accelerometer (primary timeline)
-            gyro_for_merge.sort_values("gyro_time"),  # Right: gyroscope (aligned to accel)
+            gyro_for_merge.sort_values(
+                "gyro_time"
+            ),  # Right: gyroscope (aligned to accel)
             left_on="true_time",
             right_on="gyro_time",
             direction="nearest",
@@ -617,7 +651,9 @@ class SensorFusion:
             )
         else:
             # Warning: No successful matches (likely data quality issue)
-            self.logger.warning(f"No matched samples within {self.config.merge_tolerance_ms} ms")
+            self.logger.warning(
+                f"No matched samples within {self.config.merge_tolerance_ms} ms"
+            )
 
 
 # ============================================================================
@@ -682,7 +718,9 @@ class Resampler:
             )
         )
 
-        self.logger.info(f"Resampled to {self.config.target_hz}Hz: {resampled_data.shape}")
+        self.logger.info(
+            f"Resampled to {self.config.target_hz}Hz: {resampled_data.shape}"
+        )
         return resampled_data
 
     def add_timestamp_columns(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -983,7 +1021,10 @@ class DataExporter:
                 "target_hz": config.target_hz,
                 "tolerance_ms": config.merge_tolerance_ms,
             },
-            "rows": {"native": int(len(native_df)), "resampled": int(len(resampled_df))},
+            "rows": {
+                "native": int(len(native_df)),
+                "resampled": int(len(resampled_df)),
+            },
         }
 
         # Save metadata as JSON (indent=2 for readability)
@@ -1022,7 +1063,9 @@ class SensorDataPipeline:
             5. Create output directories
         """
         self.base_dir = base_dir
-        self.config = config or ProcessingConfig()  # Use default config if none provided
+        self.config = (
+            config or ProcessingConfig()
+        )  # Use default config if none provided
 
         # Setup centralized logging
         log_dir = base_dir / "logs" / "preprocessing"
@@ -1041,7 +1084,8 @@ class SensorDataPipeline:
 
         # Initialize gravity removal preprocessor (config-controlled)
         self.gravity_preprocessor = GravityRemovalPreprocessor(
-            config_path=self.config_path if self.config_path.exists() else None, logger=self.logger
+            config_path=self.config_path if self.config_path.exists() else None,
+            logger=self.logger,
         )
 
         # Setup output directory and exporter (under data/preprocessed)
@@ -1096,7 +1140,9 @@ class SensorDataPipeline:
             accel_raw = self.data_loader.load_sensor_data(accel_path)
             gyro_raw = self.data_loader.load_sensor_data(gyro_path)
 
-            accel_raw = self.data_loader.normalize_column_names(accel_raw, "accelerometer")
+            accel_raw = self.data_loader.normalize_column_names(
+                accel_raw, "accelerometer"
+            )
             gyro_raw = self.data_loader.normalize_column_names(gyro_raw, "gyroscope")
 
             # ================================================================
@@ -1120,12 +1166,16 @@ class SensorDataPipeline:
             accel_processed = self.data_processor.process_sensor_data(
                 accel_exploded, "accelerometer"
             )
-            gyro_processed = self.data_processor.process_sensor_data(gyro_exploded, "gyroscope")
+            gyro_processed = self.data_processor.process_sensor_data(
+                gyro_exploded, "gyroscope"
+            )
 
             # ================================================================
             # STEP 8-9: MERGE AND RESAMPLE
             # ================================================================
-            merged_data = self.sensor_fusion.merge_sensor_data(accel_processed, gyro_processed)
+            merged_data = self.sensor_fusion.merge_sensor_data(
+                accel_processed, gyro_processed
+            )
 
             resampled_data = self.resampler.resample_data(merged_data)
             resampled_data = self.resampler.add_timestamp_columns(resampled_data)
@@ -1140,7 +1190,10 @@ class SensorDataPipeline:
             # ================================================================
             # STEP 11: EXPORT
             # ================================================================
-            input_files = {"accelerometer": str(accel_path), "gyroscope": str(gyro_path)}
+            input_files = {
+                "accelerometer": str(accel_path),
+                "gyroscope": str(gyro_path),
+            }
             self.data_exporter.save_processed_data(
                 merged_data, resampled_data, self.config, input_files
             )
@@ -1159,9 +1212,15 @@ class SensorDataPipeline:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run sensor data preprocessing end-to-end")
-    parser.add_argument("--accel", type=str, help="Path to accelerometer Excel file (optional)")
-    parser.add_argument("--gyro", type=str, help="Path to gyroscope Excel file (optional)")
+    parser = argparse.ArgumentParser(
+        description="Run sensor data preprocessing end-to-end"
+    )
+    parser.add_argument(
+        "--accel", type=str, help="Path to accelerometer Excel file (optional)"
+    )
+    parser.add_argument(
+        "--gyro", type=str, help="Path to gyroscope Excel file (optional)"
+    )
     args = parser.parse_args()
 
     base_dir = Path(__file__).resolve().parent.parent

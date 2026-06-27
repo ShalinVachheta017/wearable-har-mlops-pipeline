@@ -58,10 +58,6 @@ pie showData
     "Advanced Calibration (Stage 11)" : 1
 ```
 
-### Project Graphic
-
-![HAR MLOps Graphic](docs/images/unnamed.jpg)
-
 ## Project Setup and Structure
 
 ### Step 1: Create Environment
@@ -93,9 +89,9 @@ har-pipeline
 
 Expected core files include:
 
-- [models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras](models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras)
-- [models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json)
-- [models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json)
+- [models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras](models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras)
+- [models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json](models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json)
+- [models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json](models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json)
 - one accel/gyro pair in [data/raw](data/raw)
 
 If DVC-tracked assets are missing:
@@ -113,8 +109,8 @@ This is acceptable because the defended pipeline is executed through the Python 
 
 ### Defended Model Lineage
 
-The default runtime now uses the final clean-contract Model A package:
-[models/runtime_contract/model_a_final_20260508](models/runtime_contract/model_a_final_20260508).
+The default runtime now uses the final clean-contract Model D1 package:
+[models/runtime_contract/model_d1_final_20260528](models/runtime_contract/model_d1_final_20260528).
 The older mentor/vendor pretrained model remains historical and forensic
 evidence only, because its strong legacy metrics depend on a different scaler
 and tensor-layout contract.
@@ -122,13 +118,11 @@ and tensor-layout contract.
 ### Model Promotion Policy
 
 Hard rule for this repository:
-- Default model for pipeline/API/Docker is the final clean-contract Model A package.
+- Default model for pipeline/API/Docker is the final clean-contract Model D1 package.
 - Drift/monitoring alerts alone do not justify promotion.
 - Retraining/fine-tuning can run only when labeled data is available for evaluation.
-- Promotion away from Model A is allowed only if labeled comparison proves a candidate is better under the same clean proof-of-concept contract.
+- Promotion away from Model D1 is allowed only if labeled comparison proves a candidate is better under the same clean proof-of-concept contract.
 - If the candidate requires a hidden scaler/layout contract, keep it as forensic evidence only.
-
-Canonical policy document: [docs/MODEL_PROMOTION_POLICY.md](docs/MODEL_PROMOTION_POLICY.md)
 
 ### Defended Inference Contract
 
@@ -142,17 +136,14 @@ packaged Garmin train-only StandardScaler:
 - stride: 100 samples
 - model input shape: `(N, 200, 6)`
 - model output shape: 11 classes
-- normalization: Garmin train-only z-score scaler from the Model A package
+- normalization: Garmin train-only z-score scaler from the Model D1 package
 - deployment/unlabeled input is never used to fit the scaler
 - gravity removal and calibration: disabled
 
 The current Stage 6 runtime baseline is
-[models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json).
+[models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json](models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json).
 Older raw or normalized baselines remain useful for legacy/A-B diagnostics, but
 they are not the default drift reference.
-
-Detailed notes: [docs/INFERENCE_PARITY_FIX.md](docs/INFERENCE_PARITY_FIX.md)
-and [docs/MONITORING_AND_TRIGGER_POLICY.md](docs/MONITORING_AND_TRIGGER_POLICY.md).
 
 ### Monitoring Evidence Scope
 
@@ -202,6 +193,13 @@ Unlabeled session drift, collapse, or low confidence opens review work; it
 does not justify immediate automatic retraining. AdaBN, TENT, and pseudo-label
 adaptation hooks are archived research context, not active runtime modes.
 
+Stage 8 retraining fine-tunes the current deployed Model D1 on labeled data
+(two-phase fine-tune, train-only augmentation, balanced class weights,
+user-holdout validation, reusing the saved train-only scaler) rather than
+training from scratch. The candidate therefore keeps the Model D1 architecture
+and is compared against the current model in Stage 9 (`is_better_than_current`,
+with `auto_deploy=False`) before any promotion.
+
 Run advanced calibration stage:
 
 ```powershell
@@ -239,19 +237,6 @@ Useful local endpoints:
 - `GET /api/model/info`: active model metadata.
 - `POST /api/upload`: upload raw sensor data for inference.
 
-## Thesis Handbook Dashboard Preview (No npm Install)
-
-If you only want to preview the already-built dashboard app, serve the static [thesis/handbook-dashboard/dist](thesis/handbook-dashboard/dist) folder directly:
-
-```powershell
-Set-Location "thesis/handbook-dashboard/dist"
-python -m http.server 4173
-```
-
-Then open <http://localhost:4173>.
-
-This avoids adding Node dependencies to your thesis Python environment.
-
 ## Testing and Sanity Checks
 
 Quick smoke tests:
@@ -269,7 +254,7 @@ python -m pytest tests/ -m "not slow and not integration" -q --tb=short
 Import/runtime sanity:
 
 ```powershell
-python -m compileall src scripts run_pipeline.py
+python -m compileall src run_pipeline.py
 ```
 
 ## Repository Map
@@ -278,7 +263,6 @@ python -m compileall src scripts run_pipeline.py
 - [src](src): core implementation (pipeline, components, API, utilities)
 - [config](config): config and dependency manifests
 - [tests](tests): test suite
-- [scripts](scripts): support and maintenance scripts
 - [docs](docs): technical and thesis-oriented documentation
 - [thesis](thesis): thesis sources and related materials
-- [internal](internal): non-core historical/working support materials
+- [internal](internal): defense-preparation and working support materials

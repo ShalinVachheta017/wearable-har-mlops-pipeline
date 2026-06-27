@@ -45,24 +45,28 @@ import pandas as pd
 # Suppress TF warnings before import
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
-from sklearn.metrics import (  # noqa: E402
-    accuracy_score,
+from sklearn.metrics import accuracy_score  # noqa: E402
+from sklearn.metrics import (
     classification_report,
     cohen_kappa_score,
     f1_score,
 )
 from sklearn.model_selection import GroupKFold  # noqa: E402
-from sklearn.preprocessing import LabelEncoder, RobustScaler, StandardScaler  # noqa: E402
+from sklearn.preprocessing import RobustScaler  # noqa: E402
+from sklearn.preprocessing import (
+    LabelEncoder,
+    StandardScaler,
+)
 from tensorflow import keras  # noqa: E402
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import mlflow  # noqa: E402
 
-from src.config import (  # noqa: E402
+from src.config import NUM_SENSORS  # noqa: E402
+from src.config import (
     DATA_RAW,
     NUM_CLASSES,
-    NUM_SENSORS,
     OVERLAP,
     PROJECT_ROOT,
     SENSOR_COLUMNS,
@@ -70,7 +74,10 @@ from src.config import (  # noqa: E402
 )
 from src.mlflow_tracking import MLflowTracker  # noqa: E402
 from src.utils.common import get_timestamp
-from src.utils.scaler import CANONICAL_SCALER_PATH, assert_scaler_integrity  # noqa: E402
+from src.utils.scaler import CANONICAL_SCALER_PATH  # noqa: E402
+from src.utils.scaler import (
+    assert_scaler_integrity,
+)
 
 # Setup logging
 logging.basicConfig(
@@ -135,7 +142,9 @@ class TrainingConfig:
     run_name: Optional[str] = None
 
     # Output paths
-    output_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "models" / "trained")
+    output_dir: Path = field(
+        default_factory=lambda: PROJECT_ROOT / "models" / "trained"
+    )
 
     def __post_init__(self):
         self.output_dir = Path(self.output_dir)
@@ -193,7 +202,9 @@ class DataLoader:
 
         return df
 
-    def create_windows(self, X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def create_windows(
+        self, X: np.ndarray, y: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Legacy sequential windowing (kept for backward compatibility)."""
         from collections import Counter
 
@@ -257,7 +268,9 @@ class DataLoader:
                 users_all.append(int(user_id))
 
         if not X_all:
-            raise ValueError("No windows created. Check dataset size and user column values.")
+            raise ValueError(
+                "No windows created. Check dataset size and user column values."
+            )
 
         return np.array(X_all), np.array(y_all), np.array(users_all)
 
@@ -269,7 +282,9 @@ class DataLoader:
             feature_cols = SENSOR_COLUMNS
 
         if "User" not in df.columns:
-            raise ValueError("Training CSV must contain a 'User' column for grouped evaluation.")
+            raise ValueError(
+                "Training CSV must contain a 'User' column for grouped evaluation."
+            )
 
         y = df["activity"].values
 
@@ -352,7 +367,9 @@ class HARModelBuilder:
         model = keras.Sequential(
             [
                 # Input
-                keras.layers.Input(shape=(self.config.window_size, self.config.n_sensors)),
+                keras.layers.Input(
+                    shape=(self.config.window_size, self.config.n_sensors)
+                ),
                 # CNN Block 1
                 keras.layers.Conv1D(16, 2, activation="relu", padding="valid"),
                 keras.layers.BatchNormalization(),
@@ -362,10 +379,14 @@ class HARModelBuilder:
                 keras.layers.BatchNormalization(),
                 keras.layers.Dropout(self.config.dropout_cnn_2),
                 # BiLSTM layers
-                keras.layers.Bidirectional(keras.layers.LSTM(64, return_sequences=True)),
+                keras.layers.Bidirectional(
+                    keras.layers.LSTM(64, return_sequences=True)
+                ),
                 keras.layers.BatchNormalization(),
                 keras.layers.Dropout(self.config.dropout_lstm),
-                keras.layers.Bidirectional(keras.layers.LSTM(32, return_sequences=True)),
+                keras.layers.Bidirectional(
+                    keras.layers.LSTM(32, return_sequences=True)
+                ),
                 keras.layers.BatchNormalization(),
                 keras.layers.Dropout(self.config.dropout_lstm),
                 # Flatten temporal output → Dense
@@ -396,7 +417,9 @@ class HARModelBuilder:
         model = keras.Sequential(
             [
                 # Input layer
-                keras.layers.Input(shape=(self.config.window_size, self.config.n_sensors)),
+                keras.layers.Input(
+                    shape=(self.config.window_size, self.config.n_sensors)
+                ),
                 # CNN Block 1
                 keras.layers.Conv1D(64, 3, activation="relu", padding="same"),
                 keras.layers.BatchNormalization(),
@@ -412,10 +435,14 @@ class HARModelBuilder:
                 keras.layers.MaxPooling1D(2),
                 keras.layers.Dropout(self.config.dropout_cnn_2),
                 # BiLSTM layers
-                keras.layers.Bidirectional(keras.layers.LSTM(64, return_sequences=True)),
+                keras.layers.Bidirectional(
+                    keras.layers.LSTM(64, return_sequences=True)
+                ),
                 keras.layers.BatchNormalization(),
                 keras.layers.Dropout(self.config.dropout_lstm),
-                keras.layers.Bidirectional(keras.layers.LSTM(64, return_sequences=False)),
+                keras.layers.Bidirectional(
+                    keras.layers.LSTM(64, return_sequences=False)
+                ),
                 keras.layers.BatchNormalization(),
                 keras.layers.Dropout(self.config.dropout_dense),
                 # Dense layers
@@ -463,6 +490,64 @@ class HARModelBuilder:
             )
 
         return callbacks
+
+
+# ============================================================================
+# AUGMENTATION + CLASS WEIGHTS (Model-D1 fine-tune recipe)
+# ============================================================================
+
+
+def _aug_jitter(x: np.ndarray, sigma: float = 0.03) -> np.ndarray:
+    return x + np.random.normal(0, sigma, size=x.shape).astype(np.float32)
+
+
+def _aug_magnitude(x: np.ndarray, sigma: float = 0.10) -> np.ndarray:
+    scale = np.random.normal(1.0, sigma, size=(1, x.shape[1])).astype(np.float32)
+    return x * scale
+
+
+def _aug_time_warp(x: np.ndarray, sigma: float = 0.20) -> np.ndarray:
+    n = x.shape[0]
+    curve = np.random.normal(1.0, sigma, size=n)
+    new_idx = np.cumsum(curve)
+    new_idx = (new_idx - new_idx.min()) / (new_idx.max() - new_idx.min()) * (n - 1)
+    warped = np.zeros_like(x)
+    for ch in range(x.shape[1]):
+        warped[:, ch] = np.interp(np.arange(n), new_idx, x[:, ch])
+    return warped.astype(np.float32)
+
+
+def _augment_one(x: np.ndarray) -> np.ndarray:
+    if np.random.rand() < 0.60:
+        x = _aug_time_warp(x)
+    if np.random.rand() < 0.70:
+        x = _aug_magnitude(x)
+    if np.random.rand() < 0.50:
+        x = _aug_jitter(x)
+    return x.astype(np.float32)
+
+
+def augment_array(X: np.ndarray, multiplier: int = 3) -> np.ndarray:
+    """Return X stacked with (multiplier-1) augmented copies (train only)."""
+    augs = [X]
+    for _ in range(max(0, multiplier - 1)):
+        batch = np.empty_like(X)
+        for i in range(len(X)):
+            batch[i] = _augment_one(X[i].copy())
+        augs.append(batch)
+    return np.concatenate(augs, axis=0).astype(np.float32)
+
+
+def _balanced_class_weights(y: np.ndarray, n_classes: int) -> Dict[int, float]:
+    """Balanced class weights; every class index is present (default 1.0)."""
+    from sklearn.utils.class_weight import compute_class_weight
+
+    present = np.unique(y)
+    weights = compute_class_weight(class_weight="balanced", classes=present, y=y)
+    out = {i: 1.0 for i in range(n_classes)}
+    for cls, w in zip(present, weights):
+        out[int(cls)] = float(w)
+    return out
 
 
 # ============================================================================
@@ -523,7 +608,9 @@ class HARTrainer:
 
             if fold_scaler is not None:
                 fold_scaler.fit(X_train_flat)
-                X_train_scaled = fold_scaler.transform(X_train_flat).reshape(X_train.shape)
+                X_train_scaled = fold_scaler.transform(X_train_flat).reshape(
+                    X_train.shape
+                )
                 X_val_scaled = fold_scaler.transform(X_val_flat).reshape(X_val.shape)
             else:
                 # Variant B: no amplitude normalization
@@ -624,7 +711,9 @@ class HARTrainer:
             test_users = [6]
         else:
             if len(unique_users) < 3:
-                raise ValueError("Need at least 3 distinct users for train/val/test holdout.")
+                raise ValueError(
+                    "Need at least 3 distinct users for train/val/test holdout."
+                )
             fit_users = unique_users[:-2]
             val_users = [unique_users[-2]]
             test_users = [unique_users[-1]]
@@ -660,9 +749,15 @@ class HARTrainer:
             test_flat = X_test.reshape(-1, self.config.n_sensors)
 
             self.data_loader.scaler.fit(train_flat)
-            X_train_scaled = self.data_loader.scaler.transform(train_flat).reshape(X_train.shape)
-            X_val_scaled = self.data_loader.scaler.transform(val_flat).reshape(X_val.shape)
-            X_test_scaled = self.data_loader.scaler.transform(test_flat).reshape(X_test.shape)
+            X_train_scaled = self.data_loader.scaler.transform(train_flat).reshape(
+                X_train.shape
+            )
+            X_val_scaled = self.data_loader.scaler.transform(val_flat).reshape(
+                X_val.shape
+            )
+            X_test_scaled = self.data_loader.scaler.transform(test_flat).reshape(
+                X_test.shape
+            )
         else:
             X_train_scaled = X_train.copy()
             X_val_scaled = X_val.copy()
@@ -732,6 +827,191 @@ class HARTrainer:
 
         return model, metrics
 
+    def finetune_from_current(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        groups: np.ndarray,
+        base_model_path: Path,
+        scaler_mean: Optional[List[float]] = None,
+        scaler_scale: Optional[List[float]] = None,
+        augment_multiplier: int = 3,
+        allow_unscaled: bool = False,
+    ) -> Tuple[keras.Model, Dict[str, Any]]:
+        """Fine-tune the *current deployed* model on labeled data (Model-D1 recipe).
+
+        Unlike ``train_final_model`` (which builds a fresh architecture), this loads
+        the deployed model and continues training it, so the candidate keeps the
+        deployed architecture (Model D1, ~967K params). Validation uses an explicit
+        user holdout. The saved train-only scaler is reused (no refit) to preserve
+        train--serve parity. Recipe: freeze Conv/BN then adapt the recurrent + head
+        (Adam 3e-4), then unfreeze all for a low-LR polish (Adam 1e-5); train-only
+        augmentation and balanced class weights match the D1 build.
+        """
+        self.logger.info("=" * 70)
+        self.logger.info("FINE-TUNE FROM CURRENT MODEL (two-phase, user holdout)")
+        self.logger.info("=" * 70)
+
+        # Apply the saved train-only scaler (do NOT refit — preserves the deployed
+        # model's feature space).
+        if scaler_mean is not None and scaler_scale is not None:
+            mean = np.asarray(scaler_mean, dtype=np.float32)
+            scale = np.asarray(scaler_scale, dtype=np.float32)
+            X = ((X - mean) / scale).astype(np.float32)
+            self.logger.info("Applied saved train-only scaler (no refit).")
+        elif allow_unscaled:
+            self.logger.warning(
+                "No saved scaler provided; allow_unscaled=True — fine-tuning on "
+                "unscaled windows (experimental, candidate is NOT contract-valid)."
+            )
+        else:
+            raise ValueError(
+                "No saved scaler provided. The deployed model expects z-score scaled "
+                "windows; fine-tuning unscaled would break train--serve parity. "
+                "Provide the canonical scaler or pass allow_unscaled=True for "
+                "explicit experiments."
+            )
+
+        # User-holdout split (same protocol as train_final_model).
+        unique_users = sorted(np.unique(groups).tolist())
+        if set([1, 2, 3, 4, 5, 6]).issubset(set(unique_users)):
+            fit_users, val_users, test_users = [1, 2, 3, 4], [5], [6]
+        else:
+            if len(unique_users) < 3:
+                raise ValueError(
+                    "Need at least 3 distinct users for fine-tune holdout."
+                )
+            fit_users = unique_users[:-2]
+            val_users = [unique_users[-2]]
+            test_users = [unique_users[-1]]
+
+        train_mask = np.isin(groups, fit_users)
+        val_mask = np.isin(groups, val_users)
+        test_mask = np.isin(groups, test_users)
+
+        X_train, y_train = X[train_mask], y[train_mask]
+        X_val, y_val = X[val_mask], y[val_mask]
+        X_test, y_test = X[test_mask], y[test_mask]
+
+        if len(X_train) == 0 or len(X_val) == 0 or len(X_test) == 0:
+            raise ValueError(
+                f"Empty holdout split: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}"
+            )
+
+        self.logger.info(
+            "Holdout -> fit=%s (%d), val=%s (%d), test=%s (%d)",
+            fit_users,
+            len(X_train),
+            val_users,
+            len(X_val),
+            test_users,
+            len(X_test),
+        )
+
+        # Balanced class weights from the real (pre-augmentation) train distribution.
+        class_weights = _balanced_class_weights(y_train, self.config.n_classes)
+
+        # Train-only augmentation (matches the D1 build recipe).
+        if augment_multiplier and augment_multiplier > 1:
+            X_train = augment_array(X_train, multiplier=augment_multiplier)
+            y_train = np.concatenate([y_train] * augment_multiplier)
+            self.logger.info(
+                "Augmented train -> %d windows (x%d).", len(X_train), augment_multiplier
+            )
+
+        # Load the deployed model (keeps its architecture).
+        model = keras.models.load_model(base_model_path)
+        self.logger.info(
+            "Loaded base model: %s (%d params)", base_model_path, model.count_params()
+        )
+
+        # Phase 1: freeze conv/BN feature extractor; adapt recurrent + head.
+        for layer in model.layers:
+            if isinstance(
+                layer, (keras.layers.Conv1D, keras.layers.BatchNormalization)
+            ):
+                layer.trainable = False
+        model.compile(
+            optimizer=keras.optimizers.Adam(3e-4),
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+        model.fit(
+            X_train,
+            y_train,
+            validation_data=(X_val, y_val),
+            epochs=self.config.epochs,
+            batch_size=self.config.batch_size,
+            class_weight=class_weights,
+            callbacks=[
+                keras.callbacks.EarlyStopping(
+                    monitor="val_accuracy",
+                    mode="max",
+                    patience=self.config.early_stopping_patience,
+                    restore_best_weights=True,
+                    verbose=1,
+                )
+            ],
+            verbose=1,
+        )
+
+        # Phase 2: unfreeze all; low-LR polish.
+        for layer in model.layers:
+            layer.trainable = True
+        model.compile(
+            optimizer=keras.optimizers.Adam(1e-5),
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+        history = model.fit(
+            X_train,
+            y_train,
+            validation_data=(X_val, y_val),
+            epochs=self.config.epochs,
+            batch_size=self.config.batch_size,
+            class_weight=class_weights,
+            callbacks=[
+                keras.callbacks.EarlyStopping(
+                    monitor="val_accuracy",
+                    mode="max",
+                    patience=self.config.early_stopping_patience + 10,
+                    restore_best_weights=True,
+                    verbose=1,
+                )
+            ],
+            verbose=1,
+        )
+
+        # Evaluate on the held-out validation and test users.
+        val_loss, val_acc = model.evaluate(X_val, y_val, verbose=0)
+        test_loss, test_acc = model.evaluate(X_test, y_test, verbose=0)
+        val_pred = np.argmax(model.predict(X_val, verbose=0), axis=1)
+        test_pred = np.argmax(model.predict(X_test, verbose=0), axis=1)
+
+        metrics = {
+            "method": "finetune_from_current",
+            "base_model_path": str(base_model_path),
+            "val_accuracy": float(val_acc),
+            "test_accuracy": float(test_acc),
+            "val_loss": float(val_loss),
+            "test_loss": float(test_loss),
+            "f1_macro_val": float(f1_score(y_val, val_pred, average="macro")),
+            "f1_macro_test": float(f1_score(y_test, test_pred, average="macro")),
+            "best_epoch": len(history.history.get("accuracy", [])),
+            "fit_users": fit_users,
+            "val_users": val_users,
+            "test_users": test_users,
+            "n_params": int(model.count_params()),
+        }
+        self.logger.info(
+            "Fine-tune done -> val_acc=%.4f test_acc=%.4f val_f1=%.4f test_f1=%.4f",
+            val_acc,
+            test_acc,
+            metrics["f1_macro_val"],
+            metrics["f1_macro_test"],
+        )
+        return model, metrics
+
     def _save_training_artifacts(
         self,
         model: keras.Model,
@@ -785,7 +1065,9 @@ class HARTrainer:
             "label_mapping": label_mapping,
             "history": {
                 "accuracy": [float(v) for v in history.history.get("accuracy", [])],
-                "val_accuracy": [float(v) for v in history.history.get("val_accuracy", [])],
+                "val_accuracy": [
+                    float(v) for v in history.history.get("val_accuracy", [])
+                ],
                 "loss": [float(v) for v in history.history.get("loss", [])],
                 "val_loss": [float(v) for v in history.history.get("val_loss", [])],
             },
@@ -802,7 +1084,9 @@ class HARTrainer:
         self.tracker.log_artifact(str(mapping_path))
         self.tracker.log_artifact(str(report_path))
 
-    def train(self, data_path: Optional[Path] = None, skip_cv: bool = False) -> Dict[str, Any]:
+    def train(
+        self, data_path: Optional[Path] = None, skip_cv: bool = False
+    ) -> Dict[str, Any]:
         """
         Full training pipeline.
 
@@ -813,7 +1097,10 @@ class HARTrainer:
         Returns:
             Dictionary with training results
         """
-        results = {"timestamp": datetime.now().isoformat(), "config": asdict(self.config)}
+        results = {
+            "timestamp": datetime.now().isoformat(),
+            "config": asdict(self.config),
+        }
 
         # Load and prepare data
         df = self.data_loader.load_training_data(data_path)
@@ -829,7 +1116,9 @@ class HARTrainer:
 
         # Guard: end any stale active run before starting a new one
         if mlflow.active_run() is not None:
-            logger.warning("Stale MLflow run detected — ending it before starting a new one.")
+            logger.warning(
+                "Stale MLflow run detected — ending it before starting a new one."
+            )
             mlflow.end_run()
 
         with self.tracker.start_run(run_name=run_name):
@@ -884,7 +1173,9 @@ class HARTrainer:
 
             # Register model in MLflow
             self.tracker.log_model(
-                model, artifact_path="har_model", registered_model_name="har-1dcnn-bilstm"
+                model,
+                artifact_path="har_model",
+                registered_model_name="har-1dcnn-bilstm",
             )
 
         self.logger.info("\n" + "=" * 70)
@@ -938,7 +1229,9 @@ class DomainAdaptationTrainer(HARTrainer):
         self.logger.info("=" * 70)
 
         if self.config.adaptation_method == "pseudo_label":
-            return self._retrain_pseudo_labeling(source_X, source_y, target_X, base_model)
+            return self._retrain_pseudo_labeling(
+                source_X, source_y, target_X, base_model
+            )
         elif self.config.adaptation_method == "mmd":
             return self._retrain_mmd(source_X, source_y, target_X, base_model)
         else:  # dann
@@ -967,7 +1260,9 @@ class DomainAdaptationTrainer(HARTrainer):
             - Mean-Teacher / entropy gate: Tarvainen & Valpola (2017)
             - Class-balanced pseudo-labels: standard practice reviewed in UDA literature
         """
-        self.logger.info("Pseudo-labeling with calibration + entropy gate + class-balanced top-k")
+        self.logger.info(
+            "Pseudo-labeling with calibration + entropy gate + class-balanced top-k"
+        )
 
         # ------------------------------------------------------------------
         # 1. Get or create base model
@@ -1015,7 +1310,9 @@ class DomainAdaptationTrainer(HARTrainer):
         conf_threshold = 0.70  # minimum confidence
         entropy_threshold = 0.40  # maximum normalised entropy
 
-        gate_mask = (target_confidence >= conf_threshold) & (norm_entropy <= entropy_threshold)
+        gate_mask = (target_confidence >= conf_threshold) & (
+            norm_entropy <= entropy_threshold
+        )
         self.logger.info(
             f"  Gate (conf>={conf_threshold}, H_norm<={entropy_threshold}): "
             f"{gate_mask.sum()}/{len(target_X)} ({100*gate_mask.mean():.1f}%)"
@@ -1088,7 +1385,8 @@ class DomainAdaptationTrainer(HARTrainer):
         else:
             raise FileNotFoundError(
                 f"Canonical scaler not found: {_config_path}. "
-                "Run scripts/refit_scaler_train_only.py first."
+                "Regenerate it via the build notebook "
+                "notebooks/Model_D1_Final_Build_Runtime_Contract.ipynb first."
             )
 
         # ------------------------------------------------------------------
@@ -1101,7 +1399,9 @@ class DomainAdaptationTrainer(HARTrainer):
         # ------------------------------------------------------------------
         _src_preds = base_model.predict(source_X_scaled, verbose=0)
         _src_pred_cls = _src_preds.argmax(axis=1)
-        _src_true_cls = source_y.astype(int) if source_y.ndim == 1 else source_y.argmax(axis=1)
+        _src_true_cls = (
+            source_y.astype(int) if source_y.ndim == 1 else source_y.argmax(axis=1)
+        )
         _consistent = _src_pred_cls == _src_true_cls
         self.logger.info(
             f"  Self-consistency filter: {_consistent.sum()}/{len(source_X_scaled)} "
@@ -1150,7 +1450,8 @@ class DomainAdaptationTrainer(HARTrainer):
 
         model.compile(
             optimizer=keras.optimizers.Adam(
-                learning_rate=self.config.learning_rate * 0.10  # small LR for fine-tuning
+                learning_rate=self.config.learning_rate
+                * 0.10  # small LR for fine-tuning
             ),
             loss="categorical_crossentropy",
             metrics=["accuracy"],
@@ -1261,7 +1562,9 @@ class DomainAdaptationTrainer(HARTrainer):
         Returns T=1.0 (no scaling) as a safe default if optimisation fails.
         """
         try:
-            idx = np.random.choice(len(X_val), min(n_val_samples, len(X_val)), replace=False)
+            idx = np.random.choice(
+                len(X_val), min(n_val_samples, len(X_val)), replace=False
+            )
             x_h, y_h = X_val[idx], y_val[idx].astype(int)
             raw = self._get_logits(model, x_h)
             if raw is None:
@@ -1292,7 +1595,9 @@ class DomainAdaptationTrainer(HARTrainer):
             _ = model.predict(X[:2], verbose=0)
 
             # Find last Dense layer (the classifier head)
-            dense_layers = [l for l in model.layers if isinstance(l, keras.layers.Dense)]
+            dense_layers = [
+                l for l in model.layers if isinstance(l, keras.layers.Dense)
+            ]
             if not dense_layers:
                 return None
             last_dense = dense_layers[-1]
@@ -1324,7 +1629,9 @@ class DomainAdaptationTrainer(HARTrainer):
             logits = pre_out @ W + b  # (N, n_classes)
             return logits
         except Exception as exc:  # noqa: BLE001
-            self.logger.warning("_get_logits failed (%s); will use softmax probs instead", exc)
+            self.logger.warning(
+                "_get_logits failed (%s); will use softmax probs instead", exc
+            )
             return None
 
     def _retrain_mmd(
@@ -1341,7 +1648,9 @@ class DomainAdaptationTrainer(HARTrainer):
         Adding MMD as auxiliary loss encourages the model to learn domain-invariant features.
         """
         self.logger.info("Using MMD adaptation strategy")
-        self.logger.info("  (Simplified implementation - feature alignment via combined training)")
+        self.logger.info(
+            "  (Simplified implementation - feature alignment via combined training)"
+        )
 
         # For thesis scope, implement simplified version:
         # Train on weighted combination of source and target (with pseudo-labels)
@@ -1361,7 +1670,9 @@ class DomainAdaptationTrainer(HARTrainer):
         while the feature extractor learns to confuse this classifier.
         """
         self.logger.info("Using DANN adaptation strategy")
-        self.logger.info("  (Simplified implementation - using pseudo-labeling as fallback)")
+        self.logger.info(
+            "  (Simplified implementation - using pseudo-labeling as fallback)"
+        )
 
         # For thesis scope, implement simplified version
         # Full DANN requires custom training loop
@@ -1395,29 +1706,44 @@ Examples:
     )
 
     # Data arguments
-    parser.add_argument("--data", type=str, default=None, help="Path to training data CSV")
     parser.add_argument(
-        "--target-data", type=str, default=None, help="Path to target domain data for retraining"
+        "--data", type=str, default=None, help="Path to training data CSV"
+    )
+    parser.add_argument(
+        "--target-data",
+        type=str,
+        default=None,
+        help="Path to target domain data for retraining",
     )
 
     # Training arguments
     parser.add_argument(
-        "--epochs", type=int, default=100, help="Number of training epochs (default: 100)"
+        "--epochs",
+        type=int,
+        default=100,
+        help="Number of training epochs (default: 100)",
     )
     parser.add_argument(
         "--batch-size", type=int, default=64, help="Training batch size (default: 64)"
     )
     parser.add_argument(
-        "--learning-rate", type=float, default=0.001, help="Initial learning rate (default: 0.001)"
+        "--learning-rate",
+        type=float,
+        default=0.001,
+        help="Initial learning rate (default: 0.001)",
     )
 
     # CV arguments
     parser.add_argument("--skip-cv", action="store_true", help="Skip cross-validation")
-    parser.add_argument("--n-folds", type=int, default=5, help="Number of CV folds (default: 5)")
+    parser.add_argument(
+        "--n-folds", type=int, default=5, help="Number of CV folds (default: 5)"
+    )
 
     # Domain adaptation
     parser.add_argument(
-        "--retrain", action="store_true", help="Enable domain adaptation retraining mode"
+        "--retrain",
+        action="store_true",
+        help="Enable domain adaptation retraining mode",
     )
     parser.add_argument(
         "--adaptation-method",
@@ -1429,12 +1755,17 @@ Examples:
 
     # MLflow arguments
     parser.add_argument(
-        "--experiment-name", type=str, default="har-training", help="MLflow experiment name"
+        "--experiment-name",
+        type=str,
+        default="har-training",
+        help="MLflow experiment name",
     )
     parser.add_argument("--run-name", type=str, default=None, help="MLflow run name")
 
     # Output
-    parser.add_argument("--output-dir", type=str, default=None, help="Output directory for models")
+    parser.add_argument(
+        "--output-dir", type=str, default=None, help="Output directory for models"
+    )
 
     return parser.parse_args()
 

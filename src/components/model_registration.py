@@ -41,10 +41,14 @@ class ModelRegistration:
 
         from src.model_rollback import ModelRegistry
 
-        registry_dir = self.config.registry_dir or (self.pipeline_config.models_dir / "registry")
+        registry_dir = self.config.registry_dir or (
+            self.pipeline_config.models_dir / "registry"
+        )
         registry = ModelRegistry(registry_dir=Path(registry_dir))
 
-        model_path = Path(self.config.model_path or self.retraining_artifact.retrained_model_path)
+        model_path = Path(
+            self.config.model_path or self.retraining_artifact.retrained_model_path
+        )
         version = self.config.version  # None → auto-increment
         metrics = self.retraining_artifact.metrics or {}
 
@@ -70,7 +74,9 @@ class ModelRegistration:
                 )
                 # Compare using val_accuracy or accuracy
                 new_acc = metrics.get("val_accuracy", metrics.get("accuracy"))
-                cur_acc = current_metrics.get("val_accuracy", current_metrics.get("accuracy"))
+                cur_acc = current_metrics.get(
+                    "val_accuracy", current_metrics.get("accuracy")
+                )
                 tol = getattr(self.config, "degradation_tolerance", 0.005)
                 if new_acc is not None and cur_acc is not None:
                     is_better = float(new_acc) >= float(cur_acc) - tol

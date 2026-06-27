@@ -59,12 +59,16 @@ def get_logger():
 
         # Define formatter for consistent log message format
         formatter = logging.Formatter(
-            "[ %(asctime)s ] %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+            "[ %(asctime)s ] %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
 
         # File handler with rotation - detailed logging
         file_handler = RotatingFileHandler(
-            log_file_path, maxBytes=MAX_LOG_SIZE, backupCount=BACKUP_COUNT, encoding="utf-8"
+            log_file_path,
+            maxBytes=MAX_LOG_SIZE,
+            backupCount=BACKUP_COUNT,
+            encoding="utf-8",
         )
         file_handler.setFormatter(formatter)
         file_handler.setLevel(logging.DEBUG)  # File gets DEBUG for our code

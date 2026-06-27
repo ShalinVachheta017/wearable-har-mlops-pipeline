@@ -91,7 +91,9 @@ class ModelInferenceArtifact:
     n_predictions: int = 0
     inference_time_seconds: float = 0.0
     model_version: str = ""
-    active_model_path: Optional[Path] = None  # full path of model used — fed to MLflow registration
+    active_model_path: Optional[Path] = (
+        None  # full path of model used — fed to MLflow registration
+    )
     model_md5: str = ""
     activity_distribution: Dict = field(default_factory=dict)
     confidence_stats: Dict = field(default_factory=dict)
@@ -178,6 +180,7 @@ class ModelRetrainingArtifact:
     training_report: Dict = field(default_factory=dict)
     metrics: Dict[str, float] = field(default_factory=dict)
     n_source_samples: int = 0
+    n_target_samples: int = 0
     retraining_timestamp: str = ""
 
 

@@ -123,7 +123,10 @@ class BaselineBuilder:
                 "Expected one of: zscore, robust, none."
             )
 
-        if center.shape[0] != X_transformed.shape[2] or scale.shape[0] != X_transformed.shape[2]:
+        if (
+            center.shape[0] != X_transformed.shape[2]
+            or scale.shape[0] != X_transformed.shape[2]
+        ):
             raise ValueError(
                 "Scaler config shape mismatch for baseline transform: "
                 f"center={center.shape[0]}, scale={scale.shape[0]}, channels={X_transformed.shape[2]}"
@@ -134,8 +137,12 @@ class BaselineBuilder:
                 "Scaler config has zero scale values; cannot normalize baseline safely."
             )
 
-        X_transformed = (X_transformed - center.reshape(1, 1, -1)) / scale.reshape(1, 1, -1)
-        logger.info("Baseline transform variant: %s (canonical transformed space)", variant)
+        X_transformed = (X_transformed - center.reshape(1, 1, -1)) / scale.reshape(
+            1, 1, -1
+        )
+        logger.info(
+            "Baseline transform variant: %s (canonical transformed space)", variant
+        )
         return X_transformed
 
     def build_from_csv(self, data_path) -> dict:

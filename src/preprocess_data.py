@@ -121,18 +121,24 @@ class UnitDetector:
             unit = "milliG"
             confidence = "HIGH" if max_abs > 500 else "MEDIUM"
             self.logger.info(f"  ✓ Detected units: {unit} (confidence: {confidence})")
-            self.logger.info(f"    Reason: Max absolute value {max_abs:.1f} >> 20 (m/s² range)")
+            self.logger.info(
+                f"    Reason: Max absolute value {max_abs:.1f} >> 20 (m/s² range)"
+            )
         elif max_abs < 50:
             # Likely m/s² (values < 50)
             unit = "m/s²"
             confidence = "HIGH" if max_abs < 20 else "MEDIUM"
             self.logger.info(f"  ✓ Detected units: {unit} (confidence: {confidence})")
-            self.logger.info(f"    Reason: Max absolute value {max_abs:.1f} < 50 (milliG range)")
+            self.logger.info(
+                f"    Reason: Max absolute value {max_abs:.1f} < 50 (milliG range)"
+            )
         else:
             # Ambiguous range (50-100)
             unit = "unknown"
             self.logger.warning("  ⚠ Ambiguous units detected!")
-            self.logger.warning(f"    Max absolute value {max_abs:.1f} in ambiguous range [50-100]")
+            self.logger.warning(
+                f"    Max absolute value {max_abs:.1f} in ambiguous range [50-100]"
+            )
             self.logger.warning("    Manual inspection recommended")
 
         return unit
@@ -156,7 +162,9 @@ class UnitDetector:
         # Show BEFORE stats
         self.logger.info("  Before conversion (milliG):")
         for col in accel_cols:
-            self.logger.info(f"    {col}: mean={df[col].mean():10.3f}, std={df[col].std():10.3f}")
+            self.logger.info(
+                f"    {col}: mean={df[col].mean():10.3f}, std={df[col].std():10.3f}"
+            )
 
         # Apply conversion
         for col in accel_cols:
@@ -187,7 +195,9 @@ class UnitDetector:
 
         return df_converted
 
-    def process_units(self, df: pd.DataFrame, accel_cols: List[str]) -> Tuple[pd.DataFrame, bool]:
+    def process_units(
+        self, df: pd.DataFrame, accel_cols: List[str]
+    ) -> Tuple[pd.DataFrame, bool]:
         """
         Main entry point: detect units and convert if needed
 
@@ -261,7 +271,9 @@ class GravityRemover:
         # Find available accel columns
         accel_cols = [c for c in self.ACCEL_COLUMNS if c in df.columns]
         if not accel_cols:
-            self.logger.warning("No accelerometer columns found, skipping gravity removal")
+            self.logger.warning(
+                "No accelerometer columns found, skipping gravity removal"
+            )
             return df
 
         df_out = df.copy()
@@ -323,7 +335,9 @@ class DomainCalibrator:
 
     SENSOR_COLUMNS = ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"]
 
-    def __init__(self, logger: logging.Logger, training_mean: Optional[np.ndarray] = None):
+    def __init__(
+        self, logger: logging.Logger, training_mean: Optional[np.ndarray] = None
+    ):
         self.logger = logger
         # Training data statistics from config.json (scaler was fit on this)
         # These are RAW values in m/s² (before normalization)
@@ -362,7 +376,9 @@ class DomainCalibrator:
         df_out = df.copy()
 
         self.logger.info("  Aligning production distribution to training distribution")
-        self.logger.info(f"  {'Channel':<8} {'Prod Mean':<12} {'Train Mean':<12} {'Offset':<12}")
+        self.logger.info(
+            f"  {'Channel':<8} {'Prod Mean':<12} {'Train Mean':<12} {'Offset':<12}"
+        )
         self.logger.info("-" * 50)
 
         for i, col in enumerate(sensor_cols):
@@ -394,7 +410,10 @@ class UnifiedPreprocessor:
     """Unified preprocessing for training and production data"""
 
     def __init__(
-        self, logger: logging.Logger, window_size: int = WINDOW_SIZE, overlap: float = OVERLAP
+        self,
+        logger: logging.Logger,
+        window_size: int = WINDOW_SIZE,
+        overlap: float = OVERLAP,
     ):
         self.logger = logger
         self.window_size = window_size
@@ -432,16 +451,24 @@ class UnifiedPreprocessor:
         has_unlabeled_format = all(col in df.columns for col in unlabeled_sensors)
 
         if has_activity and has_user and has_labeled_format:
-            self.logger.error("  ✗ Labeled training data is not supported in this script")
-            self.logger.error("  Please use the archived training pipeline for retraining tasks")
+            self.logger.error(
+                "  ✗ Labeled training data is not supported in this script"
+            )
+            self.logger.error(
+                "  Please use the archived training pipeline for retraining tasks"
+            )
             raise ValueError("Training (labeled) data is not supported here")
         elif has_unlabeled_format and has_activity:
             # Production CSV that also carries an 'activity' label column (e.g. synthetic data).
             # Use standard sensor columns but mark as labeled so create_windows extracts y.
             data_format = "labeled"
             sensor_cols = unlabeled_sensors
-            self.logger.info("  Format: LABELED-PRODUCTION (standard sensors + activity column)")
-            self.logger.info(f"  Columns: {', '.join(sensor_cols)} + activity + timestamp")
+            self.logger.info(
+                "  Format: LABELED-PRODUCTION (standard sensors + activity column)"
+            )
+            self.logger.info(
+                f"  Columns: {', '.join(sensor_cols)} + activity + timestamp"
+            )
         elif has_unlabeled_format:
             data_format = "unlabeled"
             sensor_cols = unlabeled_sensors
@@ -450,7 +477,9 @@ class UnifiedPreprocessor:
         else:
             self.logger.error("  ✗ Unknown data format!")
             self.logger.error(f"  Available columns: {df.columns.tolist()}")
-            raise ValueError(f"Cannot determine data format from columns: {df.columns.tolist()}")
+            raise ValueError(
+                f"Cannot determine data format from columns: {df.columns.tolist()}"
+            )
 
         self.logger.info(f"  Samples: {len(df):,}")
         self.logger.info("=" * 80)
@@ -460,8 +489,12 @@ class UnifiedPreprocessor:
     def create_activity_encoding(self, activities: pd.Series) -> Dict[str, int]:
         """Create mapping between activity names and numeric labels"""
         unique_activities = sorted(activities.unique())
-        self.activity_to_label = {activity: idx for idx, activity in enumerate(unique_activities)}
-        self.label_to_activity = {idx: activity for activity, idx in self.activity_to_label.items()}
+        self.activity_to_label = {
+            activity: idx for idx, activity in enumerate(unique_activities)
+        }
+        self.label_to_activity = {
+            idx: activity for activity, idx in self.activity_to_label.items()
+        }
 
         self.logger.info("")
         self.logger.info("Activity Encoding:")
@@ -504,24 +537,26 @@ class UnifiedPreprocessor:
             # Check if any NaN remain
             remaining_nan = df_normalized[sensor_cols].isna().sum().sum()
             if remaining_nan > 0:
-                self.logger.warning(f"  {remaining_nan} NaN values remain after filling")
+                self.logger.warning(
+                    f"  {remaining_nan} NaN values remain after filling"
+                )
                 self.logger.warning("  Dropping rows with NaN")
-                df_normalized = df_normalized.dropna(subset=sensor_cols).reset_index(drop=True)
+                df_normalized = df_normalized.dropna(subset=sensor_cols).reset_index(
+                    drop=True
+                )
 
             self.logger.info(f"  After NaN handling: {len(df_normalized):,} samples")
 
         if mode == "transform":
             # Canonical train-only scaler (fit on users 1-4).
-            from src.utils.scaler import (
-                CANONICAL_SCALER_PATH,
-                assert_scaler_integrity,
-            )
+            from src.utils.scaler import CANONICAL_SCALER_PATH, assert_scaler_integrity
 
             config_path = CANONICAL_SCALER_PATH
             if not config_path.exists():
                 raise FileNotFoundError(
                     f"Canonical scaler missing: {config_path}. "
-                    "Run scripts/refit_scaler_train_only.py."
+                    "Regenerate it via the build notebook "
+                    "notebooks/Model_D1_Final_Build_Runtime_Contract.ipynb."
                 )
             assert_scaler_integrity(config_path)
 
@@ -546,7 +581,9 @@ class UnifiedPreprocessor:
                 self.logger.info("  Loaded z-score scaler from training:")
                 self.logger.info(f"    Mean:  {self.scaler.mean_}")
                 self.logger.info(f"    Scale: {self.scaler.scale_}")
-                df_normalized[sensor_cols] = self.scaler.transform(df_normalized[sensor_cols])
+                df_normalized[sensor_cols] = self.scaler.transform(
+                    df_normalized[sensor_cols]
+                )
             elif variant == "robust":
                 # Variant C — RobustScaler (median / IQR)
                 robust_scaler = RobustScaler()
@@ -556,14 +593,18 @@ class UnifiedPreprocessor:
                 self.logger.info("  Loaded robust scaler from training:")
                 self.logger.info(f"    Center (median): {robust_scaler.center_}")
                 self.logger.info(f"    Scale (IQR):     {robust_scaler.scale_}")
-                df_normalized[sensor_cols] = robust_scaler.transform(df_normalized[sensor_cols])
+                df_normalized[sensor_cols] = robust_scaler.transform(
+                    df_normalized[sensor_cols]
+                )
             else:
                 raise ValueError(
                     f"Unknown normalization_variant '{variant}' in config. "
                     f"Expected 'zscore', 'robust', or 'none'."
                 )
         else:
-            raise ValueError(f"Invalid mode: {mode}. Only 'transform' (production) is supported.")
+            raise ValueError(
+                f"Invalid mode: {mode}. Only 'transform' (production) is supported."
+            )
 
         # Log statistics (skipped for 'none' since data is unchanged)
         if variant != "none":
@@ -572,8 +613,12 @@ class UnifiedPreprocessor:
                 f"    Range: [{df_normalized[sensor_cols].values.min():.3f}, "
                 f"{df_normalized[sensor_cols].values.max():.3f}]"
             )
-            self.logger.info(f"    Mean:  {df_normalized[sensor_cols].values.mean():.3f}")
-            self.logger.info(f"    Std:   {df_normalized[sensor_cols].values.std():.3f}")
+            self.logger.info(
+                f"    Mean:  {df_normalized[sensor_cols].values.mean():.3f}"
+            )
+            self.logger.info(
+                f"    Std:   {df_normalized[sensor_cols].values.std():.3f}"
+            )
         self.logger.info("=" * 80)
 
         return df_normalized
@@ -636,7 +681,9 @@ class UnifiedPreprocessor:
             y_labels: List[int] = []
             for idx in good_idx:
                 s = start_indices[idx]
-                window_acts = np.asarray(activities[s : s + self.window_size], dtype=str)
+                window_acts = np.asarray(
+                    activities[s : s + self.window_size], dtype=str
+                )
                 vals, counts = np.unique(window_acts, return_counts=True)
                 majority = vals[counts.argmax()]
                 y_labels.append(self.activity_to_label[majority])
@@ -669,7 +716,9 @@ class UnifiedPreprocessor:
             for label_id in np.unique(y_array):
                 count = (y_array == label_id).sum()
                 activity = self.label_to_activity[int(label_id)]
-                self.logger.info(f"    {label_id:2d} ({activity:20s}): {count:5,} windows")
+                self.logger.info(
+                    f"    {label_id:2d} ({activity:20s}): {count:5,} windows"
+                )
 
         self.logger.info("=" * 80)
 
@@ -789,7 +838,10 @@ def main():
         description="Production preprocessing pipeline (unit auto-detection)"
     )
     parser.add_argument(
-        "--input", type=str, required=True, help="Input CSV file path (relative to project root)"
+        "--input",
+        type=str,
+        required=True,
+        help="Input CSV file path (relative to project root)",
     )
     parser.add_argument(
         "--gravity-removal",
@@ -809,7 +861,9 @@ def main():
     if args.gravity_removal and args.calibrate:
         print("ERROR: Cannot use both --gravity-removal and --calibrate. Choose one.")
         print("  --gravity-removal: Removes DC offset (gravity) using high-pass filter")
-        print("  --calibrate: Shifts production distribution to match training (RECOMMENDED)")
+        print(
+            "  --calibrate: Shifts production distribution to match training (RECOMMENDED)"
+        )
         sys.exit(1)
 
     # Setup logging
@@ -819,8 +873,12 @@ def main():
     try:
         logger.info("Mode: PRODUCTION")
         logger.info(f"Input: {args.input}")
-        logger.info(f"Gravity removal: {'ENABLED' if args.gravity_removal else 'DISABLED'}")
-        logger.info(f"Domain calibration: {'ENABLED' if args.calibrate else 'DISABLED'}")
+        logger.info(
+            f"Gravity removal: {'ENABLED' if args.gravity_removal else 'DISABLED'}"
+        )
+        logger.info(
+            f"Domain calibration: {'ENABLED' if args.calibrate else 'DISABLED'}"
+        )
 
         # Load data
         input_path = PROJECT_ROOT / args.input
@@ -851,7 +909,9 @@ def main():
         df_normalized = preprocessor.normalize_data(df, sensor_cols, mode="transform")
 
         # Create windows
-        X, _, metadata = preprocessor.create_windows(df_normalized, sensor_cols, data_format)
+        X, _, metadata = preprocessor.create_windows(
+            df_normalized, sensor_cols, data_format
+        )
 
         # Save production data
         data = {"X": X}

@@ -21,7 +21,10 @@ import numpy as np
 import pandas as pd
 
 from src.config import DEFAULT_MODEL_PATH
-from src.entity.artifact_entity import DataTransformationArtifact, ModelInferenceArtifact
+from src.entity.artifact_entity import (
+    DataTransformationArtifact,
+    ModelInferenceArtifact,
+)
 from src.entity.config_entity import ModelInferenceConfig, PipelineConfig
 from src.utils.common import get_timestamp
 from src.utils.label_mapping import get_activity_classes, get_class_to_index
@@ -50,7 +53,26 @@ class InferenceResponse:
 
 
 def _file_md5(path: Path) -> str:
+    """Compute MD5 of a model artifact.
+
+    For a regular file (e.g. legacy .keras / HDF5), this hashes the file
+    bytes directly. For a TF SavedModel directory (Model D1 since
+    2026-05-26), this walks the directory in sorted order and folds each
+    file's relative path + contents into the same digest, so the result is
+    deterministic and tracks any change inside the directory.
+    """
     digest = hashlib.md5()
+    if path.is_dir():
+        for member in sorted(path.rglob("*")):
+            if not member.is_file():
+                continue
+            rel = member.relative_to(path).as_posix().encode("utf-8")
+            digest.update(rel)
+            digest.update(b"\x00")
+            with member.open("rb") as f:
+                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        return digest.hexdigest()
     with path.open("rb") as file_obj:
         for chunk in iter(lambda: file_obj.read(1024 * 1024), b""):
             digest.update(chunk)
@@ -172,7 +194,9 @@ class ModelInference:
                     f"Expected window shape {EXPECTED_WINDOW_SHAPE}, got {tuple(data.shape[1:])}."
                 )
             if not np.isfinite(data).all():
-                raise ValueError("production_X.npy contains NaN or inf; check Stage 3 output.")
+                raise ValueError(
+                    "production_X.npy contains NaN or inf; check Stage 3 output."
+                )
 
             data = data.astype(np.float32, copy=False)
             metadata = {
@@ -200,11 +224,17 @@ class ModelInference:
         """
         try:
             if set(ACTIVITY_CLASSES.keys()) != set(range(11)):
-                raise ValueError(f"Activity ids must be 0..10, got {sorted(ACTIVITY_CLASSES)}")
+                raise ValueError(
+                    f"Activity ids must be 0..10, got {sorted(ACTIVITY_CLASSES)}"
+                )
             if len(CLASS_TO_INDEX) != 11:
-                raise ValueError(f"Expected 11 activity names, got {len(CLASS_TO_INDEX)}")
+                raise ValueError(
+                    f"Expected 11 activity names, got {len(CLASS_TO_INDEX)}"
+                )
             if CLASS_TO_INDEX.get("hand_tapping") != 4:
-                raise ValueError("Activity mapping mismatch: hand_tapping must be index 4.")
+                raise ValueError(
+                    "Activity mapping mismatch: hand_tapping must be index 4."
+                )
             for class_id, activity in ACTIVITY_CLASSES.items():
                 if CLASS_TO_INDEX.get(activity) != class_id:
                     raise ValueError(f"Reverse mapping mismatch for {activity!r}.")
@@ -274,7 +304,9 @@ class ModelInference:
                 "probability_row_sum_mean": float(np.mean(row_sums)),
                 "probability_row_sum_min": float(np.min(row_sums)),
                 "probability_row_sum_max": float(np.max(row_sums)),
-                "probability_row_sum_close_to_1": bool(np.allclose(row_sums, 1.0, atol=1e-5)),
+                "probability_row_sum_close_to_1": bool(
+                    np.allclose(row_sums, 1.0, atol=1e-5)
+                ),
                 "confidence_stats": _numeric_stats(confidence),
                 "entropy_stats": _numeric_stats(entropy),
                 "top2_margin_stats": _numeric_stats(margins),
@@ -313,7 +345,9 @@ class ModelInference:
                     distribution.items(),
                     key=lambda item: item[1],
                 )
-            dominant_pct = float(dominant_count / n_predictions * 100.0) if n_predictions else 0.0
+            dominant_pct = (
+                float(dominant_count / n_predictions * 100.0) if n_predictions else 0.0
+            )
             collapse = _collapse_level(dominant_pct)
 
             top3_preview = []
@@ -322,8 +356,12 @@ class ModelInference:
                 top3_preview.append(
                     {
                         "window_id": int(row_idx),
-                        "predicted_class": int(results_df.loc[row_idx, "predicted_class"]),
-                        "predicted_activity": str(results_df.loc[row_idx, "predicted_activity"]),
+                        "predicted_class": int(
+                            results_df.loc[row_idx, "predicted_class"]
+                        ),
+                        "predicted_activity": str(
+                            results_df.loc[row_idx, "predicted_activity"]
+                        ),
                         "confidence": float(results_df.loc[row_idx, "confidence"]),
                         "entropy": float(results_df.loc[row_idx, "entropy"]),
                         "top1": {
@@ -368,7 +406,9 @@ class ModelInference:
                     **input_metadata,
                 },
                 "class_mapping": {
-                    "label_to_activity": {str(k): v for k, v in ACTIVITY_CLASSES.items()},
+                    "label_to_activity": {
+                        str(k): v for k, v in ACTIVITY_CLASSES.items()
+                    },
                     "activity_to_label": CLASS_TO_INDEX,
                     "hand_tapping_index": CLASS_TO_INDEX.get("hand_tapping"),
                 },
@@ -396,7 +436,9 @@ class ModelInference:
                     "row_sum_mean": prediction_stats["probability_row_sum_mean"],
                     "row_sum_min": prediction_stats["probability_row_sum_min"],
                     "row_sum_max": prediction_stats["probability_row_sum_max"],
-                    "row_sum_close_to_1": prediction_stats["probability_row_sum_close_to_1"],
+                    "row_sum_close_to_1": prediction_stats[
+                        "probability_row_sum_close_to_1"
+                    ],
                 },
                 "top3_first_20_windows": top3_preview,
             }
@@ -428,7 +470,9 @@ class ModelInference:
             report_path = output_dir / "inference_report.json"
 
             results_df.to_csv(csv_path, index=False)
-            np.save(predictions_path, results_df["predicted_class"].to_numpy(dtype=np.int32))
+            np.save(
+                predictions_path, results_df["predicted_class"].to_numpy(dtype=np.int32)
+            )
             np.save(probabilities_path, probabilities)
 
             metadata = {
@@ -442,7 +486,9 @@ class ModelInference:
                     "total_windows": report["n_predictions"],
                     "activity_distribution": report["prediction_distribution"],
                     "confidence_stats": report["confidence_stats"],
-                    "confidence_levels": results_df["confidence_level"].value_counts().to_dict(),
+                    "confidence_levels": results_df["confidence_level"]
+                    .value_counts()
+                    .to_dict(),
                     "uncertain_count": int(results_df["is_uncertain"].sum()),
                     "dominant_class": report["dominant_class"],
                     "dominant_pct": report["dominant_pct"],
@@ -480,7 +526,8 @@ class ModelInference:
                 self.config.input_npy or self.transformation_artifact.production_X_path
             )
             output_dir = Path(
-                self.config.output_dir or self.pipeline_config.data_prepared_dir / "predictions"
+                self.config.output_dir
+                or self.pipeline_config.data_prepared_dir / "predictions"
             )
             timestamp = get_timestamp()
             model_md5 = _file_md5(model_path)
@@ -559,12 +606,17 @@ class ModelInference:
                 # Calculate aggregate stats
                 res = (
                     results_df.groupby("predicted_activity")
-                    .agg(Count=("window_id", "count"), Mean_Confidence=("confidence", "mean"))
+                    .agg(
+                        Count=("window_id", "count"),
+                        Mean_Confidence=("confidence", "mean"),
+                    )
                     .sort_values("Count", ascending=False)
                 )
 
                 res["Percentage"] = (res["Count"] / len(results_df)) * 100
-                res["Mean_Confidence"] = (res["Mean_Confidence"] * 100).map("{:.1f}%".format)
+                res["Mean_Confidence"] = (res["Mean_Confidence"] * 100).map(
+                    "{:.1f}%".format
+                )
                 res["Percentage"] = res["Percentage"].map("{:.1f}%".format)
 
                 # Print formatted table to logs
@@ -621,7 +673,9 @@ class ModelInference:
                         "model_md5": report["model"]["md5"],
                         "input_path": report["input"]["path"],
                         "batch_size": report["configuration"]["batch_size"],
-                        "confidence_threshold": report["configuration"]["confidence_threshold"],
+                        "confidence_threshold": report["configuration"][
+                            "confidence_threshold"
+                        ],
                         "runtime_mode": report["configuration"]["runtime_mode"],
                     }
                 )
@@ -629,10 +683,6 @@ class ModelInference:
                     {
                         "total_windows": report["n_predictions"],
                         "avg_confidence": report["confidence_stats"]["mean"],
-                        "std_confidence": report["confidence_stats"]["std"],
-                        "entropy_mean": report["entropy_stats"]["mean"],
-                        "top2_margin_mean": report["top2_margin_stats"]["mean"],
-                        "dominant_pct": report["dominant_pct"],
                     }
                 )
                 for activity, count in report["prediction_distribution"].items():

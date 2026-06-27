@@ -66,14 +66,17 @@ class CalibrationUncertainty:
                 # Reconstruct rough probs from confidence + predicted_label
                 n_classes = 11
                 probs = np.full(
-                    (len(df), n_classes), (1 - df["confidence"].values[:, None]) / (n_classes - 1)
+                    (len(df), n_classes),
+                    (1 - df["confidence"].values[:, None]) / (n_classes - 1),
                 )
                 for i, row in df.iterrows():
                     probs[i, int(row.get("predicted_label", 0))] = row["confidence"]
             else:
                 return CalibrationUncertaintyArtifact(
                     overall_status="WARN",
-                    calibration_warnings=["No probability data available for calibration."],
+                    calibration_warnings=[
+                        "No probability data available for calibration."
+                    ],
                 )
 
         # --- Temperature Scaling ---
@@ -86,7 +89,9 @@ class CalibrationUncertainty:
         scaler = TemperatureScaler(cal_cfg)
 
         # Load or fit temperature
-        temp_path = Path(self.config.temperature_path or output_dir / "temperature.json")
+        temp_path = Path(
+            self.config.temperature_path or output_dir / "temperature.json"
+        )
         if temp_path.exists():
             scaler.load(temp_path)
             logger.info("Loaded existing temperature: T=%.4f", scaler.temperature)

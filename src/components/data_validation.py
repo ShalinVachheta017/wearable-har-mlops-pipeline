@@ -182,7 +182,9 @@ class DataValidation:
         On Failure  :   Logs the error and raises the exception.
         """
         try:
-            missing = [col for col in self.config.sensor_columns if col not in df.columns]
+            missing = [
+                col for col in self.config.sensor_columns if col not in df.columns
+            ]
             if missing:
                 errors.append(f"Missing required sensor columns: {missing}")
         except Exception:
@@ -217,7 +219,9 @@ class DataValidation:
                         f"{int(newly_missing.sum())} values could not be parsed."
                     )
                 else:
-                    warnings.append(f"Column '{col}' was stored as text but parsed as numeric.")
+                    warnings.append(
+                        f"Column '{col}' was stored as text but parsed as numeric."
+                    )
                     df[col] = coerced
         except Exception:
             logger.exception("Numeric sensor-column validation failed")
@@ -257,7 +261,9 @@ class DataValidation:
                         f"(max allowed: {self.config.max_missing_ratio:.2%})."
                     )
                 elif missing_count > 0:
-                    warnings.append(f"Column '{col}' has {missing_ratio:.2%} missing values.")
+                    warnings.append(
+                        f"Column '{col}' has {missing_ratio:.2%} missing values."
+                    )
 
             stats["sensor_missing_count_total"] = int(total_missing)
             stats["sensor_missing_ratio_total"] = (
@@ -296,7 +302,9 @@ class DataValidation:
             values = df[timestamp_col]
             if pd.api.types.is_numeric_dtype(values):
                 numeric = pd.to_numeric(values, errors="coerce")
-                median_value = float(numeric.dropna().median()) if numeric.notna().any() else 0.0
+                median_value = (
+                    float(numeric.dropna().median()) if numeric.notna().any() else 0.0
+                )
                 col_name = timestamp_col.lower()
                 unit = "ms" if "ms" in col_name or abs(median_value) > 1e10 else "s"
                 return pd.to_datetime(numeric, unit=unit, errors="coerce")
@@ -332,7 +340,9 @@ class DataValidation:
             stats["duplicate_timestamp_ratio"] = float(duplicate_count / row_count)
 
             if invalid_count == len(df):
-                errors.append(f"Timestamp column '{timestamp_col}' could not be parsed.")
+                errors.append(
+                    f"Timestamp column '{timestamp_col}' could not be parsed."
+                )
                 return
             if invalid_count / row_count > self.config.max_missing_ratio:
                 errors.append(
@@ -352,7 +362,9 @@ class DataValidation:
 
             diffs = timestamps.dropna().diff().dropna().dt.total_seconds()
             if diffs.empty:
-                warnings.append("Not enough valid timestamps to check temporal stability.")
+                warnings.append(
+                    "Not enough valid timestamps to check temporal stability."
+                )
                 return
 
             non_positive = int((diffs <= 0).sum())
@@ -407,7 +419,9 @@ class DataValidation:
             actual_frequency_hz = 1.0 / median_period if median_period > 0 else 0.0
             mean_frequency_hz = 1.0 / mean_period if mean_period > 0 else 0.0
             expected = float(self.config.expected_frequency_hz)
-            deviation = abs(actual_frequency_hz - expected) / expected if expected else 0.0
+            deviation = (
+                abs(actual_frequency_hz - expected) / expected if expected else 0.0
+            )
 
             stats["actual_frequency_hz"] = float(actual_frequency_hz)
             stats["mean_frequency_hz"] = float(mean_frequency_hz)
@@ -480,7 +494,9 @@ class DataValidation:
             for col in ACCEL_COLUMNS:
                 if col not in df.columns:
                     continue
-                col_max = self._safe_float(pd.to_numeric(df[col], errors="coerce").abs().max())
+                col_max = self._safe_float(
+                    pd.to_numeric(df[col], errors="coerce").abs().max()
+                )
                 stats[f"{col}_max_abs"] = col_max
                 if col_max is None:
                     continue

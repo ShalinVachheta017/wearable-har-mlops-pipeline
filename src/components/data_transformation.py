@@ -89,7 +89,9 @@ class DataTransformation:
 
             from src.preprocess_data import PreprocessLogger, UnifiedPreprocessor
 
-            output_dir = Path(self.config.output_dir or self.pipeline_config.data_prepared_dir)
+            output_dir = Path(
+                self.config.output_dir or self.pipeline_config.data_prepared_dir
+            )
             output_dir.mkdir(parents=True, exist_ok=True)
 
             csv_path, df = self._load_input_csv()
@@ -112,7 +114,9 @@ class DataTransformation:
             df, norm_summary = self._apply_normalization_if_enabled(df, sensor_cols)
             post_stats = self._channel_stats(df, sensor_cols)
 
-            X, y, metadata = self._create_windows(preprocessor, df, sensor_cols, data_format)
+            X, y, metadata = self._create_windows(
+                preprocessor, df, sensor_cols, data_format
+            )
             output_summary = self._save_outputs(output_dir, X, y, metadata)
             quality_summary = self._quality_checks(X, sensor_cols)
 
@@ -139,7 +143,9 @@ class DataTransformation:
                 "windowing": {
                     "window_size": int(self.config.window_size),
                     "overlap": float(self.config.overlap),
-                    "step_size": int(self.config.window_size * (1 - self.config.overlap)),
+                    "step_size": int(
+                        self.config.window_size * (1 - self.config.overlap)
+                    ),
                     "n_windows": int(X.shape[0]),
                     "x_shape": list(X.shape),
                     "x_dtype": str(X.dtype),
@@ -147,7 +153,9 @@ class DataTransformation:
                 "labels": {
                     "has_labels": bool(y is not None),
                     "production_y_path": output_summary.get("production_y_path"),
-                    "stale_y_ignored": bool(output_summary.get("stale_y_ignored", False)),
+                    "stale_y_ignored": bool(
+                        output_summary.get("stale_y_ignored", False)
+                    ),
                     "stale_y_path": output_summary.get("stale_y_path"),
                     "stale_y_shape": output_summary.get("stale_y_shape"),
                 },
@@ -183,7 +191,9 @@ class DataTransformation:
         On Failure  :   Logs the error and raises the exception.
         """
         try:
-            csv_path = Path(self.config.input_csv or self.ingestion_artifact.fused_csv_path)
+            csv_path = Path(
+                self.config.input_csv or self.ingestion_artifact.fused_csv_path
+            )
             if not csv_path.exists():
                 raise FileNotFoundError(f"Stage 3 input CSV not found: {csv_path}")
             df = pd.read_csv(csv_path)
@@ -194,7 +204,9 @@ class DataTransformation:
             logger.exception("Could not load Stage 3 input CSV")
             raise
 
-    def _detect_format(self, preprocessor: Any, df: pd.DataFrame) -> Tuple[str, List[str]]:
+    def _detect_format(
+        self, preprocessor: Any, df: pd.DataFrame
+    ) -> Tuple[str, List[str]]:
         """
         Method Name :   _detect_format
         Description :   Detects labeled/unlabeled format and locks the sensor column order.
@@ -211,7 +223,9 @@ class DataTransformation:
                 sensor_cols = list(detected_cols)
             if len(sensor_cols) != 6:
                 raise ValueError(f"Expected 6 sensor columns, got {sensor_cols}")
-            logger.info("Data format: %s | sensor columns: %s", data_format, sensor_cols)
+            logger.info(
+                "Data format: %s | sensor columns: %s", data_format, sensor_cols
+            )
             return data_format, sensor_cols
         except Exception:
             logger.exception("Could not detect Stage 3 data format")
@@ -238,10 +252,14 @@ class DataTransformation:
 
             if self.config.enable_unit_conversion:
                 if detected_unit == "milliG":
-                    out[accel_cols] = out[accel_cols].apply(pd.to_numeric, errors="coerce") * factor
+                    out[accel_cols] = (
+                        out[accel_cols].apply(pd.to_numeric, errors="coerce") * factor
+                    )
                     conversion_applied = True
                 elif detected_unit == "m/s^2":
-                    out[accel_cols] = out[accel_cols].apply(pd.to_numeric, errors="coerce")
+                    out[accel_cols] = out[accel_cols].apply(
+                        pd.to_numeric, errors="coerce"
+                    )
                 else:
                     raise ValueError(
                         "Ambiguous accelerometer unit. Stage 3 cannot safely convert input."
@@ -259,7 +277,9 @@ class DataTransformation:
                 "conversion_factor": factor if conversion_applied else None,
                 "accelerometer_input_unit_detected": detected_unit,
                 "accelerometer_output_unit": (
-                    "m/s^2" if conversion_applied or detected_unit == "m/s^2" else detected_unit
+                    "m/s^2"
+                    if conversion_applied or detected_unit == "m/s^2"
+                    else detected_unit
                 ),
                 "accelerometer_max_abs_before_conversion": _safe_float(max_abs),
                 "gyroscope_input_unit_assumed": "deg/s",
@@ -280,10 +300,14 @@ class DataTransformation:
         Output      :   Unit label and maximum absolute acceleration value.
         On Failure  :   Raises ValueError when no accelerometer values are available.
         """
-        values = df[accel_cols].apply(pd.to_numeric, errors="coerce").to_numpy().reshape(-1)
+        values = (
+            df[accel_cols].apply(pd.to_numeric, errors="coerce").to_numpy().reshape(-1)
+        )
         values = values[np.isfinite(values)]
         if values.size == 0:
-            raise ValueError("No finite accelerometer values available for unit detection.")
+            raise ValueError(
+                "No finite accelerometer values available for unit detection."
+            )
         max_abs = float(np.abs(values).max())
         if max_abs > 100.0:
             return "milliG", max_abs
@@ -328,7 +352,9 @@ class DataTransformation:
                 )
 
             out = df.copy()
-            values = out[sensor_cols].apply(pd.to_numeric, errors="coerce").ffill().bfill()
+            values = (
+                out[sensor_cols].apply(pd.to_numeric, errors="coerce").ffill().bfill()
+            )
 
             if requested_variant == "none":
                 return out, {
@@ -341,20 +367,30 @@ class DataTransformation:
                 }
 
             if requested_variant == "zscore":
-                mean = np.asarray(cfg.get("scaler_mean", cfg.get("mean")), dtype=np.float64)
-                scale = np.asarray(cfg.get("scaler_scale", cfg.get("scale")), dtype=np.float64)
-                if mean.shape[0] != len(sensor_cols) or scale.shape[0] != len(sensor_cols):
+                mean = np.asarray(
+                    cfg.get("scaler_mean", cfg.get("mean")), dtype=np.float64
+                )
+                scale = np.asarray(
+                    cfg.get("scaler_scale", cfg.get("scale")), dtype=np.float64
+                )
+                if mean.shape[0] != len(sensor_cols) or scale.shape[0] != len(
+                    sensor_cols
+                ):
                     raise ValueError(
                         f"Scaler dimension mismatch: mean={mean.shape}, scale={scale.shape}, "
                         f"sensor_cols={len(sensor_cols)}"
                     )
                 safe_scale = np.where(scale == 0, 1.0, scale)
-                out[sensor_cols] = (values.to_numpy(dtype=np.float64) - mean) / safe_scale
+                out[sensor_cols] = (
+                    values.to_numpy(dtype=np.float64) - mean
+                ) / safe_scale
             elif requested_variant == "robust":
                 center = np.asarray(cfg["scaler_center"], dtype=np.float64)
                 scale = np.asarray(cfg["scaler_scale"], dtype=np.float64)
                 safe_scale = np.where(scale == 0, 1.0, scale)
-                out[sensor_cols] = (values.to_numpy(dtype=np.float64) - center) / safe_scale
+                out[sensor_cols] = (
+                    values.to_numpy(dtype=np.float64) - center
+                ) / safe_scale
             else:
                 raise ValueError(
                     f"Unknown normalization_variant '{requested_variant}'. "
@@ -362,7 +398,9 @@ class DataTransformation:
                 )
 
             logger.info(
-                "Normalization applied: variant=%s scaler=%s", requested_variant, scaler_path
+                "Normalization applied: variant=%s scaler=%s",
+                requested_variant,
+                scaler_path,
             )
             return out, {
                 "applied": True,
@@ -413,7 +451,9 @@ class DataTransformation:
             return out, {
                 "gravity_removal_applied": gravity_applied,
                 "calibration_applied": calibration_applied,
-                "note": ("Optional A/B preprocessing. Paper-aligned default keeps both disabled."),
+                "note": (
+                    "Optional A/B preprocessing. Paper-aligned default keeps both disabled."
+                ),
                 "channel_order": sensor_cols,
             }
         except Exception:
@@ -440,7 +480,9 @@ class DataTransformation:
 
                 activity_to_label = get_class_to_index()
                 preprocessor.activity_to_label = activity_to_label
-                preprocessor.label_to_activity = {v: k for k, v in activity_to_label.items()}
+                preprocessor.label_to_activity = {
+                    v: k for k, v in activity_to_label.items()
+                }
 
             X, y, metadata = preprocessor.create_windows(df, sensor_cols, data_format)
             logger.info("Windows created: X shape=%s", X.shape)
@@ -557,10 +599,14 @@ class DataTransformation:
             has_labels=bool(y is not None),
             normalization_applied=bool(norm_summary["applied"]),
             scaler_path=(
-                Path(norm_summary["scaler_path"]) if norm_summary.get("scaler_path") else None
+                Path(norm_summary["scaler_path"])
+                if norm_summary.get("scaler_path")
+                else None
             ),
             model_input_space=str(norm_summary["model_input_space"]),
-            gravity_removal_applied=bool(experimental_summary["gravity_removal_applied"]),
+            gravity_removal_applied=bool(
+                experimental_summary["gravity_removal_applied"]
+            ),
             calibration_applied=bool(experimental_summary["calibration_applied"]),
             production_y_path=(
                 Path(output_summary["production_y_path"])
@@ -569,7 +615,9 @@ class DataTransformation:
             ),
         )
 
-    def _channel_stats(self, df: pd.DataFrame, sensor_cols: List[str]) -> Dict[str, Dict[str, Any]]:
+    def _channel_stats(
+        self, df: pd.DataFrame, sensor_cols: List[str]
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Method Name :   _channel_stats
         Description :   Computes min, max, mean, and std for available sensor columns.

@@ -8,10 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from src.entity.artifact_entity import (
-    BaselineUpdateArtifact,
-    ModelRetrainingArtifact,
-)
+from src.entity.artifact_entity import BaselineUpdateArtifact, ModelRetrainingArtifact
 from src.entity.config_entity import BaselineUpdateConfig, PipelineConfig
 from src.utils.common import get_timestamp
 
@@ -74,7 +71,9 @@ class BaselineUpdate:
             logger.info("Baseline PROMOTED to shared path: %s", save_baseline_path)
 
             builder.save_normalized(str(save_normalized_path))
-            logger.info("Normalised baseline PROMOTED to shared path: %s", save_normalized_path)
+            logger.info(
+                "Normalised baseline PROMOTED to shared path: %s", save_normalized_path
+            )
 
             # Versioned archive (e.g. training_baseline_20260219_130000.json)
             ts = get_timestamp()
@@ -124,7 +123,9 @@ class BaselineUpdate:
             "n_channels": baseline.get("n_channels", 6),
             "n_samples": baseline.get("n_samples", 0),
             "activities": (
-                list(baseline.get("per_class", {}).keys()) if "per_class" in baseline else []
+                list(baseline.get("per_class", {}).keys())
+                if "per_class" in baseline
+                else []
             ),
         }
 

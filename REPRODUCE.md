@@ -25,10 +25,10 @@ python -m pip install -e .[dev]
 
 Required files:
 
-- `models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras`
-- `models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json`
-- `models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json`
-- `models/runtime_contract/model_a_final_20260508/label_order.json`
+- `models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras`
+- `models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json`
+- `models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json`
+- `models/runtime_contract/model_d1_final_20260528/label_order.json`
 - one accel/gyro pair under `data/raw/`
 
 Example pair already present in this repo:
@@ -43,6 +43,36 @@ dvc pull
 ```
 
 DVC is used here for data/model artifact versioning and restore support. The defended Stage 1-7 pipeline is orchestrated by `run_pipeline.py`, not by a full `dvc repro` stage graph.
+
+### Without DVC: Release Artifact Bundle
+
+If DVC (or its storage) is not available, use the release artifact bundle instead.
+The bundle is a plain zip supplied alongside the repository (release asset or
+submission medium) containing the DVC-managed artifacts:
+
+```text
+data/raw/                                        (example session inputs)
+models/runtime_contract/model_d1_final_20260528/ (full D1 runtime contract)
+artifacts/20260528_122625/                       (defended evidence run)
+logs/pipeline/pipeline_result_20260528_122625.json
+```
+
+Unzip it over the repository root and continue with step 3. Docker reproduces
+the software environment only; data and model artifacts always come from DVC
+or this bundle — they are intentionally not baked into the images
+(see `docker/README.md` for the image roles and rationale).
+
+### Docker Alternative (environment-only)
+
+```powershell
+docker compose build
+docker compose run training python run_pipeline.py --stages ingestion validation transformation inference evaluation monitoring trigger --accel-file data/raw/2025-08-19-08-58-40_accelerometer.csv --gyro-file data/raw/2025-08-19-08-58-40_gyroscope.csv
+```
+
+The training image carries the full pipeline environment (`run_pipeline.py`,
+`src/`, `scripts/`, `config/`); the inference image serves the FastAPI app with
+the runtime contract mounted read-only. Data and models are mounted volumes in
+both cases (restored via DVC or the bundle above).
 
 ## 3) Exact Reproduction Command (Main Result Path)
 

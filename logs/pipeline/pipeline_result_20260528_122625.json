@@ -1,0 +1,1120 @@
+{
+  "run_id": "20260528_122625",
+  "start_time": "2026-05-28T12:26:25.808048",
+  "end_time": "2026-05-28T12:26:44.108276",
+  "overall_status": "SUCCESS",
+  "stages_completed": [
+    "ingestion",
+    "validation",
+    "transformation",
+    "inference",
+    "evaluation",
+    "monitoring",
+    "trigger",
+    "retraining",
+    "registration",
+    "baseline_update"
+  ],
+  "stages_skipped": [],
+  "stages_failed": [],
+  "dataset_has_labels": true,
+  "dataset_label_source": "ingestion output column 'activity'",
+  "dataset_label_column": "activity",
+  "mlflow_tracked": true,
+  "ingestion": {
+    "fused_csv_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\processed\\fused_2026_05_05_15_11_15_labeled_50hz_user7_50Hz.csv",
+    "n_rows": 99017,
+    "n_columns": 10,
+    "sampling_hz": 50,
+    "ingestion_timestamp": "2026-05-28T12:26:28.563984",
+    "source_type": "csv",
+    "source_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\raw\\2026-05-05-15-11-15_labeled_50Hz_user7.csv",
+    "has_labels": true,
+    "label_column": "activity"
+  },
+  "validation": {
+    "is_valid": true,
+    "errors": [],
+    "warnings": [
+      "Timestamp column 'true_time' has 338 large gaps (> 0.050s).",
+      "Column 'Gx' has occasional gyroscope spikes above 500 deg/s (max 670.03 deg/s, 2 samples = 0.0%). Isolated spikes are tolerated; verify sensor FS range."
+    ],
+    "stats": {
+      "input_csv_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\processed\\fused_2026_05_05_15_11_15_labeled_50hz_user7_50Hz.csv",
+      "n_rows": 99017,
+      "n_columns": 10,
+      "columns": [
+        "true_time",
+        "Ax",
+        "Ay",
+        "Az",
+        "Gx",
+        "Gy",
+        "Gz",
+        "timestamp_ms",
+        "timestamp_iso",
+        "activity"
+      ],
+      "expected_sensor_columns": [
+        "Ax",
+        "Ay",
+        "Az",
+        "Gx",
+        "Gy",
+        "Gz"
+      ],
+      "expected_frequency_hz": 50.0,
+      "sampling_rate_tolerance": 0.1,
+      "max_missing_ratio": 0.05,
+      "max_acceleration_ms2": 50.0,
+      "max_gyroscope_dps": 500.0,
+      "label_column": "activity",
+      "has_labels": true,
+      "Ax_missing_count": 0,
+      "Ax_missing_ratio": 0.0,
+      "Ay_missing_count": 0,
+      "Ay_missing_ratio": 0.0,
+      "Az_missing_count": 0,
+      "Az_missing_ratio": 0.0,
+      "Gx_missing_count": 0,
+      "Gx_missing_ratio": 0.0,
+      "Gy_missing_count": 0,
+      "Gy_missing_ratio": 0.0,
+      "Gz_missing_count": 0,
+      "Gz_missing_ratio": 0.0,
+      "sensor_missing_count_total": 0,
+      "sensor_missing_ratio_total": 0.0,
+      "Ax_mean": 3.6461955683790133,
+      "Ax_std": 5.726751569892247,
+      "Ax_min": -19.479350402618408,
+      "Ax_max": 30.10013550904541,
+      "Ay_mean": 2.3344289841621904,
+      "Ay_std": 4.176611713125069,
+      "Ay_min": -25.150272017175293,
+      "Ay_max": 31.362947597888184,
+      "Az_mean": -4.075539470226099,
+      "Az_std": 3.7574368987805222,
+      "Az_min": -31.188915473413086,
+      "Az_max": 14.485230093060302,
+      "Gx_mean": 0.7159192164076109,
+      "Gx_std": 50.526103066764605,
+      "Gx_min": -558.6641235351562,
+      "Gx_max": 670.0330810546875,
+      "Gy_mean": 0.5537303401034962,
+      "Gy_std": 25.82682309941326,
+      "Gy_min": -276.4237060546875,
+      "Gy_max": 278.9208679199219,
+      "Gz_mean": 0.000812544625406904,
+      "Gz_std": 29.542026053952043,
+      "Gz_min": -317.77374267578125,
+      "Gz_max": 269.8420715332031,
+      "timestamp_column": "true_time",
+      "timestamp_invalid_count": 0,
+      "timestamp_invalid_ratio": 0.0,
+      "duplicate_timestamp_count": 0,
+      "duplicate_timestamp_ratio": 0.0,
+      "non_positive_timestamp_gap_count": 0,
+      "timestamp_gap_seconds_mean": 0.021010745738062532,
+      "timestamp_gap_seconds_median": 0.02,
+      "timestamp_gap_seconds_min": 0.02,
+      "timestamp_gap_seconds_max": 11.5,
+      "large_timestamp_gap_count": 338,
+      "actual_frequency_hz": 50.0,
+      "mean_frequency_hz": 47.59469332820612,
+      "sampling_frequency_deviation_ratio": 0.0,
+      "accel_abs_max_for_unit_detection": 31.362947597888184,
+      "accel_magnitude_median_for_unit_detection": 9.754419083314033,
+      "accel_magnitude_max_for_unit_detection": 35.34061972025648,
+      "acceleration_unit_detected": "m/s2",
+      "max_acceleration_milliG_equivalent": 5098.581064889641,
+      "Ax_max_abs": 30.10013550904541,
+      "Ay_max_abs": 31.362947597888184,
+      "Az_max_abs": 31.188915473413086,
+      "Gx_max_abs": 670.0330810546875,
+      "Gx_clipped_count": 2,
+      "Gx_clipped_ratio": 2.0198551763838533e-05,
+      "Gy_max_abs": 278.9208679199219,
+      "Gz_max_abs": 317.77374267578125
+    }
+  },
+  "transformation": {
+    "production_X_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\production_X.npy",
+    "metadata_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\production_metadata.json",
+    "n_windows": 989,
+    "window_size": 200,
+    "unit_conversion_applied": false,
+    "preprocessing_timestamp": "2026-05-28T12:26:29.895313",
+    "transformation_report_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\transformation_report.json",
+    "channel_order": [
+      "Ax",
+      "Ay",
+      "Az",
+      "Gx",
+      "Gy",
+      "Gz"
+    ],
+    "has_labels": true,
+    "normalization_applied": true,
+    "scaler_path": "models\\runtime_contract\\model_d1_final_20260528\\garmin_train_scaler.json",
+    "unit_conversion_factor": null,
+    "model_input_space": "zscore_scaled",
+    "gravity_removal_applied": false,
+    "calibration_applied": false,
+    "production_y_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\production_y.npy"
+  },
+  "inference": {
+    "predictions_csv_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\predictions\\predictions_20260528_122630.csv",
+    "predictions_npy_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\predictions\\production_predictions_fresh.npy",
+    "probabilities_npy_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\predictions\\predictions_20260528_122630_probs.npy",
+    "metadata_json_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\predictions\\predictions_20260528_122630_metadata.json",
+    "inference_report_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\predictions\\inference_report.json",
+    "n_predictions": 989,
+    "inference_time_seconds": 1.5071858000001157,
+    "model_version": "finetuned_1DCNNBILSTM_HAR_model",
+    "active_model_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\models\\runtime_contract\\model_d1_final_20260528\\finetuned_1DCNNBILSTM_HAR_model.keras",
+    "model_md5": "00bd4ee37541f9edb7d822e4371ae0f5",
+    "activity_distribution": {
+      "hand_tapping": 161,
+      "knuckles_cracking": 148,
+      "nape_rubbing": 104,
+      "smoking": 99,
+      "ear_rubbing": 98,
+      "hand_scratching": 98,
+      "forehead_rubbing": 82,
+      "sitting": 63,
+      "nail_biting": 61,
+      "hair_pulling": 57,
+      "standing": 18
+    },
+    "confidence_stats": {
+      "mean": 0.8459450901308002,
+      "std": 0.19709903029551978,
+      "min": 0.19214822351932526,
+      "median": 0.9556326270103455,
+      "max": 0.9999997615814209
+    },
+    "entropy_stats": {
+      "mean": 0.43886249162633606,
+      "std": 0.4874977247061518,
+      "min": 3.954894054913893e-06,
+      "median": 0.22568067908287048,
+      "max": 2.1003496646881104
+    },
+    "top2_margin_stats": {
+      "mean": 0.7496058611525082,
+      "std": 0.31592534463558253,
+      "min": 0.00010162591934204102,
+      "median": 0.924629807472229,
+      "max": 0.9999997019767761
+    },
+    "dominant_class": "hand_tapping",
+    "dominant_pct": 16.27906976744186,
+    "collapse_level": "NONE"
+  },
+  "evaluation": {
+    "report_json_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\outputs\\evaluation\\evaluation_20260528_122635.json",
+    "report_text_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\outputs\\evaluation\\evaluation_20260528_122635.txt",
+    "distribution_summary": {
+      "hand_tapping": {
+        "count": 161,
+        "percentage": 16.27906976744186
+      },
+      "knuckles_cracking": {
+        "count": 148,
+        "percentage": 14.964610717896864
+      },
+      "nape_rubbing": {
+        "count": 104,
+        "percentage": 10.51567239635996
+      },
+      "smoking": {
+        "count": 99,
+        "percentage": 10.010111223458038
+      },
+      "ear_rubbing": {
+        "count": 98,
+        "percentage": 9.908998988877654
+      },
+      "hand_scratching": {
+        "count": 98,
+        "percentage": 9.908998988877654
+      },
+      "forehead_rubbing": {
+        "count": 82,
+        "percentage": 8.291203235591507
+      },
+      "sitting": {
+        "count": 63,
+        "percentage": 6.370070778564206
+      },
+      "nail_biting": {
+        "count": 61,
+        "percentage": 6.167846309403438
+      },
+      "hair_pulling": {
+        "count": 57,
+        "percentage": 5.763397371081901
+      },
+      "standing": {
+        "count": 18,
+        "percentage": 1.820020222446916
+      }
+    },
+    "confidence_summary": {
+      "mean": 0.8459450901308002,
+      "std": 0.19719875154161423,
+      "min": 0.1921482235193252,
+      "max": 0.9999997615814208,
+      "median": 0.9556326270103456,
+      "q25": 0.7204552292823792,
+      "q75": 0.9978964328765868,
+      "per_class": {
+        "sitting": 0.9592392969699133,
+        "hand_tapping": 0.9226532297104783,
+        "smoking": 0.8752066255217851,
+        "forehead_rubbing": 0.8474801128230444,
+        "nape_rubbing": 0.843406617641449,
+        "ear_rubbing": 0.8308285514310915,
+        "knuckles_cracking": 0.8247295900977947,
+        "nail_biting": 0.8221955103952376,
+        "standing": 0.7749039149946637,
+        "hair_pulling": 0.7642268162024649,
+        "hand_scratching": 0.7414595156299825
+      },
+      "levels": {
+        "HIGH": 590,
+        "MODERATE": 169,
+        "LOW": 138,
+        "UNCERTAIN": 92
+      }
+    },
+    "has_labels": true,
+    "classification_metrics": {
+      "accuracy": 0.36703741152679475,
+      "precision_macro": 0.3960235789029087,
+      "recall_macro": 0.3688952662497061,
+      "f1_macro": 0.35116277429137904,
+      "per_class": {
+        "ear_rubbing": {
+          "precision": 0.4387755102040816,
+          "recall": 0.48314606741573035,
+          "f1-score": 0.45989304812834225,
+          "support": 89.0
+        },
+        "forehead_rubbing": {
+          "precision": 0.4024390243902439,
+          "recall": 0.3793103448275862,
+          "f1-score": 0.3905325443786982,
+          "support": 87.0
+        },
+        "hair_pulling": {
+          "precision": 0.08771929824561403,
+          "recall": 0.054945054945054944,
+          "f1-score": 0.06756756756756757,
+          "support": 91.0
+        },
+        "hand_scratching": {
+          "precision": 0.12244897959183673,
+          "recall": 0.13043478260869565,
+          "f1-score": 0.12631578947368421,
+          "support": 92.0
+        },
+        "hand_tapping": {
+          "precision": 0.5093167701863354,
+          "recall": 0.9111111111111111,
+          "f1-score": 0.6533864541832669,
+          "support": 90.0
+        },
+        "knuckles_cracking": {
+          "precision": 0.3783783783783784,
+          "recall": 0.6292134831460674,
+          "f1-score": 0.47257383966244726,
+          "support": 89.0
+        },
+        "nail_biting": {
+          "precision": 0.19672131147540983,
+          "recall": 0.13333333333333333,
+          "f1-score": 0.15894039735099338,
+          "support": 90.0
+        },
+        "nape_rubbing": {
+          "precision": 0.16346153846153846,
+          "recall": 0.1827956989247312,
+          "f1-score": 0.17258883248730963,
+          "support": 93.0
+        },
+        "sitting": {
+          "precision": 0.9206349206349206,
+          "recall": 0.651685393258427,
+          "f1-score": 0.7631578947368421,
+          "support": 89.0
+        },
+        "smoking": {
+          "precision": 0.30303030303030304,
+          "recall": 0.3333333333333333,
+          "f1-score": 0.31746031746031744,
+          "support": 90.0
+        },
+        "standing": {
+          "precision": 0.8333333333333334,
+          "recall": 0.16853932584269662,
+          "f1-score": 0.2803738317757009,
+          "support": 89.0
+        },
+        "accuracy": 0.36703741152679475,
+        "macro avg": {
+          "precision": 0.3960235789029087,
+          "recall": 0.3688952662497061,
+          "f1-score": 0.35116277429137904,
+          "support": 989.0
+        },
+        "weighted avg": {
+          "precision": 0.39343569845396564,
+          "recall": 0.36703741152679475,
+          "f1-score": 0.34918252370576613,
+          "support": 989.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          43,
+          5,
+          16,
+          18,
+          0,
+          3,
+          0,
+          1,
+          0,
+          3,
+          0
+        ],
+        [
+          14,
+          33,
+          0,
+          16,
+          0,
+          2,
+          0,
+          12,
+          0,
+          10,
+          0
+        ],
+        [
+          1,
+          1,
+          5,
+          9,
+          15,
+          44,
+          2,
+          9,
+          0,
+          5,
+          0
+        ],
+        [
+          0,
+          2,
+          2,
+          12,
+          26,
+          8,
+          0,
+          37,
+          4,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          82,
+          2,
+          0,
+          6,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          1,
+          3,
+          11,
+          0,
+          56,
+          0,
+          15,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          23,
+          2,
+          3,
+          0,
+          0,
+          12,
+          0,
+          0,
+          46,
+          0
+        ],
+        [
+          2,
+          3,
+          5,
+          24,
+          7,
+          30,
+          2,
+          17,
+          0,
+          3,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          30,
+          1,
+          0,
+          0,
+          58,
+          0,
+          0
+        ],
+        [
+          5,
+          4,
+          0,
+          4,
+          0,
+          0,
+          44,
+          0,
+          0,
+          30,
+          3
+        ],
+        [
+          26,
+          10,
+          24,
+          1,
+          1,
+          2,
+          1,
+          7,
+          1,
+          1,
+          15
+        ]
+      ]
+    },
+    "distribution_dominance_warning": false,
+    "dominant_pct": 16.27906976744186,
+    "dominant_class": "hand_tapping"
+  },
+  "monitoring": {
+    "monitoring_report": {
+      "overall_status": "WARNING",
+      "layer1_confidence": {
+        "mean_confidence": 0.8459450901308002,
+        "std_confidence": 0.19719875154161423,
+        "min_confidence": 0.1921482235193252,
+        "max_confidence": 0.9999997615814208,
+        "confidence_warn_threshold": 0.7,
+        "uncertain_pct_threshold": 20.0,
+        "uncertain_count": 92,
+        "uncertain_percentage": 9.30232558139535,
+        "entropy_source": "stage4_prediction_csv",
+        "mean_entropy": 0.43886249162633606,
+        "top2_margin_mean": 0.7496058611525082,
+        "top2_margin_std": 0.31608518544754716,
+        "top2_margin_min": 0.000101625919342,
+        "top2_margin_max": 0.999999701976776,
+        "dominant_class": "hand_tapping",
+        "dominant_pct": 16.27906976744186,
+        "dominant_class_warn_threshold": 85.0,
+        "dominant_class_critical_threshold": 95.0,
+        "dominance_warning": false,
+        "dominance_critical": false,
+        "status": "HEALTHY"
+      },
+      "layer2_temporal": {
+        "total_windows": 989,
+        "transitions": 401,
+        "transition_rate": 40.587044534412954,
+        "transition_rate_threshold": 35.0,
+        "longest_sequences": {
+          "hair_pulling": 4,
+          "knuckles_cracking": 22,
+          "ear_rubbing": 7,
+          "hand_scratching": 10,
+          "forehead_rubbing": 13,
+          "smoking": 13,
+          "nape_rubbing": 10,
+          "hand_tapping": 52,
+          "nail_biting": 10,
+          "sitting": 53,
+          "standing": 6
+        },
+        "mean_dwell_time_seconds": 6.920398009950249,
+        "window_duration_seconds": 4.0,
+        "prediction_stride_seconds": 2.0,
+        "short_dwell_ratio": 0.7487562189054726,
+        "status": "WARNING",
+        "alert": "High transition rate: 40.6% > 35.0% (possible noise)",
+        "motion_context": {
+          "status": "HEALTHY",
+          "production_data_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\production_X.npy",
+          "input_shape": [
+            989,
+            200,
+            6
+          ],
+          "channel_order": [
+            "Ax",
+            "Ay",
+            "Az",
+            "Gx",
+            "Gy",
+            "Gz"
+          ],
+          "g_mag_median": 1.1139750616607227,
+          "g_mag_mean": 1.8736959714332277,
+          "g_mag_std": 2.2130551233787616,
+          "g_mag_p05": 0.030693627616335668,
+          "g_mag_p95": 6.529121467571127,
+          "a_mag_median": 1.710770690762037,
+          "a_mag_mean": 1.6682399503821135,
+          "accel_axis_mean": {
+            "Ax": 0.06563683297936546,
+            "Ay": 0.24195471573766972,
+            "Az": -0.16730300511483068
+          },
+          "accel_axis_std": {
+            "Ax": 0.8721143020189678,
+            "Ay": 0.9602212568076318,
+            "Az": 1.1603652284687116
+          },
+          "gyro_axis_mean": {
+            "Gx": 0.002936096795361354,
+            "Gy": 0.021317528623829303,
+            "Gz": -0.0070005261312879215
+          },
+          "gyro_axis_std": {
+            "Gx": 1.0109699484275365,
+            "Gy": 1.7439708613736116,
+            "Gz": 2.0843087356428396
+          },
+          "gravity_dominant_axis": "Ay",
+          "gravity_dominant_axis_value": 0.24195471573766972,
+          "low_gyro_motion_threshold": 1.1,
+          "low_motion_dominance_threshold": 70.0,
+          "dominant_pct": 16.27906976744186,
+          "low_gyro_motion": false,
+          "low_motion_collapse_risk": false,
+          "threshold_note": "G_mag threshold is an empirical separator from the 28-session audit, not a universal HAR constant."
+        }
+      },
+      "layer3_drift": {
+        "production_mean": [
+          0.06563511490821838,
+          0.24195605516433716,
+          -0.16730287671089172,
+          0.0029361359775066376,
+          0.021317509934306145,
+          -0.00700044259428978
+        ],
+        "production_std": [
+          0.8721082210540771,
+          0.9601337909698486,
+          1.1603267192840576,
+          1.0108702182769775,
+          1.7437727451324463,
+          2.0841007232666016
+        ],
+        "baseline_mean": [
+          0.0034187885466963053,
+          -0.0014310197439044714,
+          0.0017724188510328531,
+          0.0006973166600801051,
+          0.00034950143890455365,
+          0.0007348897051997483
+        ],
+        "baseline_std": [
+          0.9994744658470154,
+          0.9986394047737122,
+          0.9984093904495239,
+          0.9955504536628723,
+          0.9869174361228943,
+          0.9796686172485352
+        ],
+        "max_drift": 0.243718674936731,
+        "aggregate_drift_score": 0.243718674936731,
+        "per_channel_metrics": {
+          "channel_0": {
+            "drift_zscore": 0.062249039735403126,
+            "psi": 0.062249039735403126
+          },
+          "channel_1": {
+            "drift_zscore": 0.243718674936731,
+            "psi": 0.243718674936731
+          },
+          "channel_2": {
+            "drift_zscore": 0.16934465509419291,
+            "psi": 0.16934465509419291
+          },
+          "channel_3": {
+            "drift_zscore": 0.0022488255484200887,
+            "psi": 0.0022488255484200887
+          },
+          "channel_4": {
+            "drift_zscore": 0.02124595991060288,
+            "psi": 0.02124595991060288
+          },
+          "channel_5": {
+            "drift_zscore": 0.007895866096288829,
+            "psi": 0.007895866096288829
+          }
+        },
+        "n_drifted_channels": 0,
+        "status": "HEALTHY",
+        "drift_detector": "zscore_mean_shift"
+      },
+      "alerts": [
+        "High transition rate: 40.6% > 35.0% (possible noise)"
+      ],
+      "metadata": {
+        "total_predictions": 989,
+        "predictions_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\predictions\\predictions_20260528_122630.csv",
+        "baseline_path": "models\\runtime_contract\\model_d1_final_20260528\\garmin_train_scaled_baseline.json"
+      },
+      "collapse_signals": {
+        "dominance_warning": false,
+        "dominant_class": "hand_tapping",
+        "dominant_pct": 16.27906976744186,
+        "mean_confidence": 0.8459450901308002,
+        "transition_rate": 0.4058704453441296,
+        "longest_sequence_length": 53.0,
+        "collapse_level": "NONE",
+        "top2_margin_mean": 0.7496058611525082,
+        "low_gyro_motion": false,
+        "low_motion_collapse_risk": false,
+        "g_mag_median": 1.1139750616607227,
+        "g_mag_mean": 1.8736959714332277,
+        "gravity_dominant_axis": "Ay",
+        "gravity_dominant_axis_value": 0.24195471573766972
+      },
+      "drift_monitor_chunked": {
+        "status": "OK",
+        "chunk_size": 500,
+        "n_chunks": 2,
+        "max_psi_overall": 1.480577313436351,
+        "drift_detected": true,
+        "action_recommended": "TRIGGER_RETRAINING_GATE",
+        "chunks": [
+          {
+            "timestamp": "2026-05-28T12:26:35.183379",
+            "n_windows_checked": 500,
+            "max_psi": 1.480577313436351,
+            "psi_per_channel": {
+              "Ax": 1.480577313436351,
+              "Ay": 0.14852259223408185,
+              "Az": 0.3180313575268381,
+              "Gx": 0.6019238617880396,
+              "Gy": 0.5881603225522258,
+              "Gz": 0.5984634089843797
+            },
+            "post_z_mean_per_channel": {
+              "Ax": 0.28173744678497314,
+              "Ay": 0.3267422914505005,
+              "Az": -0.36675530672073364,
+              "Gx": -0.0031936096493154764,
+              "Gy": -0.007673339918255806,
+              "Gz": 0.013552243821322918
+            },
+            "post_z_std_per_channel": {
+              "Ax": 0.5556743741035461,
+              "Ay": 0.9802157282829285,
+              "Az": 1.2499561309814453,
+              "Gx": 1.1218355894088745,
+              "Gy": 1.6188209056854248,
+              "Gz": 2.272336006164551
+            },
+            "post_z_alert_per_channel": {
+              "Ax": false,
+              "Ay": true,
+              "Az": true,
+              "Gx": false,
+              "Gy": true,
+              "Gz": true
+            },
+            "mean_confidence": 0.8571906685829163,
+            "entropy_mean": 0.4084908962249756,
+            "entropy_threshold_p95": NaN,
+            "drift_detected": true,
+            "action_recommended": "TRIGGER_RETRAINING_GATE",
+            "chunk_start": 0,
+            "chunk_end": 500
+          },
+          {
+            "timestamp": "2026-05-28T12:26:35.190205",
+            "n_windows_checked": 489,
+            "max_psi": 0.7935573056028769,
+            "psi_per_channel": {
+              "Ax": 0.7935573056028769,
+              "Ay": 0.4094731258550913,
+              "Az": 0.18624432043978453,
+              "Gx": 0.03761785861771148,
+              "Gy": 0.09091106584550285,
+              "Gz": 0.06407932715674639
+            },
+            "post_z_mean_per_channel": {
+              "Ax": -0.15532493591308594,
+              "Ay": 0.1552598625421524,
+              "Az": 0.03663594275712967,
+              "Gx": 0.009203690104186535,
+              "Gy": 0.05096054449677467,
+              "Gz": -0.028015628457069397
+            },
+            "post_z_std_per_channel": {
+              "Ax": 1.061123013496399,
+              "Ay": 0.9313900470733643,
+              "Az": 1.0214595794677734,
+              "Gx": 0.8832942247390747,
+              "Gy": 1.8627980947494507,
+              "Gz": 1.8723981380462646
+            },
+            "post_z_alert_per_channel": {
+              "Ax": false,
+              "Ay": false,
+              "Az": false,
+              "Gx": false,
+              "Gy": true,
+              "Gz": true
+            },
+            "mean_confidence": 0.8344465494155884,
+            "entropy_mean": 0.46991726756095886,
+            "entropy_threshold_p95": NaN,
+            "drift_detected": true,
+            "action_recommended": "TRIGGER_RETRAINING_GATE",
+            "chunk_start": 500,
+            "chunk_end": 989
+          }
+        ]
+      }
+    },
+    "overall_status": "WARNING",
+    "layer1_confidence": {
+      "mean_confidence": 0.8459450901308002,
+      "std_confidence": 0.19719875154161423,
+      "min_confidence": 0.1921482235193252,
+      "max_confidence": 0.9999997615814208,
+      "confidence_warn_threshold": 0.7,
+      "uncertain_pct_threshold": 20.0,
+      "uncertain_count": 92,
+      "uncertain_percentage": 9.30232558139535,
+      "entropy_source": "stage4_prediction_csv",
+      "mean_entropy": 0.43886249162633606,
+      "top2_margin_mean": 0.7496058611525082,
+      "top2_margin_std": 0.31608518544754716,
+      "top2_margin_min": 0.000101625919342,
+      "top2_margin_max": 0.999999701976776,
+      "dominant_class": "hand_tapping",
+      "dominant_pct": 16.27906976744186,
+      "dominant_class_warn_threshold": 85.0,
+      "dominant_class_critical_threshold": 95.0,
+      "dominance_warning": false,
+      "dominance_critical": false,
+      "status": "HEALTHY"
+    },
+    "layer2_temporal": {
+      "total_windows": 989,
+      "transitions": 401,
+      "transition_rate": 40.587044534412954,
+      "transition_rate_threshold": 35.0,
+      "longest_sequences": {
+        "hair_pulling": 4,
+        "knuckles_cracking": 22,
+        "ear_rubbing": 7,
+        "hand_scratching": 10,
+        "forehead_rubbing": 13,
+        "smoking": 13,
+        "nape_rubbing": 10,
+        "hand_tapping": 52,
+        "nail_biting": 10,
+        "sitting": 53,
+        "standing": 6
+      },
+      "mean_dwell_time_seconds": 6.920398009950249,
+      "window_duration_seconds": 4.0,
+      "prediction_stride_seconds": 2.0,
+      "short_dwell_ratio": 0.7487562189054726,
+      "status": "WARNING",
+      "alert": "High transition rate: 40.6% > 35.0% (possible noise)",
+      "motion_context": {
+        "status": "HEALTHY",
+        "production_data_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\data\\prepared\\production_X.npy",
+        "input_shape": [
+          989,
+          200,
+          6
+        ],
+        "channel_order": [
+          "Ax",
+          "Ay",
+          "Az",
+          "Gx",
+          "Gy",
+          "Gz"
+        ],
+        "g_mag_median": 1.1139750616607227,
+        "g_mag_mean": 1.8736959714332277,
+        "g_mag_std": 2.2130551233787616,
+        "g_mag_p05": 0.030693627616335668,
+        "g_mag_p95": 6.529121467571127,
+        "a_mag_median": 1.710770690762037,
+        "a_mag_mean": 1.6682399503821135,
+        "accel_axis_mean": {
+          "Ax": 0.06563683297936546,
+          "Ay": 0.24195471573766972,
+          "Az": -0.16730300511483068
+        },
+        "accel_axis_std": {
+          "Ax": 0.8721143020189678,
+          "Ay": 0.9602212568076318,
+          "Az": 1.1603652284687116
+        },
+        "gyro_axis_mean": {
+          "Gx": 0.002936096795361354,
+          "Gy": 0.021317528623829303,
+          "Gz": -0.0070005261312879215
+        },
+        "gyro_axis_std": {
+          "Gx": 1.0109699484275365,
+          "Gy": 1.7439708613736116,
+          "Gz": 2.0843087356428396
+        },
+        "gravity_dominant_axis": "Ay",
+        "gravity_dominant_axis_value": 0.24195471573766972,
+        "low_gyro_motion_threshold": 1.1,
+        "low_motion_dominance_threshold": 70.0,
+        "dominant_pct": 16.27906976744186,
+        "low_gyro_motion": false,
+        "low_motion_collapse_risk": false,
+        "threshold_note": "G_mag threshold is an empirical separator from the 28-session audit, not a universal HAR constant."
+      }
+    },
+    "layer3_drift": {
+      "production_mean": [
+        0.06563511490821838,
+        0.24195605516433716,
+        -0.16730287671089172,
+        0.0029361359775066376,
+        0.021317509934306145,
+        -0.00700044259428978
+      ],
+      "production_std": [
+        0.8721082210540771,
+        0.9601337909698486,
+        1.1603267192840576,
+        1.0108702182769775,
+        1.7437727451324463,
+        2.0841007232666016
+      ],
+      "baseline_mean": [
+        0.0034187885466963053,
+        -0.0014310197439044714,
+        0.0017724188510328531,
+        0.0006973166600801051,
+        0.00034950143890455365,
+        0.0007348897051997483
+      ],
+      "baseline_std": [
+        0.9994744658470154,
+        0.9986394047737122,
+        0.9984093904495239,
+        0.9955504536628723,
+        0.9869174361228943,
+        0.9796686172485352
+      ],
+      "max_drift": 0.243718674936731,
+      "aggregate_drift_score": 0.243718674936731,
+      "per_channel_metrics": {
+        "channel_0": {
+          "drift_zscore": 0.062249039735403126,
+          "psi": 0.062249039735403126
+        },
+        "channel_1": {
+          "drift_zscore": 0.243718674936731,
+          "psi": 0.243718674936731
+        },
+        "channel_2": {
+          "drift_zscore": 0.16934465509419291,
+          "psi": 0.16934465509419291
+        },
+        "channel_3": {
+          "drift_zscore": 0.0022488255484200887,
+          "psi": 0.0022488255484200887
+        },
+        "channel_4": {
+          "drift_zscore": 0.02124595991060288,
+          "psi": 0.02124595991060288
+        },
+        "channel_5": {
+          "drift_zscore": 0.007895866096288829,
+          "psi": 0.007895866096288829
+        }
+      },
+      "n_drifted_channels": 0,
+      "status": "HEALTHY",
+      "drift_detector": "zscore_mean_shift"
+    },
+    "report_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\outputs\\monitoring\\monitoring_report.json"
+  },
+  "trigger": {
+    "should_retrain": false,
+    "action": "review",
+    "alert_level": "WARNING",
+    "reasons": [
+      "REVIEW_REQUIRED: 13 consecutive warnings \u2014 label/QA gate required before retraining is queued.",
+      "Continue monitoring.",
+      "No immediate action required.",
+      "Watch for additional signals before escalating."
+    ],
+    "cooldown_active": false,
+    "decision": "LABEL_QA_REQUIRED",
+    "auto_retrain": false,
+    "review_required": true,
+    "label_required": true,
+    "qa_required": true,
+    "required_next_steps": []
+  },
+  "retraining": {
+    "retrained_model_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\models\\retrained\\retrained_model.keras",
+    "scaler_config_path": null,
+    "training_report": {
+      "final_accuracy": 0.0,
+      "final_loss": 3.0597262382507324,
+      "val_accuracy": 0.17325228452682495,
+      "val_loss": 2.110957145690918,
+      "test_accuracy": 0.0,
+      "test_loss": 3.0597262382507324,
+      "f1_macro_val": 0.07075079980940713,
+      "f1_macro_test": 0.0,
+      "f1_weighted_val": 0.1503552719972673,
+      "f1_weighted_test": 0.0,
+      "cohen_kappa_val": 0.09809415345541772,
+      "cohen_kappa_test": -0.01947764497565263,
+      "best_epoch": 2,
+      "fit_users": [
+        701
+      ],
+      "val_users": [
+        702
+      ],
+      "test_users": [
+        703
+      ],
+      "window_size": 200,
+      "step_size": 100
+    },
+    "metrics": {
+      "final_accuracy": 0.0,
+      "final_loss": 3.0597262382507324,
+      "val_accuracy": 0.17325228452682495,
+      "val_loss": 2.110957145690918,
+      "test_accuracy": 0.0,
+      "test_loss": 3.0597262382507324,
+      "f1_macro_val": 0.07075079980940713,
+      "f1_macro_test": 0.0,
+      "f1_weighted_val": 0.1503552719972673,
+      "f1_weighted_test": 0.0,
+      "cohen_kappa_val": 0.09809415345541772,
+      "cohen_kappa_test": -0.01947764497565263,
+      "best_epoch": 2,
+      "fit_users": [
+        701
+      ],
+      "val_users": [
+        702
+      ],
+      "test_users": [
+        703
+      ],
+      "window_size": 200,
+      "step_size": 100
+    },
+    "n_source_samples": 987,
+    "retraining_timestamp": "2026-05-28T12:26:43.745137"
+  },
+  "registration": {
+    "registered_version": "auto",
+    "is_deployed": false,
+    "is_better_than_current": true,
+    "proxy_metrics": {
+      "final_accuracy": 0.0,
+      "final_loss": 3.0597262382507324,
+      "val_accuracy": 0.17325228452682495,
+      "val_loss": 2.110957145690918,
+      "test_accuracy": 0.0,
+      "test_loss": 3.0597262382507324,
+      "f1_macro_val": 0.07075079980940713,
+      "f1_macro_test": 0.0,
+      "f1_weighted_val": 0.1503552719972673,
+      "f1_weighted_test": 0.0,
+      "cohen_kappa_val": 0.09809415345541772,
+      "cohen_kappa_test": -0.01947764497565263,
+      "best_epoch": 2,
+      "fit_users": [
+        701
+      ],
+      "val_users": [
+        702
+      ],
+      "test_users": [
+        703
+      ],
+      "window_size": 200,
+      "step_size": 100
+    },
+    "previous_version": null,
+    "registry_path": "D:\\study apply\\ML Ops\\MasterArbeit_MLops\\models\\registry"
+  },
+  "baseline_update": {
+    "baseline_path": "artifacts\\20260528_122625\\models\\training_baseline.json",
+    "normalized_baseline_path": "artifacts\\20260528_122625\\models\\normalized_baseline.json",
+    "n_channels": 6,
+    "stats_summary": {
+      "n_channels": 6,
+      "n_samples": 989,
+      "activities": [
+        "ear_rubbing",
+        "forehead_rubbing",
+        "hair_pulling",
+        "hand_scratching",
+        "hand_tapping",
+        "knuckles_cracking",
+        "nail_biting",
+        "nape_rubbing",
+        "sitting",
+        "smoking",
+        "standing"
+      ]
+    },
+    "update_timestamp": "2026-05-28T12:26:44.108276"
+  },
+  "calibration": null
+}

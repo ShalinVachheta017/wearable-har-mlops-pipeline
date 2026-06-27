@@ -112,9 +112,13 @@ class MLflowTracker:
             if experiment is None:
                 experiment_id = mlflow.create_experiment(
                     self.experiment_name,
-                    artifact_location=self.config.get("mlflow", {}).get("artifact_location"),
+                    artifact_location=self.config.get("mlflow", {}).get(
+                        "artifact_location"
+                    ),
                 )
-                logger.info(f"Created new experiment: {self.experiment_name} (ID: {experiment_id})")
+                logger.info(
+                    f"Created new experiment: {self.experiment_name} (ID: {experiment_id})"
+                )
             else:
                 logger.info(
                     f"Using existing experiment: {self.experiment_name} (ID: {experiment.experiment_id})"
@@ -188,7 +192,9 @@ class MLflowTracker:
 
         logger.debug(f"Logged {len(params)} parameters")
 
-    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(
+        self, metrics: Dict[str, float], step: Optional[int] = None
+    ) -> None:
         """
         Log metrics to the current run.
 
@@ -229,7 +235,10 @@ class MLflowTracker:
             logger.error(f"Failed to log artifact {local_path}: {e}")
 
     def log_dict(
-        self, dictionary: Dict[str, Any], filename: str, artifact_path: Optional[str] = None
+        self,
+        dictionary: Dict[str, Any],
+        filename: str,
+        artifact_path: Optional[str] = None,
     ) -> None:
         """
         Log a dictionary as a JSON artifact.
@@ -244,7 +253,9 @@ class MLflowTracker:
             return
 
         try:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False
+            ) as f:
                 json.dump(dictionary, f, indent=2, default=str)
                 temp_path = f.name
 
@@ -270,7 +281,9 @@ class MLflowTracker:
             return
 
         try:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".csv", delete=False
+            ) as f:
                 df.to_csv(f, index=False)
                 temp_path = f.name
 
@@ -280,7 +293,9 @@ class MLflowTracker:
         except Exception as e:
             logger.error(f"Failed to log DataFrame {filename}: {e}")
 
-    def log_figure(self, figure, filename: str, artifact_path: Optional[str] = None) -> None:
+    def log_figure(
+        self, figure, filename: str, artifact_path: Optional[str] = None
+    ) -> None:
         """
         Log a matplotlib figure as an artifact.
 
@@ -372,7 +387,9 @@ class MLflowTracker:
 
         try:
             # Log metrics for each epoch
-            for epoch, metrics in enumerate(zip(*[history.history[k] for k in history.history])):
+            for epoch, metrics in enumerate(
+                zip(*[history.history[k] for k in history.history])
+            ):
                 metric_dict = {k: v for k, v in zip(history.history.keys(), metrics)}
                 self.log_metrics(metric_dict, step=epoch)
 
@@ -383,7 +400,10 @@ class MLflowTracker:
             logger.error(f"Failed to log training history: {e}")
 
     def log_confusion_matrix(
-        self, y_true: np.ndarray, y_pred: np.ndarray, class_names: Optional[List[str]] = None
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        class_names: Optional[List[str]] = None,
     ) -> None:
         """
         Log confusion matrix as an artifact.
@@ -436,7 +456,10 @@ class MLflowTracker:
             logger.error(f"Failed to log confusion matrix: {e}")
 
     def log_classification_report(
-        self, y_true: np.ndarray, y_pred: np.ndarray, class_names: Optional[List[str]] = None
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        class_names: Optional[List[str]] = None,
     ) -> Dict[str, float]:
         """
         Log classification report and return key metrics.
@@ -480,7 +503,9 @@ class MLflowTracker:
             logger.error(f"Failed to log classification report: {e}")
             return {}
 
-    def get_best_run(self, metric: str = "accuracy", ascending: bool = False) -> Optional[Dict]:
+    def get_best_run(
+        self, metric: str = "accuracy", ascending: bool = False
+    ) -> Optional[Dict]:
         """
         Get the best run from the current experiment.
 
@@ -536,7 +561,9 @@ class MLflowTracker:
 # ============================================================================
 
 
-def get_or_create_tracker(experiment_name: str = "anxiety-activity-recognition") -> MLflowTracker:
+def get_or_create_tracker(
+    experiment_name: str = "anxiety-activity-recognition",
+) -> MLflowTracker:
     """
     Get or create a singleton MLflow tracker.
 
@@ -590,7 +617,9 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="MLflow Tracking Utilities")
-    parser.add_argument("--list-experiments", action="store_true", help="List all experiments")
+    parser.add_argument(
+        "--list-experiments", action="store_true", help="List all experiments"
+    )
     parser.add_argument("--list-runs", type=str, help="List runs for an experiment")
     parser.add_argument("--ui", action="store_true", help="Start MLflow UI")
 

@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HAR MLOps Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='86'>&#8986;</text></svg>">
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+    --border: #475569; --text: #e2e8f0; --muted: #94a3b8;
+    --primary: #3b82f6; --primary-hover: #2563eb;
+    --green: #22c55e; --yellow: #eab308; --red: #ef4444;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    min-height: 100vh;
+  }
+  .container { max-width: 1800px; margin: 0 auto; padding: 24px 40px; }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+    border-bottom: 1px solid var(--border); padding: 32px 0;
+    text-align: center;
+  }
+  header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+  header h1 span { color: var(--primary); }
+  header p { color: var(--muted); margin-top: 8px; font-size: 0.95rem; }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+  }
+  .card h2 {
+    font-size: 1.1rem; font-weight: 600; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h2 .icon { font-size: 1.3rem; }
+
+  /* Upload area */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 48px 24px; text-align: center; cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--primary); background: rgba(59,130,246,0.05);
+  }
+  .upload-zone .big-icon { font-size: 3rem; margin-bottom: 12px; }
+  .upload-zone p { color: var(--muted); }
+  .upload-zone .filename { color: var(--primary); font-weight: 600; margin-top: 8px; }
+  #fileInput { display: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--primary); color: #fff; border: none;
+    padding: 12px 28px; border-radius: 8px; font-size: 1rem;
+    font-weight: 600; cursor: pointer; margin-top: 16px;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: var(--primary-hover); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .mode-toggle {
+    display: inline-flex; gap: 4px; background: rgba(15,23,42,0.55);
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px;
+    margin-bottom: 16px;
+  }
+  .mode-toggle button {
+    border: 0; border-radius: 6px; padding: 8px 14px;
+    color: var(--muted); background: transparent; font-weight: 600;
+    cursor: pointer;
+  }
+  .mode-toggle button.active {
+    color: #fff; background: var(--primary);
+  }
+  .upload-panel.hidden-panel { display: none; }
+
+  /* Status bar */
+  .status-bar {
+    display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); border-radius: 20px;
+    padding: 6px 14px; font-size: 0.85rem;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.green { background: var(--green); }
+  .dot.yellow { background: var(--yellow); }
+  .dot.red { background: var(--red); }
+  .dot.gray { background: var(--muted); }
+
+  /* Grid */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+  /* Monitoring pills */
+  .monitor-layers { display: flex; gap: 12px; flex-wrap: wrap; }
+  .layer-pill {
+    flex: 1; min-width: 200px; background: var(--surface2);
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 8px; padding: 16px;
+    box-shadow: 0 10px 28px rgba(2,6,23,0.18);
+  }
+  .layer-pill .label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .layer-pill .value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+  .layer-pill .detail { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+  .layer-pill .explain {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(148,163,184,0.18);
+    color: #cbd5e1; font-size: 0.84rem; line-height: 1.45;
+  }
+  .stat-note {
+    color: var(--muted); font-size: 0.82rem; line-height: 1.4; margin-top: 8px;
+  }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  th, td {
+    padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--surface2);
+    font-size: 0.9rem;
+  }
+  th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  tr:hover { background: rgba(59,130,246,0.04); }
+  .conf-bar {
+    height: 6px; border-radius: 3px; background: var(--surface2);
+    position: relative; overflow: hidden; min-width: 60px;
+  }
+  .conf-bar .fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+  /* Activity summary bars */
+  .activity-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .activity-bar-row .name { min-width: 140px; font-size: 0.85rem; }
+  .activity-bar-row .bar-bg {
+    flex: 1; height: 20px; background: var(--surface2); border-radius: 4px;
+    overflow: hidden;
+  }
+  .activity-bar-row .bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+  .activity-bar-row .count { min-width: 40px; text-align: right; font-size: 0.85rem; color: var(--muted); }
+
+  /* Spinner */
+  .spinner { display: none; margin: 20px auto; }
+  .spinner.active { display: block; }
+  .spinner svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Hidden */
+  .hidden { display: none; }
+
+  /* Info text */
+  .info-box {
+    background: linear-gradient(90deg, rgba(59,130,246,0.14), rgba(34,197,94,0.06));
+    border-left: 3px solid var(--primary);
+    border-radius: 0 8px 8px 0; padding: 12px 16px; margin-top: 16px;
+    font-size: 0.95rem; color: var(--muted);
+  }
+  .mini-explain {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-bottom: 16px;
+  }
+  .mini-explain div {
+    background: rgba(51,65,85,0.55); border: 1px solid rgba(148,163,184,0.18);
+    border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; color: var(--muted);
+  }
+  .mini-explain strong { color: var(--text); }
+  @media (max-width: 768px) { .mini-explain { grid-template-columns: 1fr; } }
+
+  /* Footer */
+  footer {
+    text-align: center; padding: 24px; color: var(--muted);
+    font-size: 0.8rem; border-top: 1px solid var(--surface2); margin-top: 40px;
+  }
+
+  /* Decision card */
+  .decision-badge {
+    display: inline-block; padding: 8px 24px; border-radius: 8px;
+    font-size: 1.4rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 16px;
+  }
+  .decision-badge.review  { background: rgba(234,179,8,0.12); color: var(--yellow); border: 1px solid var(--yellow); }
+  .decision-badge.critical { background: rgba(239,68,68,0.12); color: var(--red); border: 1px solid var(--red); }
+  .decision-badge.no-action { background: rgba(34,197,94,0.12); color: var(--green); border: 1px solid var(--green); }
+  .reason-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 8px 12px; background: var(--surface2); border-radius: 6px; margin-bottom: 6px;
+    font-size: 0.88rem;
+  }
+  .reason-item .ri-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--yellow);
+    margin-top: 5px; flex-shrink: 0;
+  }
+  .retrain-gate {
+    display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px;
+    background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.25);
+    border-radius: 8px; font-size: 0.88rem; color: var(--muted); margin-top: 12px;
+  }
+
+  /* Pipeline stage track */
+  .pipeline-track {
+    display: flex; gap: 0; flex-wrap: wrap; align-items: center;
+    margin-bottom: 20px;
+  }
+  .stage-box {
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; min-width: 80px;
+    text-align: center; position: relative; cursor: default;
+    transition: border-color 0.3s;
+    box-shadow: 0 8px 20px rgba(2,6,23,0.16);
+  }
+  .stage-box.active   { border-color: var(--primary); }
+  .stage-box.pass     { border-color: var(--green); }
+  .stage-box.warn     { border-color: var(--yellow); }
+  .stage-box.fail     { border-color: var(--red); }
+  .stage-box.gated    { opacity: 0.5; }
+  .stage-box.prep     { border-color: var(--primary); opacity: 0.86; }
+  .stage-box .snum    { font-size: 0.7rem; color: var(--muted); }
+  .stage-box .sname   { font-size: 0.78rem; font-weight: 600; margin-top: 2px; }
+  .stage-box .smeta   { font-size: 0.62rem; color: var(--muted); margin-top: 1px; }
+  .stage-box .sdot    { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-top: 6px; }
+  .stage-box.pass .sdot { background: var(--green); }
+  .stage-box.warn .sdot { background: var(--yellow); }
+  .stage-box.fail .sdot { background: var(--red); }
+  .stage-box.active .sdot { background: var(--primary); }
+  .stage-box.prep .sdot { background: var(--primary); }
+  .pipe-arrow { color: var(--muted); padding: 0 4px; font-size: 0.85rem; align-self: center; }
+
+  /* Small button */
+  .btn-sm {
+    background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+    padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  }
+  .btn-sm:hover { background: var(--primary); border-color: var(--primary); }
+
+  /* Confusion matrix heatmap */
+  .cm-table { border-collapse: collapse; font-size: 0.72rem; }
+  .cm-table th, .cm-table td { border: 1px solid var(--surface2); padding: 4px 7px; text-align: center; }
+  .cm-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .cm-cell { color: #f1f5f9; font-variant-numeric: tabular-nums; }
+  .cm-axis { color: var(--muted); font-size: 0.78rem; text-align: left; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>&#x231A; HAR <span>MLOps</span> Dashboard</h1>
+    <p>Upload sensor CSV &rarr; API Inference &rarr; 3-Layer Monitoring &rarr; Results</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Status Bar -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-chip"><div class="dot gray" id="dotModel"></div><span id="statusModel">Checking model…</span></div>
+    <div class="status-chip"><div class="dot gray" id="dotBaseline"></div><span id="statusBaseline">Checking baseline…</span></div>
+    <div class="status-chip"><div class="dot gray" id="dotApi"></div><span id="statusApi">API</span></div>
+  </div>
+
+  <!-- Pipeline Stage Track -->
+  <div class="card" style="padding:16px 20px;">
+    <h2 style="margin-bottom:12px;"><span class="icon">&#x26A1;</span> Pipeline Stages</h2>
+    <div class="pipeline-track" id="stageTrack">
+      <div class="stage-box prep" id="s1" title="API preprocessing merges raw pair/fused input, but the full CLI stage artifact is not created here."><span class="snum">S1</span><span class="sname">Ingest</span><span class="smeta">API prep</span><span class="sdot"></span></div>
+      <span class="pipe-arrow">&#8594;</span>
+      <div class="stage-box prep" id="s2" title="API validates required sensor columns and upload shape before inference."><span class="snum">S2</span><span class="sname">Validate</span><span class="smeta">API prep</span><span class="sdot"></span></div>
+      <span class="pipe-arrow">&#8594;</span>
+      <div class="stage-box prep" id="s3" title="API applies the active training-data scaler and creates windows; full CLI transformation reports are produced by run_pipeline.py."><span class="snum">S3</span><span class="sname">Transform</span><span class="smeta">API prep</span><span class="sdot"></span></div>
+      <span class="pipe-arrow">&#8594;</span>
+      <div class="stage-box" id="s4"><span class="snum">S4</span><span class="sname">Inference</span><span class="sdot"></span></div>
+      <span class="pipe-arrow">&#8594;</span>
+      <div class="stage-box" id="s5" title="Evaluation runs only when the upload includes ground-truth labels."><span class="snum">S5</span><span class="sname">Evaluate</span><span class="sdot"></span></div>
+      <span class="pipe-arrow">&#8594;</span>
+      <div class="stage-box" id="s6"><span class="snum">S6</span><span class="sname">Monitor</span><span class="sdot"></span></div>
+      <span class="pipe-arrow">&#8594;</span>
+      <div class="stage-box" id="s7"><span class="snum">S7</span><span class="sname">Trigger</span><span class="sdot"></span></div>
+      <span class="pipe-arrow" id="arrowRetrain" style="opacity:0.3">&#8594;</span>
+      <div class="stage-box gated" id="s8"><span class="snum">S8</span><span class="sname">Retrain</span><span class="sdot"></span></div>
+      <span class="pipe-arrow" style="opacity:0.3">&#8594;</span>
+      <div class="stage-box gated" id="s9"><span class="snum">S9</span><span class="sname">Register</span><span class="sdot"></span></div>
+      <span class="pipe-arrow" style="opacity:0.3">&#8594;</span>
+      <div class="stage-box gated" id="s10"><span class="snum">S10</span><span class="sname">Baseline</span><span class="sdot"></span></div>
+    </div>
+    <p style="font-size:0.86rem;color:var(--muted);margin-top:6px;">API preprocessing covers S1-S3 logic, while official stage artifacts are created by the full CLI pipeline. This request executes S4, S6 and S7; S5 evaluation runs only when the upload includes ground-truth labels. S8-S10 stay review-gated and require labeled data plus QA approval.</p>
+  </div>
+
+  <!-- Upload Card -->
+  <div class="card">
+    <h2><span class="icon">&#128228;</span> Upload Sensor Data</h2>
+    <div class="mode-toggle" role="tablist" aria-label="Upload mode">
+      <button type="button" id="modeFused" class="active" onclick="setUploadMode('fused')">Fused CSV</button>
+      <button type="button" id="modePair" onclick="setUploadMode('pair')">Raw accel + gyro pair</button>
+    </div>
+    <div class="upload-panel" id="fusedPanel">
+      <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="big-icon">&#128196;</div>
+        <p><strong>Click or drag &amp; drop</strong> a fused CSV file here</p>
+        <p style="font-size:0.9rem;">Use when accelerometer and gyroscope columns are already in one file.</p>
+        <div class="filename" id="fileName"></div>
+      </div>
+      <input type="file" id="fileInput" accept=".csv">
+    </div>
+    <div class="upload-panel hidden-panel grid" id="pairPanel">
+      <div>
+        <label style="font-size:0.8rem;color:var(--muted);">Accelerometer CSV</label>
+        <input type="file" id="accelInput" accept=".csv" style="width:100%;margin-top:6px;">
+        <div class="filename" id="accelName"></div>
+      </div>
+      <div>
+        <label style="font-size:0.8rem;color:var(--muted);">Gyroscope CSV</label>
+        <input type="file" id="gyroInput" accept=".csv" style="width:100%;margin-top:6px;">
+        <div class="filename" id="gyroName"></div>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:14px;">
+      The API accepts either one fused CSV or one accelerometer + gyroscope pair. It runs API preprocessing, fine-tuned model inference, monitoring, and trigger review; retraining is not performed by this request.
+    </div>
+    <div style="text-align:center;">
+      <button class="btn" id="runBtn" disabled onclick="runInference()">
+        &#9654; Run API Inference &amp; Monitoring
+      </button>
+    </div>
+    <div class="spinner" id="spinner">
+      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" stroke="#3b82f6" stroke-width="4" fill="none" stroke-dasharray="80" stroke-dashoffset="60"/></svg>
+    </div>
+  </div>
+
+  <!-- Results (hidden until inference runs) -->
+  <div id="results" class="hidden">
+
+    <!-- Summary chips -->
+    <div class="card">
+      <h2 style="justify-content:space-between;">
+        <span><span class="icon">&#x1F4CA;</span> Summary</span>
+        <button class="btn-sm" id="downloadBtn" onclick="downloadJson()">&#x2B07; Download JSON</button>
+      </h2>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;" id="summaryChips"></div>
+    </div>
+
+    <!-- Evaluation (only shown when the upload carries ground-truth labels) -->
+    <div class="card hidden" id="evalCard">
+      <h2><span class="icon">&#x1F3AF;</span> Evaluation vs Ground Truth</h2>
+      <div id="evalContent"></div>
+    </div>
+
+    <!-- Monitoring -->
+    <div class="card">
+      <h2><span class="icon">&#x1F6E1;</span> 3-Layer Monitoring</h2>
+      <div class="mini-explain">
+        <div><strong>Confidence</strong><br>Checks whether the model is sure about each window prediction.</div>
+        <div><strong>Temporal</strong><br>Checks whether predictions change too fast across neighboring windows.</div>
+        <div><strong>Drift</strong><br>Checks whether this upload still looks like the baseline built from the training dataset.</div>
+      </div>
+      <div class="monitor-layers" id="monitorLayers"></div>
+    </div>
+
+    <!-- Trigger Decision Card -->
+    <div class="card">
+      <h2><span class="icon">&#x2696;</span> Trigger Decision</h2>
+      <div id="triggerContent"></div>
+    </div>
+
+    <!-- Grid: Activity Distribution + Confidence -->
+    <div class="grid">
+      <div class="card">
+        <h2><span class="icon">&#x1F3C3;</span> Activity Distribution</h2>
+        <div id="activityBars"></div>
+      </div>
+      <div class="card">
+        <h2><span class="icon">&#x1F4C8;</span> Confidence Statistics</h2>
+        <p style="color:var(--muted);font-size:0.9rem;margin-bottom:12px;">Confidence is the model's probability for its selected class per window. These stats summarize certainty across the uploaded recording.</p>
+        <div id="confStats"></div>
+      </div>
+    </div>
+
+    <!-- Predictions table -->
+    <div class="card">
+      <h2><span class="icon">&#x1F4DD;</span> Window Predictions</h2>
+      <div style="max-height:400px;overflow-y:auto;">
+        <table>
+          <thead><tr><th>#</th><th>Activity</th><th>ID</th><th>Confidence</th><th></th></tr></thead>
+          <tbody id="predTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="info-box">
+      <strong>How it works:</strong> Your CSV is split into sliding windows of 200 samples
+      (50% overlap). Each window is classified by a 1D-CNN-BiLSTM model. Then 3-layer
+      monitoring checks confidence, temporal consistency, and distribution drift.
+      High temporal transition rate can mean noisy predictions or genuinely frequent movement changes.
+      Labeled uploads are marked as retraining-eligible, but model mutation remains gated outside this API call.
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  HAR MLOps Pipeline &middot; 1D-CNN-BiLSTM &middot; TensorFlow/Keras
+</footer>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const accelInput = document.getElementById('accelInput');
+const gyroInput = document.getElementById('gyroInput');
+const runBtn = document.getElementById('runBtn');
+const spinner = document.getElementById('spinner');
+let selectedFusedFile = null;
+let selectedAccelFile = null;
+let selectedGyroFile = null;
+let uploadMode = 'fused';
+let lastResult = null;
+
+// Drag & drop
+['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
+['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
+dropZone.addEventListener('drop', ev => { if (ev.dataTransfer.files.length) selectFusedFile(ev.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files.length) selectFusedFile(fileInput.files[0]); });
+accelInput.addEventListener('change', () => { if (accelInput.files.length) selectPairFile('accel', accelInput.files[0]); });
+gyroInput.addEventListener('change', () => { if (gyroInput.files.length) selectPairFile('gyro', gyroInput.files[0]); });
+
+function setUploadMode(mode) {
+  uploadMode = mode;
+  document.getElementById('modeFused').classList.toggle('active', mode === 'fused');
+  document.getElementById('modePair').classList.toggle('active', mode === 'pair');
+  document.getElementById('fusedPanel').classList.toggle('hidden-panel', mode !== 'fused');
+  document.getElementById('pairPanel').classList.toggle('hidden-panel', mode !== 'pair');
+  updateRunButton();
+}
+
+function selectFusedFile(f) {
+  setUploadMode('fused');
+  selectedFusedFile = f;
+  selectedAccelFile = null;
+  selectedGyroFile = null;
+  accelInput.value = '';
+  gyroInput.value = '';
+  document.getElementById('accelName').textContent = '';
+  document.getElementById('gyroName').textContent = '';
+  document.getElementById('fileName').textContent = f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
+  updateRunButton();
+}
+
+function selectPairFile(kind, f) {
+  setUploadMode('pair');
+  selectedFusedFile = null;
+  fileInput.value = '';
+  document.getElementById('fileName').textContent = '';
+  if (kind === 'accel') {
+    selectedAccelFile = f;
+    document.getElementById('accelName').textContent = f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
+  } else {
+    selectedGyroFile = f;
+    document.getElementById('gyroName').textContent = f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
+  }
+  updateRunButton();
+}
+
+function updateRunButton() {
+  runBtn.disabled = uploadMode === 'fused'
+    ? !selectedFusedFile
+    : !(selectedAccelFile && selectedGyroFile);
+}
+
+// Health check on load
+fetch('/api/health').then(r=>r.json()).then(d => {
+  set('dotModel', d.model_loaded ? 'green' : 'red');
+  set('statusModel', d.model_loaded ? 'Model loaded' : 'Model missing');
+  set('dotBaseline', d.baseline_loaded ? 'green' : 'yellow');
+  set('statusBaseline', d.baseline_loaded ? 'Baseline loaded' : 'No baseline');
+  set('dotApi', 'green'); document.getElementById('statusApi').textContent = 'API ready';
+}).catch(() => {
+  set('dotApi', 'red'); document.getElementById('statusApi').textContent = 'API error';
+});
+
+function set(id, cls) {
+  const el = document.getElementById(id);
+  el.className = el.className.replace(/green|yellow|red|gray/g, '').trim() + ' ' + cls;
+}
+
+async function runInference() {
+  if (!(selectedFusedFile || (selectedAccelFile && selectedGyroFile))) return;
+  runBtn.disabled = true;
+  spinner.classList.add('active');
+  document.getElementById('results').classList.add('hidden');
+
+  const fd = new FormData();
+  if (selectedFusedFile) {
+    fd.append('file', selectedFusedFile);
+  } else {
+    fd.append('accelerometer_file', selectedAccelFile);
+    fd.append('gyroscope_file', selectedGyroFile);
+  }
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json();
+      alert('Error: ' + (err.detail || res.statusText));
+      return;
+    }
+    const data = await res.json();
+    renderResults(data);
+  } catch (e) {
+    alert('Request failed: ' + e.message);
+  } finally {
+    updateRunButton();
+    spinner.classList.remove('active');
+  }
+}
+
+function renderEvaluation(d) {
+  const card = document.getElementById('evalCard');
+  if (!d.has_labels) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const ev = d.evaluation;
+  if (!ev || ev.available === false) {
+    document.getElementById('evalContent').innerHTML =
+      '<p style="color:var(--muted);font-size:0.9rem;">A label column' +
+      (d.label_column ? ' ("' + d.label_column + '")' : '') +
+      ' was detected, but its values could not be matched to known activity ' +
+      'classes, so metrics were not computed.</p>';
+    return;
+  }
+  const head = [
+    { label: 'Accuracy', value: (ev.accuracy * 100).toFixed(1) + '%' },
+    { label: 'Macro F1', value: ev.macro_f1.toFixed(3) },
+    { label: 'Weighted F1', value: ev.weighted_f1.toFixed(3) },
+    { label: 'Eval windows', value: ev.n_evaluated_windows + ' / ' + ev.n_total_windows },
+  ];
+  if (ev.accuracy_smoothed != null) {
+    head.splice(2, 0,
+      { label: 'Accuracy (smoothed)', value: (ev.accuracy_smoothed * 100).toFixed(1) + '%' },
+      { label: 'Macro F1 (smoothed)', value: ev.macro_f1_smoothed.toFixed(3) });
+  }
+  let html = '<div class="monitor-layers" style="margin-bottom:16px;">' +
+    head.map(h => '<div class="layer-pill"><div class="label">' + h.label + '</div>' +
+                  '<div class="value">' + h.value + '</div></div>').join('') +
+    '</div>';
+  html += '<p style="color:var(--muted);font-size:0.82rem;margin-bottom:10px;">' +
+          'Window labels assigned by ' + ev.label_basis + '. Per-class metrics:</p>';
+  const scoreColor = v => v >= 0.8 ? 'var(--green)' : v >= 0.5 ? 'var(--yellow)' : 'var(--red)';
+  html += '<div style="max-height:320px;overflow-y:auto;"><table>' +
+          '<thead><tr><th>Activity</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr></thead><tbody>' +
+          ev.per_class.map(c =>
+            '<tr><td>' + c.activity + '</td><td>' + c.precision.toFixed(3) + '</td>' +
+            '<td>' + c.recall.toFixed(3) + '</td>' +
+            '<td style="color:' + scoreColor(c.f1) + ';font-weight:600;">' + c.f1.toFixed(3) + '</td>' +
+            '<td>' + c.support + '</td></tr>'
+          ).join('') +
+          '</tbody></table></div>';
+  html += renderConfusion(ev.confusion_matrix);
+  document.getElementById('evalContent').innerHTML = html;
+}
+
+function renderConfusion(cm) {
+  if (!cm || !cm.labels || !cm.matrix || !cm.matrix.length) return '';
+  const labels = cm.labels, M = cm.matrix;
+  const rowSums = M.map(r => r.reduce((a, b) => a + b, 0));
+  let h = '<p style="color:var(--muted);font-size:0.82rem;margin:18px 0 8px;">' +
+          'Confusion matrix — rows are the true activity, columns are what the model ' +
+          'predicted (cell shade = share of that true class). A strong green diagonal ' +
+          'means correct predictions.</p>';
+  h += '<div style="overflow-x:auto;"><table class="cm-table"><thead><tr>' +
+       '<th class="cm-axis">true \\ pred</th>' +
+       labels.map((_, j) => '<th title="' + labels[j] + '">' + j + '</th>').join('') +
+       '</tr></thead><tbody>';
+  h += M.map((row, i) => {
+    const cells = row.map((v, j) => {
+      const frac = rowSums[i] ? v / rowSums[i] : 0;
+      const base = i === j ? '34,197,94' : '239,68,68';
+      const alpha = v === 0 ? 0 : (0.12 + 0.78 * frac).toFixed(2);
+      return '<td class="cm-cell" style="background:rgba(' + base + ',' + alpha + ')">' + v + '</td>';
+    }).join('');
+    return '<tr><th class="cm-axis" style="white-space:nowrap;">' + i + ' ' + labels[i] + '</th>' + cells + '</tr>';
+  }).join('');
+  h += '</tbody></table></div>';
+  return h;
+}
+
+function renderTrigger(d) {
+  const t = d.monitoring.trigger;
+  if (!t) return;
+  const badgeClass = t.action === 'NO_ACTION' ? 'no-action'
+                   : t.alert_level === 'CRITICAL' ? 'critical' : 'review';
+  let html = '<div class="decision-badge ' + badgeClass + '">' + t.action + '</div>';
+  if (t.reasons.length === 0) {
+    html += '<p style="color:var(--muted);font-size:0.95rem;">All 3 monitoring layers are healthy - no action required.</p>';
+  } else {
+    html += '<p style="font-size:0.95rem;color:var(--muted);margin-bottom:10px;">'
+          + t.n_reasons + ' signal' + (t.n_reasons > 1 ? 's' : '') + ' triggered review:</p>';
+    html += t.reasons.map(r =>
+      '<div class="reason-item"><div class="ri-dot"></div><span>' + explainReason(r) + '</span></div>'
+    ).join('');
+  }
+  html += '<div class="retrain-gate">'
+        + '<span style="color:var(--green);font-size:1.1rem;flex-shrink:0;">&#x1F512;</span>'
+        + '<span><strong>Retraining blocked:</strong> requires labeled data, a qualifying trigger, and human QA approval.</span>'
+        + '</div>';
+  document.getElementById('triggerContent').innerHTML = html;
+}
+
+function explainReason(reason) {
+  if ((reason || '').toLowerCase().includes('transition rate')) {
+    return reason + ' - may indicate noisy predictions or frequent movement changes.';
+  }
+  return reason;
+}
+
+function updateStages(d) {
+  const m = d.monitoring;
+  const stateOf = status => status === 'HEALTHY' || status === 'PASS' ? 'pass'
+                           : status === 'WARNING' ? 'warn'
+                           : status === 'SKIPPED' ? '' : 'fail';
+
+  setStage('s4', 'pass');
+  const evaluated = d.has_labels && d.evaluation && d.evaluation.available !== false;
+  setStage('s5', evaluated ? 'pass' : '');
+  setStage('s6', stateOf(m.overall_status) || 'pass');
+  setStage('s7', m.overall_status !== 'HEALTHY' ? 'warn' : 'pass');
+  document.getElementById('arrowRetrain').style.opacity = '0.3';
+  ['s8','s9','s10'].forEach(id => setStage(id, 'gated'));
+}
+
+function setStage(id, cls) {
+  const el = document.getElementById(id);
+  el.classList.remove('gated','prep','pass','warn','fail','active');
+  if (cls) el.classList.add(cls);
+}
+
+function resetStages() {
+  ['s1','s2','s3'].forEach(id => setStage(id, 'prep'));
+  ['s4','s5','s6','s7'].forEach(id => setStage(id, ''));
+  ['s8','s9','s10'].forEach(id => setStage(id, 'gated'));
+  document.getElementById('arrowRetrain').style.opacity = '0.3';
+}
+
+function downloadJson() {
+  if (!lastResult) return;
+  const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const base = ((lastResult.source_files && lastResult.source_files[0]) || 'results').replace(/\.csv$/i, '');
+  a.download = base + '_har_results.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function renderResults(d) {
+  lastResult = d;
+  document.getElementById('results').classList.remove('hidden');
+  updateStages(d);
+
+  const chips = [
+    { label: 'File', value: d.filename },
+    { label: 'Pipeline path', value: 'API inference flow' },
+    { label: 'Official stages', value: d.has_labels ? 'S4-S7' : 'S4, S6-S7' },
+    { label: 'Mode', value: d.upload_mode },
+    { label: 'Rows', value: d.total_rows.toLocaleString() },
+    { label: 'Windows', value: d.windows_created },
+    { label: 'Time', value: d.processing_time_ms.toFixed(0) + ' ms' },
+    { label: 'Labels', value: d.has_labels ? d.label_column : 'none' },
+    { label: 'Input', value: d.preprocessing.model_input_space || 'raw physical' },
+    { label: 'Monitoring', value: d.monitoring.overall_status,
+      color: d.monitoring.overall_status === 'HEALTHY' ? 'var(--green)'
+           : d.monitoring.overall_status === 'CRITICAL' ? 'var(--red)' : 'var(--yellow)' },
+  ];
+  document.getElementById('summaryChips').innerHTML = chips.map(c =>
+    '<div class="status-chip"><strong>' + c.label + ':</strong>&nbsp;' +
+    '<span style="color:' + (c.color || 'var(--text)') + '">' + c.value + '</span></div>'
+  ).join('');
+
+  renderEvaluation(d);
+
+  const m = d.monitoring;
+  const layers = [
+    { name: 'Confidence', status: m.layer1_confidence.status,
+      value: (m.layer1_confidence.mean_confidence * 100).toFixed(1) + '%',
+      detail: m.layer1_confidence.uncertain_pct.toFixed(1) + '% uncertain',
+      explain: 'Average certainty about the chosen activity, per window. High values mean decisive, trustworthy predictions; a low average, or many uncertain windows, usually means the input does not resemble the training data.' },
+    { name: 'Temporal', status: m.layer2_temporal.status,
+      value: m.layer2_temporal.transition_rate_pct.toFixed(1) + '%',
+      detail: m.layer2_temporal.transitions + ' transitions'
+            + (m.layer2_temporal.status === 'WARNING' ? ' - noisy or fast-changing motion' : '')
+            + (m.layer2_temporal.transition_rate_smoothed_pct != null
+               ? ' · smoothed: ' + m.layer2_temporal.transition_rate_smoothed_pct.toFixed(1) + '%' : ''),
+      explain: 'How often the predicted activity changes between neighbouring 4-second windows. Genuine activities last several windows, so a high rate points to noisy, flickering predictions rather than real motion.'
+             + (m.layer2_temporal.transition_rate_smoothed_pct != null
+                ? ' After ' + m.layer2_temporal.smoothing_window + '-window temporal smoothing (soft vote) the rate falls to '
+                + m.layer2_temporal.transition_rate_smoothed_pct.toFixed(1) + '%, so most flips are single-window jitter rather than real activity changes.' : '') },
+    { name: 'Drift', status: m.layer3_drift.status,
+      value: m.layer3_drift.status === 'SKIPPED' ? 'N/A' : m.layer3_drift.max_drift.toFixed(4),
+      detail: m.layer3_drift.status === 'SKIPPED' ? 'No baseline' : 'max drift z-score',
+      explain: 'How far this upload\'s per-channel sensor statistics sit from the training baseline, in standard deviations. Near zero means it matches training conditions; a large value signals a different device, wear position, or motion profile than the model learned.' },
+  ];
+  document.getElementById('monitorLayers').innerHTML = layers.map(l => {
+    const color = l.status === 'HEALTHY' ? 'var(--green)'
+                : l.status === 'WARNING'  ? 'var(--yellow)'
+                : l.status === 'CRITICAL' ? 'var(--red)' : 'var(--muted)';
+    return '<div class="layer-pill"><div class="label">' + l.name + '</div>' +
+           '<div class="value" style="color:' + color + '">' + l.value + '</div>' +
+           '<div class="detail">' + l.detail + ' &middot; ' + l.status + '</div>' +
+           '<div class="explain">' + l.explain + '</div></div>';
+  }).join('');
+
+  const maxCount = Math.max(...Object.values(d.activity_summary));
+  document.getElementById('activityBars').innerHTML = Object.entries(d.activity_summary).map(([name, count], i) => {
+    const pct = (count / maxCount * 100).toFixed(0);
+    const hue = (i * 32) % 360;
+    return '<div class="activity-bar-row"><span class="name">' + name + '</span>' +
+           '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%;background:hsl(' + hue + ',60%,55%)"></div></div>' +
+           '<span class="count">' + count + '</span></div>';
+  }).join('');
+
+  const cs = d.confidence_stats;
+  const statNotes = {
+    mean: 'Average certainty across all prediction windows.',
+    std: 'Spread of confidence; high values mean certainty varies a lot.',
+    min: 'Lowest window confidence, useful for finding weak segments.',
+    max: 'Highest window confidence observed in this upload.'
+  };
+  document.getElementById('confStats').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+    ['mean','std','min','max'].map(k =>
+      '<div class="layer-pill"><div class="label">' + k + '</div>' +
+      '<div class="value">' + (cs[k]*100).toFixed(1) + '%</div>' +
+      '<div class="stat-note">' + statNotes[k] + '</div></div>'
+    ).join('') + '</div>';
+
+  renderTrigger(d);
+
+  const rows = d.predictions.slice(0, 200);
+  document.getElementById('predTable').innerHTML = rows.map(p => {
+    const pct = (p.confidence * 100).toFixed(1);
+    const barColor = p.confidence >= 0.8 ? 'var(--green)' : p.confidence >= 0.5 ? 'var(--yellow)' : 'var(--red)';
+    return '<tr><td>' + p.window + '</td><td>' + p.activity + '</td><td>' + p.activity_id + '</td>' +
+           '<td>' + pct + '%</td>' +
+           '<td><div class="conf-bar"><div class="fill" style="width:' + pct + '%;background:' + barColor + '"></div></div></td></tr>';
+  }).join('') + (d.predictions.length > 200
+    ? '<tr><td colspan="5" style="text-align:center;color:var(--muted)">… ' + (d.predictions.length - 200) + ' more windows</td></tr>'
+    : '');
+}
+</script>
+</body>
+</html>

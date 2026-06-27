@@ -90,7 +90,9 @@ def apply_overrides(config_obj: Any, section: Dict[str, Any]) -> None:
             continue
         try:
             setattr(config_obj, key, val)
-            logger.debug("Override applied: %s.%s = %r", type(config_obj).__name__, key, val)
+            logger.debug(
+                "Override applied: %s.%s = %r", type(config_obj).__name__, key, val
+            )
         except Exception as exc:  # pragma: no cover
             logger.warning(
                 "Could not apply override %s=%r to %s: %s",

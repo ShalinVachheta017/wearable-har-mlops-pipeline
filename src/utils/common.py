@@ -162,7 +162,9 @@ def load_numpy(path: Union[str, Path]) -> np.ndarray:
     path = Path(path)
     validate_file_exists(path, "NumPy array")
     arr = np.load(path, allow_pickle=False)
-    logger.debug("Loaded NumPy: %s  shape=%s  dtype=%s", path.name, arr.shape, arr.dtype)
+    logger.debug(
+        "Loaded NumPy: %s  shape=%s  dtype=%s", path.name, arr.shape, arr.dtype
+    )
     return arr
 
 

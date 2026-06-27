@@ -55,8 +55,8 @@ jobs:
           pip install -r config/requirements.txt
           pip install pytest pytest-cov
 
-      - name: Run unit tests (exclude slow/integration)
-        run: pytest tests/ -m "not slow and not integration" --junitxml=test-results.xml
+      - name: Run all tests
+        run: pytest tests/ --junitxml=test-results.xml
 
       - name: Upload test results
         if: always()

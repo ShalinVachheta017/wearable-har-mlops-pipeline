@@ -89,7 +89,9 @@ def _load_sensor_file(file_path: Path) -> pd.DataFrame:
         df = pd.read_excel(file_path)
     else:
         raise ValueError(f"Unsupported input format: {file_path.suffix}")
-    logger.info("Loaded %s: %d rows x %d columns", file_path.name, len(df), len(df.columns))
+    logger.info(
+        "Loaded %s: %d rows x %d columns", file_path.name, len(df), len(df.columns)
+    )
     return df
 
 
@@ -116,7 +118,9 @@ def _find_latest_sensor_pair(raw_dir: Path) -> Tuple[Path, Path]:
         raise FileNotFoundError(f"Raw data directory not found: {raw_dir}")
 
     files = [
-        p for p in raw_dir.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_INPUT_SUFFIXES
+        p
+        for p in raw_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in SUPPORTED_INPUT_SUFFIXES
     ]
     accel_files = [p for p in files if "accelerometer" in p.name.lower()]
     gyro_files = [p for p in files if "gyroscope" in p.name.lower()]
@@ -200,7 +204,9 @@ def _dataset_stem_from_source(source_path: Path) -> str:
     return stem
 
 
-def _build_fused_output_path(output_dir: Path, source_path: Path, target_hz: int) -> Path:
+def _build_fused_output_path(
+    output_dir: Path, source_path: Path, target_hz: int
+) -> Path:
     """
     Method Name :   _build_fused_output_path
     Description :   Builds the dataset-specific fused CSV output path.
@@ -307,9 +313,15 @@ def _filter_valid_rows(df: pd.DataFrame) -> pd.DataFrame:
         return df.dropna(how="all").reset_index(drop=True)
 
     lengths = df[list_columns].apply(
-        lambda col: col.map(lambda value: len(value) if isinstance(value, list) else np.nan)
+        lambda col: col.map(
+            lambda value: len(value) if isinstance(value, list) else np.nan
+        )
     )
-    mask = lengths.notna().all(axis=1) & lengths.nunique(axis=1).eq(1) & lengths.iloc[:, 0].gt(0)
+    mask = (
+        lengths.notna().all(axis=1)
+        & lengths.nunique(axis=1).eq(1)
+        & lengths.iloc[:, 0].gt(0)
+    )
     dropped = int((~mask).sum())
     if dropped:
         logger.info("Dropped %d invalid list rows", dropped)
@@ -326,7 +338,9 @@ def _explode_rows(df: pd.DataFrame) -> pd.DataFrame:
     """
     list_columns = [column for column in RAW_SAMPLE_COLUMNS if column in df.columns]
     return (
-        df.explode(list_columns, ignore_index=True) if list_columns else df.reset_index(drop=True)
+        df.explode(list_columns, ignore_index=True)
+        if list_columns
+        else df.reset_index(drop=True)
     )
 
 
@@ -367,7 +381,9 @@ def _create_timestamps(df: pd.DataFrame) -> pd.DataFrame:
         )
         return out
     else:
-        raise ValueError("No timestamp, timestamp_iso, timestamp_ms, or true_time column found")
+        raise ValueError(
+            "No timestamp, timestamp_iso, timestamp_ms, or true_time column found"
+        )
 
     offset_ms = pd.Series(0.0, index=out.index)
     for column in ("timestamp_ms", "sample_time_offset"):
@@ -409,15 +425,21 @@ def _merge_and_resample(
     """
     required_accel = ["true_time", "Ax", "Ay", "Az"]
     required_gyro = ["true_time", "Gx", "Gy", "Gz"]
-    missing_accel = [column for column in required_accel if column not in accel_df.columns]
+    missing_accel = [
+        column for column in required_accel if column not in accel_df.columns
+    ]
     missing_gyro = [column for column in required_gyro if column not in gyro_df.columns]
     if missing_accel or missing_gyro:
         raise ValueError(f"Missing columns: accel={missing_accel}, gyro={missing_gyro}")
 
     accel = accel_df[required_accel].copy()
     gyro = gyro_df[required_gyro].copy()
-    accel[["Ax", "Ay", "Az"]] = accel[["Ax", "Ay", "Az"]].apply(pd.to_numeric, errors="coerce")
-    gyro[["Gx", "Gy", "Gz"]] = gyro[["Gx", "Gy", "Gz"]].apply(pd.to_numeric, errors="coerce")
+    accel[["Ax", "Ay", "Az"]] = accel[["Ax", "Ay", "Az"]].apply(
+        pd.to_numeric, errors="coerce"
+    )
+    gyro[["Gx", "Gy", "Gz"]] = gyro[["Gx", "Gy", "Gz"]].apply(
+        pd.to_numeric, errors="coerce"
+    )
     accel = accel.dropna(subset=required_accel).sort_values("true_time")
     gyro = gyro.dropna(subset=required_gyro).sort_values("true_time")
     if accel.empty or gyro.empty:
@@ -449,7 +471,9 @@ def _merge_and_resample(
     )
     resampled = resampled[["true_time", *SENSOR_COLUMNS]]
     resampled["timestamp_ms"] = resampled["true_time"].astype("int64") // 10**6
-    resampled["timestamp_iso"] = resampled["true_time"].dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
+    resampled["timestamp_iso"] = resampled["true_time"].dt.strftime(
+        "%Y-%m-%dT%H:%M:%S.%f"
+    )
     resampled["true_time"] = resampled["timestamp_iso"]
     logger.info("Resampled to %d Hz: %d rows", target_hz, len(resampled))
     return resampled
@@ -480,7 +504,9 @@ class DataIngestion:
         logger.info("=" * 60)
         logger.info("STAGE 1 - Data Ingestion")
         logger.info("=" * 60)
-        output_dir = Path(self.config.output_dir or self.pipeline_config.data_processed_dir)
+        output_dir = Path(
+            self.config.output_dir or self.pipeline_config.data_processed_dir
+        )
         output_dir.mkdir(parents=True, exist_ok=True)
 
         if self.config.input_csv is not None:
@@ -493,12 +519,16 @@ class DataIngestion:
                 source_type="sensor_pair",
             )
 
-        accel_path, gyro_path = _find_latest_sensor_pair(Path(self.pipeline_config.data_raw_dir))
+        accel_path, gyro_path = _find_latest_sensor_pair(
+            Path(self.pipeline_config.data_raw_dir)
+        )
         return self._ingest_sensor_pair(
             accel_path, gyro_path, output_dir, source_type="auto_discover"
         )
 
-    def _ingest_input_csv(self, input_path: Path, output_dir: Path) -> DataIngestionArtifact:
+    def _ingest_input_csv(
+        self, input_path: Path, output_dir: Path
+    ) -> DataIngestionArtifact:
         """
         Method Name :   _ingest_input_csv
         Description :   Reads direct fused CSV/Excel input and writes fused_<dataset>_50Hz.csv.
@@ -512,7 +542,9 @@ class DataIngestion:
         df = _normalize_columns(_load_sensor_file(input_path), "direct")
         missing = [column for column in SENSOR_COLUMNS if column not in df.columns]
         if missing:
-            raise ValueError(f"Direct input is missing required sensor columns: {missing}")
+            raise ValueError(
+                f"Direct input is missing required sensor columns: {missing}"
+            )
 
         if "true_time" not in df.columns:
             df = _create_timestamps(df)
@@ -530,13 +562,21 @@ class DataIngestion:
             keep_columns.append(label_column)
 
         fused_df = (
-            df[keep_columns].dropna(subset=["true_time", *SENSOR_COLUMNS]).reset_index(drop=True)
+            df[keep_columns]
+            .dropna(subset=["true_time", *SENSOR_COLUMNS])
+            .reset_index(drop=True)
         )
-        output_path = _build_fused_output_path(output_dir, input_path, self.config.target_hz)
+        output_path = _build_fused_output_path(
+            output_dir, input_path, self.config.target_hz
+        )
         fused_df.to_csv(output_path, index=False)
-        source_type = "excel" if input_path.suffix.lower() in {".xlsx", ".xls"} else "csv"
+        source_type = (
+            "excel" if input_path.suffix.lower() in {".xlsx", ".xls"} else "csv"
+        )
         logger.info("Direct input written: %s (%d rows)", output_path, len(fused_df))
-        return self._build_artifact(output_path, fused_df, source_type, input_path, label_column)
+        return self._build_artifact(
+            output_path, fused_df, source_type, input_path, label_column
+        )
 
     def _ingest_sensor_pair(
         self,
@@ -559,7 +599,9 @@ class DataIngestion:
 
         logger.info("Processing accelerometer: %s", accel_path)
         logger.info("Processing gyroscope:     %s", gyro_path)
-        accel_df = self._prepare_raw_sensor(_load_sensor_file(accel_path), "accelerometer")
+        accel_df = self._prepare_raw_sensor(
+            _load_sensor_file(accel_path), "accelerometer"
+        )
         gyro_df = self._prepare_raw_sensor(_load_sensor_file(gyro_path), "gyroscope")
         fused_df = _merge_and_resample(
             accel_df,
@@ -568,10 +610,16 @@ class DataIngestion:
             merge_tolerance_ms=self.config.merge_tolerance_ms,
         )
 
-        output_path = _build_fused_output_path(output_dir, accel_path, self.config.target_hz)
+        output_path = _build_fused_output_path(
+            output_dir, accel_path, self.config.target_hz
+        )
         fused_df.to_csv(output_path, index=False)
-        logger.info("Fused sensor pair written: %s (%d rows)", output_path, len(fused_df))
-        return self._build_artifact(output_path, fused_df, source_type, accel_path, None)
+        logger.info(
+            "Fused sensor pair written: %s (%d rows)", output_path, len(fused_df)
+        )
+        return self._build_artifact(
+            output_path, fused_df, source_type, accel_path, None
+        )
 
     def _build_artifact(
         self,
@@ -612,7 +660,9 @@ class DataIngestion:
         return _rename_axes(
             _create_timestamps(
                 _explode_rows(
-                    _filter_valid_rows(_parse_list_columns(_normalize_columns(df, sensor_type)))
+                    _filter_valid_rows(
+                        _parse_list_columns(_normalize_columns(df, sensor_type))
+                    )
                 )
             ),
             sensor_type,

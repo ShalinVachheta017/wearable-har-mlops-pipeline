@@ -1,80 +1,82 @@
 \chapter{Introduction}
 \label{chap:introduction}
-
 \section{Motivation and Context}
 
-Wearable Human Activity Recognition (HAR) has matured considerably in controlled laboratory settings, where labeled accelerometer and gyroscope data can be collected under stable conditions and evaluated with standard offline metrics. Wrist-worn sensing is especially attractive because it is unobtrusive, inexpensive, and already embedded in consumer devices, making it a plausible basis for practical long-term monitoring applications \cite{lara2013survey}. Prior work on anxiety-displaying activities has further shown that repetitive behaviors such as nail biting, hair pulling, scratching, and tapping can be recognized from wearable motion signals with promising accuracy under supervised conditions \cite{khan2021adamsense}.
+Mental health monitoring is difficult to perform continuously in everyday life. Traditional assessment methods such as clinical interviews, questionnaires, and self-reports provide important clinical information, but they are often episodic, retrospective, and dependent on patient recall. Wearable and mobile sensing technologies offer a complementary path by capturing objective, timestamped physiological and behavioral signals during daily life \cite{abdalrazaq2023wearable,gomes2023mentalhealth,oleh2025ragmentalhealth,shen2025passivesensing}. This makes wearable sensing relevant for continuous mental-health-adjacent monitoring, especially when the aim is to observe behavioral or physiological patterns over time rather than to replace clinical assessment.
 
-However, a strong offline classifier does not by itself constitute a reliable deployed system. When a model leaves the training environment and is exposed to real usage conditions, the data distribution can change because of sensor placement variation, user-specific motion patterns, preprocessing mismatch, or changes in daily context \cite{akbari2020personalizing,wang2024enhancing,dhekane2024transfer}. In such settings, labels are typically unavailable at inference time, and model degradation can remain hidden unless the surrounding system is designed to detect it. The core challenge is therefore not only to achieve high offline performance, but to preserve trustworthy behavior when the model is operated over time under imperfect and shifting conditions.
+Wrist-worn consumer devices are particularly relevant because they are unobtrusive and already widely used. Their inertial measurement units (IMUs), especially accelerometers and gyroscopes, can capture linear and rotational wrist motion. These signals are suitable for Human Activity Recognition (HAR), where short temporal windows of sensor data are mapped to activity classes \cite{lara2013survey,bulling2014tutorial}. In the mental-health context, HAR is useful when the target is not an internal mental state itself, but observable behavioral proxies (externally visible actions that serve as indirect, measurable stand-ins for an internal state that cannot be sensed directly), such as nail biting, hair pulling, hand scratching, hand tapping, rubbing, and other repetitive body-focused movements. Prior work on ADAMSense and related anxiety-displaying activities has shown that such behaviors can be recognized from wearable motion signals under supervised conditions \cite{khan2021adamsense}. A recent Garmin-based study further demonstrates the feasibility of adapting a 1D-CNN-BiLSTM HAR model to commercial smartwatch sensor data for anxiety-related activity recognition \cite{oleh2025recognition}.
 
-This thesis addresses that challenge from an MLOps perspective. The central concern is how to build an offline-first, auditable, and reproducible wearable HAR system in which data ingestion, preprocessing, inference, monitoring, and retraining governance are treated as one coordinated lifecycle rather than as disconnected scripts \cite{amershi2019mlops,kreuzberger2023mlops}. The resulting contribution is not a new neural architecture. It is a governed operational framework around an existing HAR baseline.
+This thesis builds on that direction, but it deliberately narrows the technical claim. The system developed here does not diagnose anxiety, depression, panic disorder, or any other mental health condition. Instead, it treats anxiety-related repetitive activities as observable behavioral proxies within a wearable monitoring pipeline. The technical task is therefore wrist-worn IMU-based HAR, while the broader application context is continuous mental-health-adjacent monitoring. This distinction is essential because recognizing a behavior from sensor data is not equivalent to clinically interpreting a mental state.
+
+In this thesis, the phrase continuous mental health monitoring is therefore used as the application context, not as a claim of clinical diagnosis or prognosis. The implemented system monitors observable wrist-motion activity patterns that may be relevant for later mental-health-related interpretation, especially behaviors such as nail biting, hair pulling, hand scratching, hand tapping, and rubbing. Clinical interpretation, diagnosis, prognosis, and treatment recommendation remain outside the defended technical scope.
+
+A further challenge is that a trained classifier alone is not sufficient for a trustworthy monitoring system. When a model leaves the training environment and is applied to deployment-style wearable data, its behavior can change because of user variability, sensor placement, unit differences, preprocessing mismatch, or broader distribution shift \cite{akbari2020personalizing,wang2024enhancing,dhekane2024transfer,jackson2019agile}. In such settings, ground-truth labels are often unavailable at inference time, and degradation can remain hidden if the surrounding system only produces predictions without monitoring or governance. One possible failure mode is dominant-class collapse, where a model assigns most windows to one class, sometimes with misleading confidence. This is especially important in health-adjacent settings, where overconfident or poorly governed model behavior may lead to misleading interpretation.
+
+This thesis addresses the problem from an MLOps perspective. The goal is to develop an offline-first, auditable, and reproducible pipeline in which wearable sensor data ingestion, validation, transformation, inference, evaluation, monitoring, trigger evaluation, and controlled retraining boundaries are treated as one coordinated lifecycle rather than as disconnected scripts. This follows the broader MLOps argument that reliable machine learning systems require lifecycle engineering around data, code, models, monitoring, automation, artifact traceability, and operational decision points, not only a trained model artifact \cite{amershi2019mlops,kreuzberger2023mlops,paleyes2022challenges,gift2021practicalmlops}. The contribution of this thesis is therefore a governed MLOps pipeline prototype that supports mental-health-adjacent monitoring through wearable-sensor-based behavioral-proxy recognition, not a clinical diagnostic or prognosis model.
+
 
 \section{Problem Statement}
 
-The thesis addresses two linked problems.
+This thesis addresses a problem at the intersection of wearable sensing, mental-health-adjacent behavior recognition, and MLOps.
 
-The first is a \textit{technical} problem: a HAR model trained under controlled conditions can behave unreliably on production-style wrist-worn data because train--serve mismatch and domain shift alter the effective input distribution. Seemingly minor differences such as sensor units, gravity handling, calibration choices, or user context can change model behavior materially, even when the software still executes without error \cite{dhekane2024transfer,wang2024enhancing}.
+The first part of the problem is technical. A wearable HAR model trained under controlled conditions may not behave reliably when applied to new sessions, new users, or different preprocessing conditions. Even when the software executes successfully and the input tensor has the expected shape, the effective meaning of the data may have changed because of unit conversion errors, sensor placement variation, sampling irregularities, normalization mismatch, gravity handling, calibration choices, or domain shift \cite{dhekane2024transfer,wang2024enhancing,oleh2025recognition}. In a wrist-worn monitoring setting, these factors are not minor details. They define the numerical and temporal contract under which the model operates.
 
-The second is an \textit{engineering} problem: even if such degradation occurs, a typical offline research workflow offers little support for deciding what to do next. Without explicit validation gates, artifact lineage, post-inference monitoring, and governed retraining logic, it is difficult to distinguish between a benign batch, a warning condition, and a case that justifies model mutation. As argued in software engineering research on machine learning systems, production reliability depends on disciplined lifecycle practices that extend beyond the model code itself \cite{amershi2019mlops,kreuzberger2023mlops}.
+The second part of the problem is operational. In continuous or deployment-style wearable monitoring, labels are usually unavailable at inference time. Direct metrics such as accuracy, recall, macro F1, or confusion matrices cannot be computed immediately on incoming sessions. The system must therefore rely on proxy signals such as confidence, uncertainty, temporal stability, dominant-class concentration, and drift indicators. However, such proxy signals indicate operational risk rather than verified correctness. Modern neural networks can be overconfident, and confidence alone should not be interpreted as reliable proof of prediction quality \cite{guo2017calibration,gal2016dropout}.
 
-The thesis therefore asks how a wearable HAR system can be operationalized so that it remains reproducible, inspectable, and governable under distribution shift. It also asks how this can be done when labels are unavailable at inference time and retraining cannot be allowed to proceed blindly.
+The third part of the problem is governance. If a monitoring signal becomes suspicious, the system still needs a safe decision process. Blind automatic retraining from unlabeled, shifted, or collapsed predictions can amplify errors instead of improving the model. This is especially problematic in a mental-health-adjacent setting, where model outputs may later influence interpretation, reporting, or human review. The pipeline must therefore separate monitoring severity from model mutation: a risky batch may require review without automatically triggering retraining.
+
+The central problem is therefore how to operate such a classifier inside a reproducible pipeline that preserves its preprocessing contract, records monitoring evidence, and routes risky sessions to review instead of automatic retraining.
 
 \section{Research Objectives and Questions}
 
-The work is organized around four practical research objectives:
+The work is organized around five practical research objectives:
 
 \begin{enumerate}
-	\item design and implement an offline-first MLOps pipeline for wearable HAR;
-	\item investigate train--serve mismatch and domain shift between controlled data and production-style wrist-worn data;
-	\item evaluate monitoring and trigger-policy logic for governed retraining decisions under unlabeled inference conditions;
-	\item validate key preprocessing and model-governance choices through reproducible ablations and controlled comparisons.
+    \item to design and implement an offline-first MLOps pipeline that supports mental-health-adjacent monitoring through wearable-sensor-based behavioral-proxy recognition;
+    \item to define a reproducible data and model contract for recognizing anxiety-related behavioral proxies from wrist-worn IMU data;
+    \item to investigate train--serve mismatch and preprocessing sensitivity under deployment-style wearable conditions;
+    \item to evaluate monitoring and trigger-policy logic under label-scarce inference conditions;
+    \item to establish clear scope boundaries around clinical validity, automated diagnosis, unrestricted deployment, and automatic retraining.
 \end{enumerate}
 
 These objectives lead to the following research questions:
 
 \begin{enumerate}
-	\item Can an offline-first wearable HAR pipeline detect operational risk without access to labels at inference time?
-	\item How strongly do preprocessing decisions such as gravity removal and calibration affect production-style model behavior?
-	\item Can governed retraining and trigger-policy design improve system behavior more safely than unrestricted automation?
-	\item How much of observed prediction collapse is attributable to model choice rather than to input distribution alone?
+    \item \textbf{RQ1:} Can an offline-first MLOps pipeline support mental-health-adjacent wearable monitoring by detecting operational risk in behavioral-proxy recognition when labels are unavailable at inference time?
+    \item \textbf{RQ2:} How do preprocessing and train--serve contract choices affect recognition behavior for wrist-worn anxiety-related activity signals?
+    \item \textbf{RQ3:} Can a governed trigger policy support safer monitoring and retraining decisions than unrestricted automatic retraining?
+    \item \textbf{RQ4:} To what extent are observed collapse or degradation patterns caused by model-contract or model-choice issues rather than by input data alone?
 \end{enumerate}
 
-The purpose of these questions is not to claim fully autonomous self-improving deployment. Rather, they define a bounded evaluation of whether a wearable HAR system can be made operationally trustworthy enough to justify explicit monitoring and governed mutation decisions.
+The purpose of these questions is not to claim a clinically validated mental health monitoring system. Rather, they define a bounded engineering evaluation of whether a wearable sensor model can be embedded in a reproducible, monitored, and governance-aware MLOps lifecycle.
 
 \section{Contributions}
 
-The thesis makes four main contributions.
+This thesis makes five main contributions.
 
 \begin{enumerate}
-	\item It implements an offline-first, stage-based HAR MLOps pipeline that links ingestion, validation, preprocessing, inference, evaluation, monitoring, and governed retraining into one reproducible workflow.
-	\item It documents train--serve consistency as a first-class engineering issue in wearable HAR, including the effect of preprocessing choices such as gravity removal and calibration under a labeled A/B/C/D ablation framework.
-	\item It evaluates monitoring and trigger-policy behavior for unlabeled production-style operation, showing that governance design materially affects false-alarm and retraining trade-offs.
-	\item It provides evidence-led model-governance findings, including a same-input comparison showing that model choice can be a direct driver of prediction collapse, as well as a preserved negative-result experiment in which a plausible unit-fix and abstain strategy did not improve confidence.
+    \item It develops an offline-first, stage-based MLOps pipeline for wearable-sensor-based mental-health-adjacent behavior monitoring. The pipeline connects data ingestion, validation, transformation, inference, evaluation, monitoring, trigger evaluation, and governed retraining boundaries into one reproducible workflow.
+
+    \item It defines and documents a reproducible runtime contract for wrist-worn IMU-based HAR, including unit handling, sampling rate, window size, stride, channel order, normalization policy, model input shape, and fixed label order.
+
+    \item It treats train--serve consistency as a runtime-contract problem: unit handling, scaler use, channel order, windowing, and label decoding must remain tied to the promoted model.
+
+    \item It implements and evaluates a monitoring and trigger-governance layer that interprets post-inference risk signals and decides whether a session should be logged, reviewed, or queued without allowing automatic mutation from unlabeled data.
+
+    \item It provides a bounded mental-health-adjacent framing for wearable HAR. The system recognizes observable anxiety-related behavioral proxies from sensor data, but it does not claim diagnosis, prognosis, treatment recommendation, or population-level clinical validity.
 \end{enumerate}
 
-Together, these contributions position the thesis as an engineering and systems contribution around wearable HAR rather than as a claim of architectural novelty or clinical deployment completeness.
+The contributions are, in aggregate, an engineering and systems contribution around wearable mental-health-adjacent monitoring. The novelty lies not in proposing a new neural architecture, but in building and evaluating a reproducible, monitored, and governed lifecycle around a wearable HAR model.
 
 \section{Scope and Reproducibility Boundary}
 
-To keep all claims aligned with executable code, this thesis fixes its boundary to the implemented runtime path and the evidence generated from controlled runs.
+To keep all claims aligned with executable code and available evidence, this thesis fixes its defended scope to the implemented offline-first runtime path. In this thesis, offline-first means that the complete pipeline can be executed and inspected on a local machine using versioned code, configuration files, model artifacts, and stored input data. It does not mean that the system is deployed on-device on the wearable, clinically integrated into a care pathway, or operated as a real-time cloud service; these remain outside the present scope and are revisited as directions for future work in Chapter~\ref{chap:discussion_conclusion}, Section~\ref{sec:future_work}.
 
 \begin{itemize}
-	\item \textbf{Core operational path:} stages 1--7, covering ingestion, validation, transformation, inference, evaluation, monitoring, and trigger logic.
-	\item \textbf{Governed mutation path:} stages 8--10, covering retraining, registration, and baseline update, invoked conditionally rather than by default.
-	\item \textbf{Optional supplementary analysis:} calibration is treated as an optional stage and discussed separately from the core operational claims.
+    \item \textbf{Core operational path:} stages 1--7, covering ingestion, validation, transformation, inference, evaluation, monitoring, and trigger evaluation.
+    \item \textbf{Governed mutation path:} stages 8--10, covering retraining, model registration, and baseline update. These stages exist as a conditional mutation path and are not executed automatically in the defended runtime.
+    \item \textbf{Optional supplementary analysis:} calibration and additional drift-audit methods are treated as experimental or future-work extensions rather than as default runtime requirements.
 \end{itemize}
-
-The thesis does \textbf{not} claim a clinically validated prognosis system, unrestricted automated deployment, or a fully online streaming platform. Earlier project notes considered a broader prognosis component, but the implemented and defended contribution of this thesis is the wearable HAR pipeline and its governance layer. Likewise, historically larger stage decompositions are acknowledged as part of earlier project evolution, but they are not treated as the final scope of the thesis argument.
-
-The scope boundary is operationally enforced through a single runtime path, versioned configuration, and reproducibility artifacts generated from controlled runs. This keeps chapter claims anchored to executable system behavior rather than to historical project plans.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.92\textwidth]{fig_03_scope_map.png}
-\caption{Defended scope boundary of the thesis. The implemented contribution is an offline-first, single-machine, governed wearable HAR lifecycle rather than a cloud-native clinical platform or unrestricted auto-deployment system.}
-\label{fig:intro_scope_map}
-\end{figure}
-
 \section{Thesis Structure}
 
-The remainder of this thesis is organized as follows. Chapter~2 introduces the background and related work needed to position the problem, including wearable HAR, distribution shift, and MLOps fundamentals. Chapter~3 presents the offline MLOps architecture and the stage-based design of the system. Chapter~4 describes the data pipeline and model-development foundations, including preprocessing, windowing, and the 1D-CNN-BiLSTM baseline. Chapter~5 explains the implementation choices that operationalize the pipeline in the implemented system. Chapter~6 focuses on monitoring, drift detection, and retraining governance. Chapter~7 reports the main experimental evidence, including preprocessing ablations, trigger-policy evaluation, synthetic-versus-actual comparisons, and same-input model comparisons. Chapter~8 closes with discussion, limitations, and future work.
+The remainder of this thesis is organized as follows. Chapter~2 reviews the background and related work needed to position the thesis, including wearable mental-health monitoring, anxiety-related behavioral proxies, wearable HAR, train--serve shift, and MLOps governance. Chapter~3 presents the offline-first system architecture and explains the separation between the seven-stage operational assessment path and the conditional mutation path. Chapter~4 defines the data sources, preprocessing decisions, windowing logic, and runtime model contract. Chapter~5 explains how the architecture and model contract are implemented in the repository pipeline. Chapter~6 describes the monitoring, drift, trigger-policy, and retraining-governance logic. Chapter~7 reports the experimental evidence, including preprocessing sensitivity, trigger-policy evaluation, model-contract diagnostics, and negative results. Chapter~8 discusses the findings, answers the research questions, states limitations, and outlines future work.
