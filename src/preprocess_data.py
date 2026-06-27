@@ -521,7 +521,8 @@ class UnifiedPreprocessor:
             if not config_path.exists():
                 raise FileNotFoundError(
                     f"Canonical scaler missing: {config_path}. "
-                    "Run scripts/refit_scaler_train_only.py."
+                    "Regenerate it via the build notebook "
+                    "notebooks/Model_D1_Final_Build_Runtime_Contract.ipynb."
                 )
             assert_scaler_integrity(config_path)
 

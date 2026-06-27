@@ -190,7 +190,7 @@ class PostInferenceMonitor:
             if baseline_missing_reason == "DRIFT_BASELINE_MISSING":
                 alert = (
                     "Raw physical baseline not found. "
-                    "Run scripts/build_raw_physical_baseline.py to create it. "
+                    "Build it via src/monitoring/baseline_builder.py. "
                     "Drift severity cannot be trusted until baseline is available."
                 )
             else:

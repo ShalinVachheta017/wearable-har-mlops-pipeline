@@ -1,82 +1,192 @@
-\documentclass[12pt,a4paper,twoside]{report}
 
+\documentclass[12pt,a4paper,oneside]{report}
+
+% =========================================================
+% ENCODING AND FONTS
+% =========================================================
 \usepackage[T1]{fontenc}
-\usepackage{lmodern}
 \usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{setspace}
+% =========================================================
+% PAGE LAYOUT
+% =========================================================
 \usepackage[
   paper=a4paper,
-  twoside,
   width=160mm,
   top=25mm,
-  bottom=25mm,
-  bindingoffset=6mm
+  bottom=25mm
 ]{geometry}
+
+\raggedbottom
+\setstretch{1.08}
+\setlength{\parindent}{15pt}
+\setlength{\parskip}{0.4em}
+
+% =========================================================
+% PACKAGES
+% =========================================================
 \usepackage{graphicx}
+\usepackage{subcaption}
 \usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage{fancyhdr}
+
 \usepackage[hidelinks,pdfpagelabels]{hyperref}
-\graphicspath{{figures/thesis_journey/}{figures/thesis_body/}}
+\hypersetup{
+  pdftitle={Developing an MLOps Pipeline for Continuous Mental Health Monitoring Using Wearable Sensor Data},
+  pdfauthor={Shalin Vachheta},
+  pdfsubject={Master's Thesis},
+  pdfkeywords={MLOps, HAR, anxiety detection, wearable sensors, deep learning}
+}
+
+% =========================================================
+% FIGURE PATHS
+% =========================================================
+\graphicspath{{figures/}{figures/thesis_journey/}{figures/thesis_body/}}
+
+% =========================================================
+% BIBLIOGRAPHY HEADING
+% =========================================================
+\renewcommand{\bibname}{References}
+
+% =========================================================
+% HEADER AND FOOTER
+% =========================================================
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[R]{\nouppercase{\leftmark}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}
+}
+
+% ---- Float placement tuning: reduce sparse float-only pages, pack figures with text ----
+\setlength{\emergencystretch}{2em}
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.78}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{5}
 
 \begin{document}
 
-% Front matter page numbering (Roman numerals)
+% =========================================================
+% FRONT MATTER De-document
+% =========================================================
 \pagenumbering{Roman}
 \setcounter{page}{1}
 
-%% ---------- TITLE PAGE ----------
+% =========================================================
+% TITLE PAGE
+% =========================================================
 \begin{titlepage}
 \centering
-\vspace*{2cm}
-{\LARGE\bfseries An Offline-First MLOps Pipeline with Governance\\[0.4em]
-for Wearable Human Activity Recognition\par}
-\vspace{1.5cm}
-{\large Master's Thesis\\[0.3em]
-submitted in partial fulfilment of the requirements for the degree of\\[0.3em]
-\textbf{Master of Science in Mechatronics}\par}
-\vspace{1.5cm}
-{\large submitted by\\[0.3em]
-\textbf{Shalin Vachheta}\\[0.2em]
-Matriculation Number: 1701359\par}
-\vspace{1.5cm}
-{\large Faculty of Engineering\\[0.2em]
-Chair of Embedded Systems\\[0.2em]
-University of Siegen\par}
-\vspace{1.5cm}
-\begin{tabular}{ll}
-  First Supervisor:  & Prof. Dr.-Ing. Roman Obermaisser \\
-  Second Examiner:   & M.Sc. Ugonna Oleh \\
-\end{tabular}
+
+\vspace*{1.2cm}
+
+% Optional logos. Add the files only if you have them.
+\IfFileExists{figures/university_logo.pdf}{
+\includegraphics[height=1.8cm]{figures/university_logo.pdf}\hfill
+}{}
+\IfFileExists{figures/chair_logo.pdf}{
+\includegraphics[height=1.8cm]{figures/chair_logo.pdf}
+}{}
+
+\vspace{1.6cm}
+
+{\LARGE\bfseries Developing an MLOps Pipeline for\\[0.2em]
+Continuous Mental Health Monitoring Using\\[0.2em]
+Wearable Sensor Data\par}
+
 \vspace{1.5cm}
 
-{\large Siegen, 15 June 2026\par}
+{\large Master's Thesis\par}
+
+\vspace{0.4cm}
+
+{\normalsize submitted in partial fulfillment of the requirements for the degree of\par}
+
+\vspace{0.4cm}
+
+{\large\bfseries Master of Science in Mechatronics\par}
+
+\vspace{1.4cm}
+
+{\normalsize submitted by\par}
+\vspace{0.3cm}
+{\large\bfseries Shalin Vachheta\par}
+\vspace{0.2cm}
+{\normalsize Matriculation Number: 1701359\par}
+
+\vspace{1.4cm}
+
+{\normalsize Faculty of Engineering\par}
+{\normalsize Chair of Embedded Systems\par}
+{\normalsize University of Siegen\par}
+
+\vspace{1.3cm}
+
+\begin{tabular}{ll}
+  First Supervisor: & Prof. Dr.-Ing. Roman Obermaisser \\
+  Second Examiner:  & M.Sc. Ugonna Oleh \\
+\end{tabular}
+
+\vfill
+
+{\normalsize Siegen, 30 June 2026\par}
+
 \end{titlepage}
 
-%% ---------- ABSTRACT ----------
+% =========================================================
+% ABSTRACT
+% =========================================================
+\phantomsection
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-This thesis develops an offline-first, auditable, and reproducible MLOps pipeline for wearable Human Activity Recognition (HAR) of anxiety-related behaviors. The central challenge addressed is that a strong offline classifier does not constitute a reliable runtime system: when a model leaves the training environment, distribution shift, preprocessing inconsistency, and the absence of ground-truth labels at inference time can cause undetected degradation. Existing wearable HAR research focuses predominantly on improving offline accuracy, while the engineering problem of sustaining trustworthy behavior over time receives less systematic attention.
+This thesis develops an offline-first MLOps pipeline for wearable-sensor-based behavioral-proxy recognition in a mental-health-adjacent monitoring context. The work focuses on wrist-worn inertial measurement unit data and treats anxiety-related repetitive activities as observable activity classes rather than as clinical mental-health labels. The technical contribution is therefore not a diagnostic or prognosis model, but a reproducible and governed machine-learning lifecycle for wearable Human Activity Recognition.
 
-The thesis contribution is a governed operational framework around a 1D-CNN + BiLSTM HAR baseline trained on wrist-worn IMU data from six participants across eleven activity classes. The pipeline is structured as seven core operational stages covering ingestion, validation, preprocessing, inference, evaluation, post-inference monitoring, and trigger evaluation, plus three conditional mutation stages covering retraining, model registration, and baseline update. The mutation path is explicitly gated by governance conditions rather than triggered automatically.
+The pipeline connects ingestion, validation, preprocessing, inference, evaluation, monitoring, trigger evaluation, and governed retraining boundaries into one auditable workflow. A central design principle is the runtime contract: the model, sensor schema, unit convention, scaler, label order, monitoring baseline, and evaluation evidence are treated as one deployment unit. This prevents silent train--serve mismatch, such as using a model with an incompatible scaler, channel order, or baseline.
 
-Four empirical findings are reported. First, preprocessing ablations show that apparently reasonable preprocessing changes can worsen model behavior, while the defended runtime path preserves the explicit unit-conversion, Garmin train-only scaler, row-wise windowing, and Model~A inference contract. Second, trigger-policy design materially affects governance quality: a two-of-three voting policy achieves precision 0.99 and false alarm rate 0.007, against 0.84 and 0.14 for single-signal triggering. Third, synthetic-versus-actual and calibrated MMD branch experiments demonstrate that distribution-sensitive monitoring can surface degraded batches more clearly than the lightweight runtime drift monitor; however, the MMD variants improved non-mutating alert visibility rather than final queue/retrain decisions. Fourth, a same-input controlled comparison between a historical and retrained model isolates model choice as the primary driver of prediction collapse on a given session. A preserved negative result on 26 production sessions shows that a unit-fix plus abstain intervention changed routing behavior without improving mean confidence, distinguishing governance effects from genuine quality improvements.
+The final runtime candidate uses a 1D-CNN-BiLSTM model for eleven-class wrist-motion activity recognition from 50~Hz IMU windows of shape \((200,6)\). The system is evaluated under labeled development data, held-out-user conditions, a blind self-recorded User~7 probe, and deployment-style unlabeled inference. The thesis shows that reliable wearable monitoring requires more than model accuracy: it requires explicit preprocessing assumptions, run-scoped evidence, monitoring signals, and governance rules that separate operational risk detection from automatic model mutation.
 
-The thesis makes no claim of clinical validity, production readiness, or unrestricted automation. Its contribution is a defensible engineering argument that a wearable HAR lifecycle can be architected so that monitoring and retraining are integrated yet operationally separated, reproducible from a single repository entry point, and governed by explicit policies rather than implicit automation.
-
+\bigskip
+\noindent
 \textbf{Keywords:} wearable HAR, MLOps, offline-first pipeline, distribution shift, retraining governance, train--serve consistency, trigger policy
 
-%% ---------- GERMAN SUMMARY ----------
+% =========================================================
+% GERMAN SUMMARY
+% =========================================================
+\phantomsection
 \chapter*{Zusammenfassung}
 \addcontentsline{toc}{chapter}{Zusammenfassung}
 
-Diese Masterarbeit entwickelt eine offline-first MLOps-Pipeline f\"ur Wearable Human Activity Recognition mit einem Garmin-Handgelenksensor. Das Ziel ist nicht ein klinisches Diagnosesystem und auch kein produktionsreifes Cloud-System. Untersucht wird, wie ein Aktivitaetserkennungsmodell nach dem Training reproduzierbar ausgef\"uhrt, \"uberwacht und durch klare Regeln gesteuert werden kann.
+Diese Masterarbeit entwickelt eine offline-first MLOps-Pipeline für die Erkennung von beobachtbaren Verhaltensmustern mit tragbaren Sensordaten. Der Anwendungskontext ist mentales Gesundheitsmonitoring. Die Arbeit macht jedoch keine klinische Diagnose und keine Prognose. Stattdessen werden wiederholte Hand- und Handgelenkbewegungen, zum Beispiel Nagelkauen, Haarezupfen, Kratzen, Tippen oder Reiben, als Aktivitätsklassen behandelt.
 
-Die Pipeline besteht aus sieben verteidigten Laufzeitstufen: Datenaufnahme, Validierung, Transformation, Inferenz, Evaluation, Monitoring und Trigger-Entscheidung. Drei weitere Stufen f\"ur Retraining, Modellregistrierung und Baseline-Update sind als bedingter Mutationspfad vorhanden, werden aber nicht automatisch ausgef\"uhrt. \texttt{auto\_retrain=false} ist deshalb eine bewusste Governance-Entscheidung. Eine kritische Monitoring-Meldung bedeutet in dieser Arbeit nicht automatisch Retraining, sondern f\"uhrt im verteidigten Pfad zu einer menschlichen Pr\"ufung.
+Die Pipeline verarbeitet Sensordaten einer Smartwatch mit Beschleunigungs- und Gyroskopsignalen. Sie umfasst Datenaufnahme, Validierung, Vorverarbeitung, Inferenz, Evaluation, Monitoring, Trigger-Entscheidung und kontrollierte Grenzen für erneutes Training. Ein wichtiger Beitrag ist der sogenannte Runtime Contract. Dabei werden Modell, Sensor-Schema, Einheiten, Skalierer, Label-Reihenfolge, Monitoring-Basislinie und Evidenz gemeinsam betrachtet. Dadurch sollen stille Fehler zwischen Training und Anwendung vermieden werden.
 
-Das verteidigte Modell ist Model~A, ein Proof-of-Concept-Laufzeitkandidat. Sein Vertrag ist festgelegt: Einheitentransformation wenn n\"otig, Garmin-Trainings-Scaler, zeilenweise Fensterung und eine feste Label-Reihenfolge. Die Arbeit zeigt, dass scheinbar kleine \"Anderungen in der Vorverarbeitung das Verhalten des Modells deutlich ver\"andern k\"onnen. Weitere Experimente zeigen, dass Monitoring-Signale und Trigger-Regeln helfen, unsichere Situationen sichtbar zu machen, ohne das Modell automatisch zu ver\"andern.
+Das finale Laufzeitmodell ist ein 1D-CNN-BiLSTM-Modell für elf Aktivitätsklassen. Es nutzt IMU-Fenster mit der Form \((200,6)\) bei einer Abtastrate von 50~Hz. Die Arbeit zeigt, dass ein tragbares Monitoring-System nicht nur ein trainiertes Modell braucht. Es braucht auch klare Vorverarbeitung, reproduzierbare Artefakte, Monitoring-Signale und Governance-Regeln, damit Warnungen nicht automatisch zu unsicherem Modelltraining führen.
 
-Die Ergebnisse sind bewusst begrenzt. Die Arbeit beweist keine klinische G\"ultigkeit, keine Generalisierung auf die Gesamtbev\"olkerung und keine produktionsreife Bereitstellung. Der Beitrag liegt in einer reproduzierbaren, auditierbaren und governance-bewussten MLOps-Struktur f\"ur tragbare Sensordaten unter labelarmen Bedingungen.
-
-%% ---------- DECLARATION OF AUTHORSHIP ----------
+% =========================================================
+% DECLARATION OF AUTHORSHIP
+% =========================================================
+\phantomsection
 \chapter*{Eidesstattliche Erkl\"arung\\(Declaration of Authorship)}
 \addcontentsline{toc}{chapter}{Eidesstattliche Erkl\"arung}
 
@@ -87,22 +197,37 @@ Ich erkl\"are hiermit an Eides statt, dass ich die vorliegende Masterarbeit selb
 \textit{I hereby declare, to the best of my knowledge and belief, that this thesis is my own work. All sources used have been cited and attributed. This work has not been submitted to any other examination authority in the same or similar form, nor has it been published.}
 
 \vspace{2.5cm}
+
 \noindent
 \begin{tabular}{p{5cm}p{6cm}}
-  Siegen, 15 June 2026 \quad & \hrulefill \\
-                        & Shalin Vachheta \\
+  Siegen, 30 June 2026 & \hrulefill \\
+                       & Shalin Vachheta \\
 \end{tabular}
 
-%% ---------- TABLE OF CONTENTS ----------
+% =========================================================
+% TABLES AND LISTS
+% =========================================================
+\clearpage
 \tableofcontents
+
+\clearpage
+\phantomsection
 \addcontentsline{toc}{chapter}{List of Figures}
 \listoffigures
+
+\clearpage
+\phantomsection
 \addcontentsline{toc}{chapter}{List of Tables}
 \listoftables
 
-%% ---------- LIST OF ABBREVIATIONS ----------
+% =========================================================
+% LIST OF ABBREVIATIONS
+% =========================================================
+\clearpage
+\phantomsection
 \chapter*{List of Abbreviations}
 \addcontentsline{toc}{chapter}{List of Abbreviations}
+
 \begin{description}
   \item[HAR] Human Activity Recognition
   \item[IMU] Inertial Measurement Unit
@@ -110,40 +235,60 @@ Ich erkl\"are hiermit an Eides statt, dass ich die vorliegende Masterarbeit selb
   \item[CNN] Convolutional Neural Network
   \item[LSTM] Long Short-Term Memory
   \item[BiLSTM] Bidirectional Long Short-Term Memory
-  \item[AdaBN] Adaptive Batch Normalisation
-  \item[TENT] Test-time Entropy Minimisation (Wang et al., ICLR 2021)
-  \item[EWC] Elastic Weight Consolidation
   \item[FAR] False Alarm Rate
   \item[ECE] Expected Calibration Error
   \item[MMD] Maximum Mean Discrepancy
   \item[DVC] Data Version Control
-  \item[CI/CD] Continuous Integration / Continuous Delivery; in this thesis, CI plus release-image smoke validation rather than production rollout
-  \item[YAML] YAML Ain't Markup Language (recursive acronym)
+  \item[CI/CD] Continuous Integration / Continuous Delivery
+  \item[YAML] YAML Ain't Markup Language
   \item[RQ] Research Question
-  \item[OOD] Out-of-Distribution
 \end{description}
 
-%% ---------- CHAPTERS ----------
-% Main matter page numbering (Arabic numerals)
+% =========================================================
+% MAIN MATTER
+% =========================================================
 \clearpage
 \pagenumbering{arabic}
 \setcounter{page}{1}
 
 \include{chapters/ch1_introduction}
 \include{chapters/ch2_background_related_work}
-\include{chapters/ch3_offline_mlops_architecture}
+\include{chapters/ch3_mlops_architecture}
 \include{chapters/ch4_data_model_development}
 \include{chapters/ch5_pipeline_implementation}
-\include{chapters/ch6_monitoring_drift_retraining}
+\include{chapters/ch6_monitoring_governance}
 \include{chapters/ch7_experiments_evaluation}
 \include{chapters/ch8_discussion_conclusion}
-
-\appendix
-\include{chapters/appendix_a_math}
-\include{chapters/appendix_b_tech}
-\include{chapters/appendix_c_reproducibility}
-
-\bibliographystyle{plain}
+% =========================================================
+% REFERENCES
+% =========================================================
+\clearpage
+\bibliographystyle{IEEEtran}
 \bibliography{references}
+
+% =========================================================
+% APPENDICES
+% =========================================================
+\appendix
+
+\IfFileExists{appendices/appendix_a_commands.tex}{
+  \include{appendices/appendix_a_commands}
+}{}
+
+\IfFileExists{appendices/appendix_b_artifacts.tex}{
+  \include{appendices/appendix_b_artifacts}
+}{}
+
+\IfFileExists{appendices/appendix_c_reproducibility.tex}{
+  \include{appendices/appendix_c_reproducibility}
+}{}
+
+\IfFileExists{appendices/appendix_e_supplementary.tex}{
+  \include{appendices/appendix_e_supplementary}
+}{}
+
+\IfFileExists{appendices/appendix_e_system_walkthrough.tex}{
+  \include{appendices/appendix_e_system_walkthrough}
+}{}
 
 \end{document}

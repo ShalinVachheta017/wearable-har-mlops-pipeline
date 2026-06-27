@@ -131,8 +131,9 @@ class DataTransformationConfig:
     overlap: float = OVERLAP  # 50 % overlap
     sensors: List[str] = field(default_factory=lambda: ["Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
     output_dir: Optional[Path] = None
-    # Paper-aligned default is raw physical units. Enable normalization only for A/B checks.
-    #   "zscore" -> StandardScaler with saved stats
+    # Deployed runtime contract: unit conversion + Garmin train-only z-score scaler.
+    # Enable/disable normalization for A/B diagnostic checks only.
+    #   "zscore" -> StandardScaler with saved stats (deployed default)
     #   "none"   -> no amplitude normalization
     #   "robust" -> RobustScaler with saved stats
     enable_normalization: bool = False
@@ -228,12 +229,13 @@ class PostInferenceMonitoringConfig:
     is_training_session: bool = False
 
     # Baseline mode — must match the inference preprocessing contract.
-    # Production inference uses raw physical units (no scaler), so the default
-    # is raw_physical.  Changing this to "normalized" without a matching
-    # scaler-enabled pipeline will produce fake critical drift (raw Az ≈ -9.8 m/s²
-    # vs normalized baseline mean ≈ 0).
-    #   "raw_physical"  → use models/raw_physical_baseline.json
-    #   "normalized"    → use models/normalized_baseline.json (A/B only)
+    # The deployed runtime contract applies the train-only scaler, so the
+    # runtime-contract folder baseline is in the scaled feature space ("normalized").
+    # The batch audit path defaults to "raw_physical" to match its physical-space
+    # baseline. Mismatching mode and pipeline produces fake critical drift
+    # (e.g., scaled Az ≈ 0 vs raw Az ≈ -9.8 m/s²).
+    #   "raw_physical"  → use models/raw_physical_baseline.json (batch audit path)
+    #   "normalized"    → use runtime-contract folder baseline (API / deployed path)
     baseline_mode: str = "raw_physical"
     raw_baseline_path: Optional[Path] = None  # default: models/raw_physical_baseline.json
     normalized_baseline_path: Optional[Path] = None  # default: models/normalized_baseline.json
@@ -251,7 +253,7 @@ class TriggerEvaluationConfig:
     confidence_warn: float = 0.65
     confidence_critical: float = 0.50
     # Drift metric is a z-score of mean-shift per channel, NOT PSI.
-    # 2.0ÃÆ’ Ã¢â€°Ë† 95th percentile (warn), 3.0ÃÆ’ Ã¢â€°Ë† 99.7th percentile (critical).
+    # 2.0 sigma ~ 95th percentile (warn), 3.0 sigma ~ 99.7th percentile (critical).
     drift_zscore_warn: float = 2.0
     drift_zscore_critical: float = 3.0
     temporal_flip_warn: float = 0.35
@@ -272,6 +274,7 @@ class ModelRetrainingConfig:
     # Data paths
     source_data_path: Optional[Path] = None  # labeled training CSV
     labels_path: Optional[Path] = None  # user-provided labels (optional)
+    base_model_path: Optional[Path] = None  # current deployed model to fine-tune (defaults to D1)
 
     # Training hyperparameters
     epochs: int = 100
@@ -279,6 +282,11 @@ class ModelRetrainingConfig:
     learning_rate: float = 0.001
     n_folds: int = 5
     skip_cv: bool = False
+    augment_multiplier: int = 3  # train-only augmentation factor (matches D1 build recipe)
+    # Experimental only: permit fine-tuning without the canonical D1 scaler.
+    # The deployed model expects z-score scaled windows; unscaled fine-tuning
+    # produces a candidate that is incompatible with the runtime contract.
+    allow_unscaled_finetune: bool = False
 
     # Output
     output_dir: Optional[Path] = None

@@ -154,7 +154,6 @@ class PipelineMLflowLogger:
             "validation": self._validation_metrics,
             "transformation": self._transformation_metrics,
             "inference": self._inference_metrics,
-            "evaluation": self._evaluation_metrics,
             "monitoring": self._monitoring_metrics,
             "trigger": self._trigger_metrics,
             "retraining": self._retraining_metrics,
@@ -169,7 +168,6 @@ class PipelineMLflowLogger:
         return {
             "ingestion_n_rows": result.ingestion.n_rows,
             "ingestion_n_columns": result.ingestion.n_columns,
-            "ingestion_sampling_hz": result.ingestion.sampling_hz,
         }
 
     @staticmethod
@@ -178,8 +176,6 @@ class PipelineMLflowLogger:
             return {}
         return {
             "validation_is_valid": 1.0 if result.validation.is_valid else 0.0,
-            "validation_n_errors": len(result.validation.errors),
-            "validation_n_warnings": len(result.validation.warnings),
         }
 
     @staticmethod
@@ -188,16 +184,6 @@ class PipelineMLflowLogger:
             return {}
         return {
             "transformation_n_windows": result.transformation.n_windows,
-            "transformation_window_size": result.transformation.window_size,
-            "transformation_unit_conversion": (
-                1.0 if result.transformation.unit_conversion_applied else 0.0
-            ),
-            "transformation_normalization": (
-                1.0 if result.transformation.normalization_applied else 0.0
-            ),
-            "transformation_gravity_removal": (
-                1.0 if result.transformation.gravity_removal_applied else 0.0
-            ),
         }
 
     @staticmethod
@@ -206,17 +192,8 @@ class PipelineMLflowLogger:
             return {}
         conf = result.inference.confidence_stats or {}
         metrics = {
-            "inference_n_predictions": result.inference.n_predictions,
             "inference_time_seconds": result.inference.inference_time_seconds,
-            "inference_speed_windows_per_sec": (
-                result.inference.n_predictions / max(result.inference.inference_time_seconds, 0.001)
-            ),
             "inference_mean_confidence": conf.get("mean", 0.0),
-            "inference_std_confidence": conf.get("std", 0.0),
-            "inference_min_confidence": conf.get("min", 0.0),
-            "inference_max_confidence": conf.get("max", 0.0),
-            "inference_median_confidence": conf.get("median", 0.0),
-            "inference_uncertain_count": conf.get("n_uncertain", 0),
             "inference_uncertain_pct": conf.get("n_uncertain", 0)
             / max(result.inference.n_predictions, 1)
             * 100,
@@ -224,45 +201,21 @@ class PipelineMLflowLogger:
         if result.inference.activity_distribution:
             total = sum(result.inference.activity_distribution.values())
             max_count = max(result.inference.activity_distribution.values())
-            metrics["inference_n_activities_detected"] = len(result.inference.activity_distribution)
             metrics["inference_dominant_activity_pct"] = (max_count / max(total, 1)) * 100
-        return metrics
-
-    @staticmethod
-    def _evaluation_metrics(result) -> dict:
-        if not result.evaluation:
-            return {}
-        conf = result.evaluation.confidence_summary or {}
-        dist = result.evaluation.distribution_summary or {}
-        metrics = {
-            "eval_mean_confidence": conf.get("mean", 0.0),
-            "eval_median_confidence": conf.get("median", 0.0),
-            "eval_std_confidence": conf.get("std", 0.0),
-            "eval_has_labels": 1.0 if result.evaluation.has_labels else 0.0,
-        }
-        if "n_activities" in dist:
-            metrics["eval_n_activities_detected"] = dist["n_activities"]
-        if "dominant_activity_pct" in dist:
-            metrics["eval_dominant_activity_pct"] = dist["dominant_activity_pct"]
         return metrics
 
     @staticmethod
     def _monitoring_metrics(result) -> dict:
         if not result.monitoring:
             return {}
-        layer1 = result.monitoring.layer1_confidence or {}
         layer2 = result.monitoring.layer2_temporal or {}
         layer3 = result.monitoring.layer3_drift or {}
         return {
             "monitoring_overall_healthy": (
                 1.0 if result.monitoring.overall_status == "HEALTHY" else 0.0
             ),
-            "monitoring_confidence_mean": layer1.get("mean_confidence", 0.0),
-            "monitoring_uncertain_pct": layer1.get("uncertain_percentage", 0.0),
-            "monitoring_std_confidence": layer1.get("std_confidence", 0.0),
             "monitoring_transition_rate": layer2.get("transition_rate", 0.0),
             "monitoring_drift_score": layer3.get("max_drift", 0.0),
-            "monitoring_drift_status": 1.0 if layer3.get("status") == "HEALTHY" else 0.0,
         }
 
     @staticmethod
@@ -272,9 +225,7 @@ class PipelineMLflowLogger:
         alert_map = {"INFO": 0, "WARNING": 1, "ALERT": 2, "CRITICAL": 3}
         return {
             "trigger_should_retrain": 1.0 if result.trigger.should_retrain else 0.0,
-            "trigger_cooldown_active": 1.0 if result.trigger.cooldown_active else 0.0,
             "trigger_alert_level": alert_map.get(result.trigger.alert_level, 0),
-            "trigger_n_reasons": len(result.trigger.reasons) if result.trigger.reasons else 0,
         }
 
     @staticmethod

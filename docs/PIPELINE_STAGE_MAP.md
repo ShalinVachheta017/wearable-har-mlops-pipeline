@@ -26,7 +26,7 @@ Primary entrypoint:
 ## Notes for defense
 
 1. Stages 1-7 are the primary operational path.
-2. Stage 3 final production inference uses raw physical units: accelerometer m/s^2, gyroscope deg/s, no external StandardScaler, no gravity removal, no calibration.
+2. Stage 3 converts milliG -> m/s^2 (gyro stays deg/s) and then applies the train-only z-score scaler (`garmin_train_scaler.json`, fit on Garmin users 1-6) when `enable_normalization` is set, which is the production default in `config/pipeline_config.yaml`. Stage 4 runs inference on the already-scaled windows; gravity removal and calibration stay off. (The deployed Model D1 expects z-score-scaled input; "raw physical units, no scaler" describes the paper/A-B path only.)
 3. Stages 8-10 are conditional mutation stages and require review, labels, QA, and promotion evidence before they are claimed as current model updates.
 4. Stage 11 is optional advanced calibration/UQ work, not part of the core operational runtime claim.
 5. Stages 12-14 are retired from current runtime orchestration on this branch and should be treated as research/archive references only.

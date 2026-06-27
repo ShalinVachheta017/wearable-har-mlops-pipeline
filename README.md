@@ -93,9 +93,9 @@ har-pipeline
 
 Expected core files include:
 
-- [models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras](models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras)
-- [models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json)
-- [models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json)
+- [models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras](models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras)
+- [models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json](models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json)
+- [models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json](models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json)
 - one accel/gyro pair in [data/raw](data/raw)
 
 If DVC-tracked assets are missing:
@@ -113,8 +113,8 @@ This is acceptable because the defended pipeline is executed through the Python 
 
 ### Defended Model Lineage
 
-The default runtime now uses the final clean-contract Model A package:
-[models/runtime_contract/model_a_final_20260508](models/runtime_contract/model_a_final_20260508).
+The default runtime now uses the final clean-contract Model D1 package:
+[models/runtime_contract/model_d1_final_20260528](models/runtime_contract/model_d1_final_20260528).
 The older mentor/vendor pretrained model remains historical and forensic
 evidence only, because its strong legacy metrics depend on a different scaler
 and tensor-layout contract.
@@ -122,10 +122,10 @@ and tensor-layout contract.
 ### Model Promotion Policy
 
 Hard rule for this repository:
-- Default model for pipeline/API/Docker is the final clean-contract Model A package.
+- Default model for pipeline/API/Docker is the final clean-contract Model D1 package.
 - Drift/monitoring alerts alone do not justify promotion.
 - Retraining/fine-tuning can run only when labeled data is available for evaluation.
-- Promotion away from Model A is allowed only if labeled comparison proves a candidate is better under the same clean proof-of-concept contract.
+- Promotion away from Model D1 is allowed only if labeled comparison proves a candidate is better under the same clean proof-of-concept contract.
 - If the candidate requires a hidden scaler/layout contract, keep it as forensic evidence only.
 
 Canonical policy document: [docs/MODEL_PROMOTION_POLICY.md](docs/MODEL_PROMOTION_POLICY.md)
@@ -142,12 +142,12 @@ packaged Garmin train-only StandardScaler:
 - stride: 100 samples
 - model input shape: `(N, 200, 6)`
 - model output shape: 11 classes
-- normalization: Garmin train-only z-score scaler from the Model A package
+- normalization: Garmin train-only z-score scaler from the Model D1 package
 - deployment/unlabeled input is never used to fit the scaler
 - gravity removal and calibration: disabled
 
 The current Stage 6 runtime baseline is
-[models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json](models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json).
+[models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json](models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json).
 Older raw or normalized baselines remain useful for legacy/A-B diagnostics, but
 they are not the default drift reference.
 
@@ -201,6 +201,13 @@ governance and the required review, label, and QA conditions are satisfied.
 Unlabeled session drift, collapse, or low confidence opens review work; it
 does not justify immediate automatic retraining. AdaBN, TENT, and pseudo-label
 adaptation hooks are archived research context, not active runtime modes.
+
+Stage 8 retraining fine-tunes the current deployed Model D1 on labeled data
+(two-phase fine-tune, train-only augmentation, balanced class weights,
+user-holdout validation, reusing the saved train-only scaler) rather than
+training from scratch. The candidate therefore keeps the Model D1 architecture
+and is compared against the current model in Stage 9 (`is_better_than_current`,
+with `auto_deploy=False`) before any promotion.
 
 Run advanced calibration stage:
 

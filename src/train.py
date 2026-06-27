@@ -466,6 +466,64 @@ class HARModelBuilder:
 
 
 # ============================================================================
+# AUGMENTATION + CLASS WEIGHTS (Model-D1 fine-tune recipe)
+# ============================================================================
+
+
+def _aug_jitter(x: np.ndarray, sigma: float = 0.03) -> np.ndarray:
+    return x + np.random.normal(0, sigma, size=x.shape).astype(np.float32)
+
+
+def _aug_magnitude(x: np.ndarray, sigma: float = 0.10) -> np.ndarray:
+    scale = np.random.normal(1.0, sigma, size=(1, x.shape[1])).astype(np.float32)
+    return x * scale
+
+
+def _aug_time_warp(x: np.ndarray, sigma: float = 0.20) -> np.ndarray:
+    n = x.shape[0]
+    curve = np.random.normal(1.0, sigma, size=n)
+    new_idx = np.cumsum(curve)
+    new_idx = (new_idx - new_idx.min()) / (new_idx.max() - new_idx.min()) * (n - 1)
+    warped = np.zeros_like(x)
+    for ch in range(x.shape[1]):
+        warped[:, ch] = np.interp(np.arange(n), new_idx, x[:, ch])
+    return warped.astype(np.float32)
+
+
+def _augment_one(x: np.ndarray) -> np.ndarray:
+    if np.random.rand() < 0.60:
+        x = _aug_time_warp(x)
+    if np.random.rand() < 0.70:
+        x = _aug_magnitude(x)
+    if np.random.rand() < 0.50:
+        x = _aug_jitter(x)
+    return x.astype(np.float32)
+
+
+def augment_array(X: np.ndarray, multiplier: int = 3) -> np.ndarray:
+    """Return X stacked with (multiplier-1) augmented copies (train only)."""
+    augs = [X]
+    for _ in range(max(0, multiplier - 1)):
+        batch = np.empty_like(X)
+        for i in range(len(X)):
+            batch[i] = _augment_one(X[i].copy())
+        augs.append(batch)
+    return np.concatenate(augs, axis=0).astype(np.float32)
+
+
+def _balanced_class_weights(y: np.ndarray, n_classes: int) -> Dict[int, float]:
+    """Balanced class weights; every class index is present (default 1.0)."""
+    from sklearn.utils.class_weight import compute_class_weight
+
+    present = np.unique(y)
+    weights = compute_class_weight(class_weight="balanced", classes=present, y=y)
+    out = {i: 1.0 for i in range(n_classes)}
+    for cls, w in zip(present, weights):
+        out[int(cls)] = float(w)
+    return out
+
+
+# ============================================================================
 # TRAINING PIPELINE
 # ============================================================================
 
@@ -730,6 +788,171 @@ class HARTrainer:
         if save_artifacts:
             self._save_training_artifacts(model, scaler_config, metrics, history)
 
+        return model, metrics
+
+    def finetune_from_current(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        groups: np.ndarray,
+        base_model_path: Path,
+        scaler_mean: Optional[List[float]] = None,
+        scaler_scale: Optional[List[float]] = None,
+        augment_multiplier: int = 3,
+        allow_unscaled: bool = False,
+    ) -> Tuple[keras.Model, Dict[str, Any]]:
+        """Fine-tune the *current deployed* model on labeled data (Model-D1 recipe).
+
+        Unlike ``train_final_model`` (which builds a fresh architecture), this loads
+        the deployed model and continues training it, so the candidate keeps the
+        deployed architecture (Model D1, ~967K params). Validation uses an explicit
+        user holdout. The saved train-only scaler is reused (no refit) to preserve
+        train--serve parity. Recipe: freeze Conv/BN then adapt the recurrent + head
+        (Adam 3e-4), then unfreeze all for a low-LR polish (Adam 1e-5); train-only
+        augmentation and balanced class weights match the D1 build.
+        """
+        self.logger.info("=" * 70)
+        self.logger.info("FINE-TUNE FROM CURRENT MODEL (two-phase, user holdout)")
+        self.logger.info("=" * 70)
+
+        # Apply the saved train-only scaler (do NOT refit — preserves the deployed
+        # model's feature space).
+        if scaler_mean is not None and scaler_scale is not None:
+            mean = np.asarray(scaler_mean, dtype=np.float32)
+            scale = np.asarray(scaler_scale, dtype=np.float32)
+            X = ((X - mean) / scale).astype(np.float32)
+            self.logger.info("Applied saved train-only scaler (no refit).")
+        elif allow_unscaled:
+            self.logger.warning(
+                "No saved scaler provided; allow_unscaled=True — fine-tuning on "
+                "unscaled windows (experimental, candidate is NOT contract-valid)."
+            )
+        else:
+            raise ValueError(
+                "No saved scaler provided. The deployed model expects z-score scaled "
+                "windows; fine-tuning unscaled would break train--serve parity. "
+                "Provide the canonical scaler or pass allow_unscaled=True for "
+                "explicit experiments."
+            )
+
+        # User-holdout split (same protocol as train_final_model).
+        unique_users = sorted(np.unique(groups).tolist())
+        if set([1, 2, 3, 4, 5, 6]).issubset(set(unique_users)):
+            fit_users, val_users, test_users = [1, 2, 3, 4], [5], [6]
+        else:
+            if len(unique_users) < 3:
+                raise ValueError("Need at least 3 distinct users for fine-tune holdout.")
+            fit_users = unique_users[:-2]
+            val_users = [unique_users[-2]]
+            test_users = [unique_users[-1]]
+
+        train_mask = np.isin(groups, fit_users)
+        val_mask = np.isin(groups, val_users)
+        test_mask = np.isin(groups, test_users)
+
+        X_train, y_train = X[train_mask], y[train_mask]
+        X_val, y_val = X[val_mask], y[val_mask]
+        X_test, y_test = X[test_mask], y[test_mask]
+
+        if len(X_train) == 0 or len(X_val) == 0 or len(X_test) == 0:
+            raise ValueError(
+                f"Empty holdout split: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}"
+            )
+
+        self.logger.info(
+            "Holdout -> fit=%s (%d), val=%s (%d), test=%s (%d)",
+            fit_users, len(X_train), val_users, len(X_val), test_users, len(X_test),
+        )
+
+        # Balanced class weights from the real (pre-augmentation) train distribution.
+        class_weights = _balanced_class_weights(y_train, self.config.n_classes)
+
+        # Train-only augmentation (matches the D1 build recipe).
+        if augment_multiplier and augment_multiplier > 1:
+            X_train = augment_array(X_train, multiplier=augment_multiplier)
+            y_train = np.concatenate([y_train] * augment_multiplier)
+            self.logger.info("Augmented train -> %d windows (x%d).", len(X_train), augment_multiplier)
+
+        # Load the deployed model (keeps its architecture).
+        model = keras.models.load_model(base_model_path)
+        self.logger.info(
+            "Loaded base model: %s (%d params)", base_model_path, model.count_params()
+        )
+
+        # Phase 1: freeze conv/BN feature extractor; adapt recurrent + head.
+        for layer in model.layers:
+            if isinstance(layer, (keras.layers.Conv1D, keras.layers.BatchNormalization)):
+                layer.trainable = False
+        model.compile(
+            optimizer=keras.optimizers.Adam(3e-4),
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+        model.fit(
+            X_train, y_train,
+            validation_data=(X_val, y_val),
+            epochs=self.config.epochs,
+            batch_size=self.config.batch_size,
+            class_weight=class_weights,
+            callbacks=[
+                keras.callbacks.EarlyStopping(
+                    monitor="val_accuracy", mode="max",
+                    patience=self.config.early_stopping_patience,
+                    restore_best_weights=True, verbose=1,
+                )
+            ],
+            verbose=1,
+        )
+
+        # Phase 2: unfreeze all; low-LR polish.
+        for layer in model.layers:
+            layer.trainable = True
+        model.compile(
+            optimizer=keras.optimizers.Adam(1e-5),
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+        history = model.fit(
+            X_train, y_train,
+            validation_data=(X_val, y_val),
+            epochs=self.config.epochs,
+            batch_size=self.config.batch_size,
+            class_weight=class_weights,
+            callbacks=[
+                keras.callbacks.EarlyStopping(
+                    monitor="val_accuracy", mode="max",
+                    patience=self.config.early_stopping_patience + 10,
+                    restore_best_weights=True, verbose=1,
+                )
+            ],
+            verbose=1,
+        )
+
+        # Evaluate on the held-out validation and test users.
+        val_loss, val_acc = model.evaluate(X_val, y_val, verbose=0)
+        test_loss, test_acc = model.evaluate(X_test, y_test, verbose=0)
+        val_pred = np.argmax(model.predict(X_val, verbose=0), axis=1)
+        test_pred = np.argmax(model.predict(X_test, verbose=0), axis=1)
+
+        metrics = {
+            "method": "finetune_from_current",
+            "base_model_path": str(base_model_path),
+            "val_accuracy": float(val_acc),
+            "test_accuracy": float(test_acc),
+            "val_loss": float(val_loss),
+            "test_loss": float(test_loss),
+            "f1_macro_val": float(f1_score(y_val, val_pred, average="macro")),
+            "f1_macro_test": float(f1_score(y_test, test_pred, average="macro")),
+            "best_epoch": len(history.history.get("accuracy", [])),
+            "fit_users": fit_users,
+            "val_users": val_users,
+            "test_users": test_users,
+            "n_params": int(model.count_params()),
+        }
+        self.logger.info(
+            "Fine-tune done -> val_acc=%.4f test_acc=%.4f val_f1=%.4f test_f1=%.4f",
+            val_acc, test_acc, metrics["f1_macro_val"], metrics["f1_macro_test"],
+        )
         return model, metrics
 
     def _save_training_artifacts(
@@ -1088,7 +1311,8 @@ class DomainAdaptationTrainer(HARTrainer):
         else:
             raise FileNotFoundError(
                 f"Canonical scaler not found: {_config_path}. "
-                "Run scripts/refit_scaler_train_only.py first."
+                "Regenerate it via the build notebook "
+                "notebooks/Model_D1_Final_Build_Runtime_Contract.ipynb first."
             )
 
         # ------------------------------------------------------------------

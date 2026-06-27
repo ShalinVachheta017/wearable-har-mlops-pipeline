@@ -1,4 +1,4 @@
-"""
+﻿"""
 HAR MLOps FastAPI Application
 ==============================
 
@@ -42,22 +42,23 @@ from src.components.data_ingestion import (
     _rename_axes,
 )
 from src.config import DEFAULT_MODEL_PATH as _DEFAULT_MODEL_PATH
-from src.config import FINAL_MODEL_A_SCALER_JSON as _FINAL_MODEL_A_SCALER_JSON
+from src.config import MODEL_D1_FINAL_DIR as _MODEL_D1_FINAL_DIR
+from src.config import SCALER_CANONICAL as _SCALER_CANONICAL
 from src.config import MILLIG_TO_MS2 as _MILLIG_TO_MS2
 from src.config import OVERLAP as _OVERLAP
 from src.config import PROJECT_ROOT as _PROJECT_ROOT
 from src.config import WINDOW_SIZE as _WINDOW_SIZE
 from src.utils.label_detection import LABEL_COLUMN_CANDIDATES, NON_GROUND_TRUTH_COLUMNS
-from src.utils.label_mapping import get_activity_classes
+from src.utils.label_mapping import get_activity_classes, get_class_to_index
 
 
-# Single source of truth for monitoring thresholds — shared with the pipeline.
+# Single source of truth for monitoring thresholds â€” shared with the pipeline.
 def _load_monitoring_thresholds():
     try:
         from src.utils.config_loader import load_monitoring_config
 
         return load_monitoring_config()
-    except Exception:  # pragma: no cover — standalone startup without src/ on path
+    except Exception:  # pragma: no cover â€” standalone startup without src/ on path
 
         class _MonCfg:  # type: ignore
             confidence_warn_threshold: float = 0.70
@@ -88,22 +89,27 @@ logger = logging.getLogger("har_api")
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = _PROJECT_ROOT
 MODEL_PATH = Path(os.environ.get("MODEL_PATH", str(_DEFAULT_MODEL_PATH)))
-SCALER_CONFIG_PATH = Path(os.environ.get("SCALER_CONFIG_PATH", str(_FINAL_MODEL_A_SCALER_JSON)))
+# Default scaler tracks SCALER_CANONICAL in src/config.py (Model D1 since
+# 2026-05-26). Override via SCALER_CONFIG_PATH env var if you need to load a
+# different contract (e.g. Model A rollback evidence).
+SCALER_CONFIG_PATH = Path(os.environ.get("SCALER_CONFIG_PATH", str(_SCALER_CANONICAL)))
+# Monitoring baseline travels with the same runtime contract folder as the
+# scaler. Override via BASELINE_PATH env var for rollback scenarios.
 BASELINE_PATH = Path(
     os.environ.get(
         "BASELINE_PATH",
-        str(
-            PROJECT_ROOT
-            / "models"
-            / "runtime_contract"
-            / "model_a_final_20260508"
-            / "garmin_train_scaled_baseline.json"
-        ),
+        str(_MODEL_D1_FINAL_DIR / "garmin_train_scaled_baseline.json"),
     )
 )
 WINDOW_SIZE = _WINDOW_SIZE
 OVERLAP = _OVERLAP
 STEP_SIZE = int(WINDOW_SIZE * (1 - OVERLAP))
+# Temporal smoothing of the per-window prediction stream â€” the decision stage of
+# the Activity Recognition Chain (Bulling et al., 2014). Soft majority vote over
+# a small neighbourhood of windows. Applied ADDITIVELY: raw predictions still
+# drive monitoring and the served output; the smoothed view is reported alongside
+# so the monitoring signal stays honest. Window of 3 â‰ˆ 6 s of context.
+SMOOTHING_WINDOW = 3
 
 ACTIVITY_CLASSES: Dict[int, str] = get_activity_classes()
 
@@ -145,7 +151,7 @@ def _load_model():
     if not MODEL_PATH.exists():
         logger.warning("Model file not found: %s", MODEL_PATH)
         return
-    logger.info("Loading model from %s …", MODEL_PATH)
+    logger.info("Loading model from %s â€¦", MODEL_PATH)
     _model = tf.keras.models.load_model(str(MODEL_PATH), compile=False)
     _model_info = {
         "name": "1D-CNN-BiLSTM HAR",
@@ -157,11 +163,11 @@ def _load_model():
     }
     # warm-up
     _model.predict(np.zeros((1, WINDOW_SIZE, 6), dtype=np.float32), verbose=0)
-    logger.info("Model ready – %s params", f"{_model_info['params']:,}")
+    logger.info("Model ready â€“ %s params", f"{_model_info['params']:,}")
 
 
 def _load_baseline():
-    """Load the final Model A scaled baseline JSON (once)."""
+    """Load the active runtime scaled baseline JSON once."""
     global _baseline
     if _baseline is not None or not BASELINE_PATH.exists():
         return
@@ -171,7 +177,7 @@ def _load_baseline():
 
 
 def _load_scaler_config() -> Dict:
-    """Load the final Model A Garmin train-only scaler JSON."""
+    """Load the active Garmin train-only scaler JSON."""
     global _scaler_config
     if _scaler_config is not None:
         return _scaler_config
@@ -304,7 +310,7 @@ def _maybe_convert_accel_units(
 
 
 def _apply_final_model_scaler(values: np.ndarray) -> Tuple[np.ndarray, Dict]:
-    """Apply the final Model A Garmin train-only StandardScaler."""
+    """Apply the active Garmin train-only StandardScaler."""
     cfg = _load_scaler_config()
     mean = np.asarray(cfg["scaler_mean"], dtype=np.float32)
     scale = np.asarray(cfg["scaler_scale"], dtype=np.float32)
@@ -315,7 +321,7 @@ def _apply_final_model_scaler(values: np.ndarray) -> Tuple[np.ndarray, Dict]:
         "normalization_variant": cfg.get("normalization_variant", "zscore"),
         "scaler_config": str(SCALER_CONFIG_PATH),
         "model_input_space": "zscore_scaled_garmin_train_only",
-        "note": "API upload path applies the final Model A Garmin train-only scaler after accelerometer unit conversion.",
+        "note": "API upload path applies the active Garmin train-only scaler after accelerometer unit conversion.",
     }
     return scaled.astype(np.float32), info
 
@@ -337,17 +343,38 @@ def _create_windows(values: np.ndarray) -> np.ndarray:
     return np.array(windows)  # own memory
 
 
+def _smooth_predictions(
+    probabilities: np.ndarray, window: int = SMOOTHING_WINDOW
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Soft-vote temporal smoothing of the prediction stream.
+
+    Averages the softmax vectors over a neighbourhood of ``window`` windows and
+    takes the argmax, so an isolated low-confidence flip is outvoted by its
+    confident neighbours. Returns ``(smoothed_classes, smoothed_confidence)``.
+    """
+    n = len(probabilities)
+    if window <= 1 or n == 0:
+        return probabilities.argmax(axis=1), probabilities.max(axis=1)
+    half = window // 2
+    averaged = np.empty_like(probabilities)
+    for i in range(n):
+        lo, hi = max(0, i - half), min(n, i + half + 1)
+        averaged[i] = probabilities[lo:hi].mean(axis=0)
+    return averaged.argmax(axis=1), averaged.max(axis=1)
+
+
 def _run_monitoring(
     predictions: np.ndarray,
     probabilities: np.ndarray,
     windows: np.ndarray,
+    smoothed_predictions: Optional[np.ndarray] = None,
 ) -> Dict:
     """
     Run 3-layer monitoring on inference results.
 
-    Layer 1 – Confidence analysis
-    Layer 2 – Temporal pattern analysis
-    Layer 3 – Drift detection (if baseline available)
+    Layer 1 â€“ Confidence analysis
+    Layer 2 â€“ Temporal pattern analysis
+    Layer 3 â€“ Drift detection (if baseline available)
     """
     n = len(predictions)
 
@@ -363,10 +390,16 @@ def _run_monitoring(
         else "WARNING"
     )
 
-    # Layer 2: Temporal
+    # Layer 2: Temporal â€” status is judged on the RAW stream (additive design).
     transitions = int(np.sum(predictions[1:] != predictions[:-1]))
     transition_rate = float(transitions / max(n - 1, 1) * 100)
     l2_status = "HEALTHY" if transition_rate <= _MON_T.transition_rate_threshold else "WARNING"
+    if smoothed_predictions is not None and n > 1:
+        transition_rate_smoothed = float(
+            np.sum(smoothed_predictions[1:] != smoothed_predictions[:-1]) / (n - 1) * 100
+        )
+    else:
+        transition_rate_smoothed = transition_rate
 
     # Layer 3: Drift
     l3_status = "SKIPPED"
@@ -389,6 +422,36 @@ def _run_monitoring(
         else "WARNING"
     )
 
+    # Trigger decision â€” derive reasons from each layer
+    reasons = []
+    if l1_status != "HEALTHY":
+        reasons.append(
+            f"mean confidence {mean_conf:.1%} below threshold "
+            f"{_MON_T.confidence_warn_threshold:.1%}"
+        )
+    if uncertain_pct > _MON_T.uncertain_pct_threshold:
+        reasons.append(
+            f"uncertain windows {uncertain_pct:.1f}% above threshold "
+            f"{_MON_T.uncertain_pct_threshold:.1f}%"
+        )
+    if l2_status != "HEALTHY":
+        reasons.append(
+            f"transition rate {transition_rate:.1f}% above threshold "
+            f"{_MON_T.transition_rate_threshold:.1f}%"
+        )
+    if l3_status == "WARNING" and drift_scores:
+        max_d = float(np.max(list(drift_scores.values())))
+        reasons.append(
+            f"drift z-score {max_d:.3f} above threshold "
+            f"{_MON_T.drift_zscore_threshold:.1f}"
+        )
+
+    action = "REVIEW" if reasons else "NO_ACTION"
+    alert_level = (
+        "CRITICAL" if uncertain_pct > 50
+        else ("WARNING" if reasons else "HEALTHY")
+    )
+
     return {
         "overall_status": overall,
         "layer1_confidence": {
@@ -402,6 +465,8 @@ def _run_monitoring(
             "status": l2_status,
             "transitions": transitions,
             "transition_rate_pct": round(transition_rate, 2),
+            "transition_rate_smoothed_pct": round(transition_rate_smoothed, 2),
+            "smoothing_window": SMOOTHING_WINDOW,
             "threshold_pct": _MON_T.transition_rate_threshold,
         },
         "layer3_drift": {
@@ -411,7 +476,196 @@ def _run_monitoring(
                 float(np.max(list(drift_scores.values()))) if drift_scores else 0.0, 4
             ),
         },
+        "trigger": {
+            "action": action,
+            "should_retrain": False,
+            "alert_level": alert_level,
+            "reasons": reasons,
+            "n_reasons": len(reasons),
+        },
     }
+
+
+# ---------------------------------------------------------------------------
+# Serving-path MLflow logging (best-effort, non-fatal)
+# ---------------------------------------------------------------------------
+
+
+def _log_inference_mlflow(
+    monitoring: Dict,
+    evaluation: Optional[Dict],
+    activity_summary: Dict[str, int],
+    total_windows: int,
+    mean_confidence: float,
+    source_files: List[str],
+) -> None:
+    """Log the serving-path proxy metrics to the ``inference-production`` run.
+
+    Writes confidence, drift, temporal (raw + smoothed), per-activity counts, and
+    â€” when labels are present â€” accuracy/macro-F1, so WebUI/API uploads are tracked
+    alongside the batch pipeline. Best-effort: any failure (MLflow absent, tracking
+    server down) is logged and ignored so serving never breaks.
+    """
+    try:
+        import mlflow
+
+        l2 = monitoring.get("layer2_temporal", {})
+        l3 = monitoring.get("layer3_drift", {})
+        mlflow.set_experiment("inference-production")
+        with mlflow.start_run(run_name=f"inference_{datetime.now():%Y%m%d_%H%M%S}"):
+            mlflow.log_params(
+                {
+                    "model_path": MODEL_PATH.name,
+                    "input": " + ".join(source_files) if source_files else "unknown.csv",
+                    "has_labels": bool(evaluation and evaluation.get("available")),
+                }
+            )
+            metrics = {
+                "total_windows": total_windows,
+                "mean_confidence": round(float(mean_confidence), 4),
+                "transition_rate": l2.get("transition_rate_pct", 0.0),
+                "transition_rate_smoothed": l2.get("transition_rate_smoothed_pct", 0.0),
+            }
+            if l3.get("status") != "SKIPPED" and l3.get("max_drift") is not None:
+                metrics["drift_score"] = float(l3.get("max_drift", 0.0))
+            if evaluation and evaluation.get("available"):
+                metrics["accuracy"] = evaluation.get("accuracy", 0.0)
+                metrics["macro_f1"] = evaluation.get("macro_f1", 0.0)
+                metrics["weighted_f1"] = evaluation.get("weighted_f1", 0.0)
+                if "accuracy_smoothed" in evaluation:
+                    metrics["accuracy_smoothed"] = evaluation["accuracy_smoothed"]
+                    metrics["macro_f1_smoothed"] = evaluation["macro_f1_smoothed"]
+            mlflow.log_metrics(metrics)
+            for activity, count in activity_summary.items():
+                mlflow.log_metric(f"count_{activity}", int(count))
+    except Exception as exc:  # pragma: no cover - MLflow is auxiliary
+        logger.warning("MLflow inference logging skipped: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# Label evaluation (only when the upload carries ground-truth labels)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_label_ids(label_series: pd.Series) -> np.ndarray:
+    """Map a ground-truth label column to class ids.
+
+    Accepts either activity names (e.g. ``smoking``) or numeric ids. Values that
+    do not match a known class become -1 and are excluded from evaluation.
+    """
+    class_to_index = get_class_to_index()
+    valid_ids = set(ACTIVITY_CLASSES.keys())
+    ids = np.full(len(label_series), -1, dtype=np.int64)
+    for i, value in enumerate(label_series.tolist()):
+        key = str(value).strip().lower()
+        if key in class_to_index:
+            ids[i] = class_to_index[key]
+            continue
+        try:
+            numeric = int(float(value))
+        except (TypeError, ValueError):
+            continue
+        if numeric in valid_ids:
+            ids[i] = numeric
+    return ids
+
+
+def _evaluate_against_labels(
+    row_label_ids: np.ndarray,
+    predicted_classes: np.ndarray,
+    label_column: str,
+    smoothed_classes: Optional[np.ndarray] = None,
+) -> Dict:
+    """Window-level accuracy / F1 against ground truth.
+
+    Each window's true label is the majority of the per-sample labels it spans,
+    matching the sliding-window geometry used for inference. Windows whose span
+    has no resolvable label are skipped.
+    """
+    n_windows = len(predicted_classes)
+    y_true = np.full(n_windows, -1, dtype=np.int64)
+    for i in range(n_windows):
+        start = i * STEP_SIZE
+        segment = row_label_ids[start : start + WINDOW_SIZE]
+        segment = segment[segment >= 0]
+        if segment.size:
+            y_true[i] = int(np.bincount(segment).argmax())
+
+    mask = y_true >= 0
+    if not mask.any():
+        return {
+            "available": False,
+            "label_column": label_column,
+            "note": "Label column found but no values matched known activity classes.",
+        }
+
+    yt = y_true[mask]
+    yp = predicted_classes[mask].astype(np.int64)
+
+    from sklearn.metrics import (
+        accuracy_score,
+        confusion_matrix,
+        f1_score,
+        precision_recall_fscore_support,
+    )
+
+    smoothed_metrics: Dict = {}
+    if smoothed_classes is not None:
+        yps = smoothed_classes[mask].astype(np.int64)
+        smoothed_metrics = {
+            "accuracy_smoothed": round(float(accuracy_score(yt, yps)), 4),
+            "macro_f1_smoothed": round(
+                float(f1_score(yt, yps, average="macro", zero_division=0)), 4
+            ),
+        }
+
+    labels_present = sorted(set(yt.tolist()) | set(yp.tolist()))
+    precision, recall, f1, support = precision_recall_fscore_support(
+        yt, yp, labels=labels_present, zero_division=0
+    )
+    per_class = [
+        {
+            "activity": ACTIVITY_CLASSES.get(int(c), str(c)),
+            "precision": round(float(precision[j]), 4),
+            "recall": round(float(recall[j]), 4),
+            "f1": round(float(f1[j]), 4),
+            "support": int(support[j]),
+        }
+        for j, c in enumerate(labels_present)
+    ]
+    return {
+        "available": True,
+        "label_column": label_column,
+        "accuracy": round(float(accuracy_score(yt, yp)), 4),
+        "macro_f1": round(float(f1_score(yt, yp, average="macro", zero_division=0)), 4),
+        "weighted_f1": round(
+            float(f1_score(yt, yp, average="weighted", zero_division=0)), 4
+        ),
+        "n_evaluated_windows": int(mask.sum()),
+        "n_total_windows": int(n_windows),
+        "label_basis": "majority vote of per-sample labels within each window",
+        "per_class": per_class,
+        "confusion_matrix": {
+            "labels": [ACTIVITY_CLASSES.get(int(c), str(c)) for c in labels_present],
+            "matrix": confusion_matrix(yt, yp, labels=labels_present).tolist(),
+        },
+        **smoothed_metrics,
+    }
+
+
+def _maybe_evaluate(
+    df: pd.DataFrame,
+    label_column: Optional[str],
+    predicted_classes: np.ndarray,
+    smoothed_classes: Optional[np.ndarray] = None,
+) -> Optional[Dict]:
+    """Return evaluation metrics if the upload carries a usable label column."""
+    if not label_column or label_column not in df.columns:
+        return None
+    row_label_ids = _resolve_label_ids(df[label_column])
+    return _evaluate_against_labels(
+        row_label_ids, predicted_classes, label_column, smoothed_classes
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +688,7 @@ class UploadResult(BaseModel):
     predictions: List[Dict]
     activity_summary: Dict[str, int]
     monitoring: Dict
+    evaluation: Optional[Dict] = None
     confidence_stats: Dict
 
 
@@ -459,7 +714,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="HAR MLOps API",
-    description="Human Activity Recognition – Inference, Monitoring & Dashboard",
+    description="Human Activity Recognition â€“ Inference, Monitoring & Dashboard",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -518,14 +773,15 @@ async def upload_csv(
 
     The API will:
     1. Auto-detect or fuse sensor columns
-    2. Apply production unit conversion and the final Model A Garmin scaler
+    2. Apply production unit conversion and the active Garmin scaler
     3. Create sliding windows (200 samples, 50 % overlap)
     4. Run inference (1D-CNN-BiLSTM)
     5. Run 3-layer monitoring (confidence, temporal, drift)
-    6. Return full results
+    6. Evaluate against ground-truth labels when the upload includes them
+    7. Return full results
     """
     if _model is None:
-        raise HTTPException(503, "Model not loaded – check /api/health")
+        raise HTTPException(503, "Model not loaded â€“ check /api/health")
 
     t0 = time.perf_counter()
 
@@ -584,7 +840,7 @@ async def upload_csv(
             f"for one window.",
         )
 
-    # --- Unit conversion + final Model A scaler contract ---
+    # --- Unit conversion + active runtime scaler contract ---
     df, unit_conversion_applied = _maybe_convert_accel_units(df, sensor_cols)
     raw_values = df[sensor_cols].values.astype(np.float32)
     values, scaler_info = _apply_final_model_scaler(raw_values)
@@ -603,6 +859,8 @@ async def upload_csv(
     probabilities = _model.predict(windows, verbose=0, batch_size=64)
     predicted_classes = np.argmax(probabilities, axis=1)
     max_probs = probabilities.max(axis=1)
+    # Temporal smoothing (additive): raw predictions remain the served output.
+    smoothed_classes, _ = _smooth_predictions(probabilities)
 
     # --- Per-window results ---
     predictions = []
@@ -624,7 +882,20 @@ async def upload_csv(
     activity_summary = dict(sorted(counts.items(), key=lambda x: -x[1]))
 
     # --- Monitoring ---
-    monitoring = _run_monitoring(predicted_classes, probabilities, windows)
+    monitoring = _run_monitoring(predicted_classes, probabilities, windows, smoothed_classes)
+
+    # --- Evaluation (only when the upload carries ground-truth labels) ---
+    evaluation = _maybe_evaluate(df, label_column, predicted_classes, smoothed_classes)
+
+    # --- MLflow (best-effort; never breaks serving) ---
+    _log_inference_mlflow(
+        monitoring,
+        evaluation,
+        activity_summary,
+        len(windows),
+        float(np.mean(max_probs)),
+        source_files,
+    )
 
     elapsed = (time.perf_counter() - t0) * 1000
     has_labels = label_column is not None
@@ -645,6 +916,7 @@ async def upload_csv(
         predictions=predictions,
         activity_summary=activity_summary,
         monitoring=monitoring,
+        evaluation=evaluation,
         confidence_stats={
             "mean": round(float(np.mean(max_probs)), 4),
             "std": round(float(np.std(max_probs)), 4),
@@ -656,518 +928,13 @@ async def upload_csv(
 
 # ========================== Web UI =========================================
 
+_DASHBOARD_PATH = Path(__file__).parent / "templates" / "dashboard.html"
+
 
 @app.get("/", response_class=HTMLResponse, tags=["UI"])
 async def dashboard():
     """Serve the interactive web dashboard."""
-    return _DASHBOARD_HTML
-
-
-# ---------------------------------------------------------------------------
-# Embedded HTML dashboard (single-file, no external templates needed)
-# ---------------------------------------------------------------------------
-
-_DASHBOARD_HTML = r"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HAR MLOps Dashboard</title>
-<style>
-  :root {
-    --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
-    --border: #475569; --text: #e2e8f0; --muted: #94a3b8;
-    --primary: #3b82f6; --primary-hover: #2563eb;
-    --green: #22c55e; --yellow: #eab308; --red: #ef4444;
-    --radius: 12px;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: var(--bg); color: var(--text); line-height: 1.6;
-    min-height: 100vh;
-  }
-  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-
-  /* Header */
-  header {
-    background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
-    border-bottom: 1px solid var(--border); padding: 32px 0;
-    text-align: center;
-  }
-  header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
-  header h1 span { color: var(--primary); }
-  header p { color: var(--muted); margin-top: 8px; font-size: 0.95rem; }
-
-  /* Cards */
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
-  }
-  .card h2 {
-    font-size: 1.1rem; font-weight: 600; margin-bottom: 16px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .card h2 .icon { font-size: 1.3rem; }
-
-  /* Upload area */
-  .upload-zone {
-    border: 2px dashed var(--border); border-radius: var(--radius);
-    padding: 48px 24px; text-align: center; cursor: pointer;
-    transition: all 0.25s ease;
-  }
-  .upload-zone:hover, .upload-zone.dragover {
-    border-color: var(--primary); background: rgba(59,130,246,0.05);
-  }
-  .upload-zone .big-icon { font-size: 3rem; margin-bottom: 12px; }
-  .upload-zone p { color: var(--muted); }
-  .upload-zone .filename { color: var(--primary); font-weight: 600; margin-top: 8px; }
-  #fileInput { display: none; }
-
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: var(--primary); color: #fff; border: none;
-    padding: 12px 28px; border-radius: 8px; font-size: 1rem;
-    font-weight: 600; cursor: pointer; margin-top: 16px;
-    transition: background 0.2s;
-  }
-  .btn:hover { background: var(--primary-hover); }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  /* Status bar */
-  .status-bar {
-    display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
-  }
-  .status-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--surface2); border-radius: 20px;
-    padding: 6px 14px; font-size: 0.85rem;
-  }
-  .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .dot.green { background: var(--green); }
-  .dot.yellow { background: var(--yellow); }
-  .dot.red { background: var(--red); }
-  .dot.gray { background: var(--muted); }
-
-  /* Grid */
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
-
-  /* Monitoring pills */
-  .monitor-layers { display: flex; gap: 12px; flex-wrap: wrap; }
-  .layer-pill {
-    flex: 1; min-width: 200px; background: var(--surface2);
-    border-radius: 8px; padding: 16px;
-  }
-  .layer-pill .label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-  .layer-pill .value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
-  .layer-pill .detail { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
-
-  /* Table */
-  table { width: 100%; border-collapse: collapse; }
-  th, td {
-    padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--surface2);
-    font-size: 0.9rem;
-  }
-  th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
-  tr:hover { background: rgba(59,130,246,0.04); }
-  .conf-bar {
-    height: 6px; border-radius: 3px; background: var(--surface2);
-    position: relative; overflow: hidden; min-width: 60px;
-  }
-  .conf-bar .fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-
-  /* Activity summary bars */
-  .activity-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .activity-bar-row .name { min-width: 140px; font-size: 0.85rem; }
-  .activity-bar-row .bar-bg {
-    flex: 1; height: 20px; background: var(--surface2); border-radius: 4px;
-    overflow: hidden;
-  }
-  .activity-bar-row .bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
-  .activity-bar-row .count { min-width: 40px; text-align: right; font-size: 0.85rem; color: var(--muted); }
-
-  /* Spinner */
-  .spinner { display: none; margin: 20px auto; }
-  .spinner.active { display: block; }
-  .spinner svg { animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Hidden */
-  .hidden { display: none; }
-
-  /* Info text */
-  .info-box {
-    background: rgba(59,130,246,0.1); border-left: 3px solid var(--primary);
-    border-radius: 0 8px 8px 0; padding: 12px 16px; margin-top: 16px;
-    font-size: 0.9rem; color: var(--muted);
-  }
-
-  /* Footer */
-  footer {
-    text-align: center; padding: 24px; color: var(--muted);
-    font-size: 0.8rem; border-top: 1px solid var(--surface2); margin-top: 40px;
-  }
-
-  /* Pipeline stage track */
-  .pipeline-track {
-    display: flex; gap: 0; flex-wrap: wrap; align-items: center;
-    margin-bottom: 20px;
-  }
-  .stage-box {
-    display: flex; flex-direction: column; align-items: center;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px; min-width: 80px;
-    text-align: center; position: relative; cursor: default;
-    transition: border-color 0.3s;
-  }
-  .stage-box.active   { border-color: var(--primary); }
-  .stage-box.pass     { border-color: var(--green); }
-  .stage-box.warn     { border-color: var(--yellow); }
-  .stage-box.fail     { border-color: var(--red); }
-  .stage-box.gated    { opacity: 0.5; }
-  .stage-box .snum    { font-size: 0.7rem; color: var(--muted); }
-  .stage-box .sname   { font-size: 0.75rem; font-weight: 600; margin-top: 2px; }
-  .stage-box .sdot    { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-top: 6px; }
-  .stage-box.pass .sdot { background: var(--green); }
-  .stage-box.warn .sdot { background: var(--yellow); }
-  .stage-box.fail .sdot { background: var(--red); }
-  .stage-box.active .sdot { background: var(--primary); }
-  .pipe-arrow { color: var(--muted); padding: 0 4px; font-size: 0.85rem; align-self: center; }
-</style>
-</head>
-<body>
-
-<header>
-  <div class="container">
-    <h1>&#x1F3AF; HAR <span>MLOps</span> Dashboard</h1>
-    <p>Upload sensor CSV &rarr; Inference &rarr; 3-Layer Monitoring &rarr; Results</p>
-  </div>
-</header>
-
-<div class="container">
-
-  <!-- Status Bar -->
-  <div class="status-bar" id="statusBar">
-    <div class="status-chip"><div class="dot gray" id="dotModel"></div><span id="statusModel">Checking model…</span></div>
-    <div class="status-chip"><div class="dot gray" id="dotBaseline"></div><span id="statusBaseline">Checking baseline…</span></div>
-    <div class="status-chip"><div class="dot gray" id="dotApi"></div><span id="statusApi">API</span></div>
-  </div>
-
-  <!-- Pipeline Stage Track -->
-  <div class="card" style="padding:16px 20px;">
-    <h2 style="margin-bottom:12px;"><span class="icon">&#x26A1;</span> Pipeline Stages</h2>
-    <div class="pipeline-track" id="stageTrack">
-      <div class="stage-box gated" id="s1"><span class="snum">S1</span><span class="sname">Ingest</span><span class="sdot"></span></div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="stage-box gated" id="s2"><span class="snum">S2</span><span class="sname">Validate</span><span class="sdot"></span></div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="stage-box gated" id="s3"><span class="snum">S3</span><span class="sname">Transform</span><span class="sdot"></span></div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="stage-box" id="s4"><span class="snum">S4</span><span class="sname">Inference</span><span class="sdot"></span></div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="stage-box" id="s5"><span class="snum">S5</span><span class="sname">Evaluate</span><span class="sdot"></span></div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="stage-box" id="s6"><span class="snum">S6</span><span class="sname">Monitor</span><span class="sdot"></span></div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="stage-box" id="s7"><span class="snum">S7</span><span class="sname">Trigger</span><span class="sdot"></span></div>
-      <span class="pipe-arrow" id="arrowRetrain" style="opacity:0.3">&#8594;</span>
-      <div class="stage-box gated" id="s8"><span class="snum">S8</span><span class="sname">Retrain</span><span class="sdot"></span></div>
-      <span class="pipe-arrow" style="opacity:0.3">&#8594;</span>
-      <div class="stage-box gated" id="s9"><span class="snum">S9</span><span class="sname">Register</span><span class="sdot"></span></div>
-      <span class="pipe-arrow" style="opacity:0.3">&#8594;</span>
-      <div class="stage-box gated" id="s10"><span class="snum">S10</span><span class="sname">Baseline</span><span class="sdot"></span></div>
-    </div>
-    <p style="font-size:0.78rem;color:var(--muted);margin-top:6px;">S1-S3 run via full pipeline CLI &middot; this API call executes S4-S7 (so 4/4 requested stages is correct) &middot; S8-S10 require review, labels, and QA outside this request &middot; S11 is optional via run_pipeline.py --advanced</p>
-  </div>
-
-  <!-- Upload Card -->
-  <div class="card">
-    <h2><span class="icon">&#128228;</span> Upload Sensor Data</h2>
-    <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-      <div class="big-icon">&#128196;</div>
-      <p><strong>Click or drag & drop</strong> a fused CSV file here</p>
-      <p style="font-size:0.85rem;">Fused CSV requires accelerometer + gyroscope columns in one file.</p>
-      <div class="filename" id="fileName"></div>
-    </div>
-    <input type="file" id="fileInput" accept=".csv">
-    <div style="margin:16px 0;color:var(--muted);text-align:center;">or upload a raw sensor pair</div>
-    <div class="grid">
-      <div>
-        <label style="font-size:0.8rem;color:var(--muted);">Accelerometer CSV</label>
-        <input type="file" id="accelInput" accept=".csv" style="width:100%;margin-top:6px;">
-        <div class="filename" id="accelName"></div>
-      </div>
-      <div>
-        <label style="font-size:0.8rem;color:var(--muted);">Gyroscope CSV</label>
-        <input type="file" id="gyroInput" accept=".csv" style="width:100%;margin-top:6px;">
-        <div class="filename" id="gyroName"></div>
-      </div>
-    </div>
-    <div class="info-box" style="margin-top:14px;">
-      Inference accepts one fused CSV or one accelerometer + gyroscope pair.
-      Retraining remains gated and requires labels plus a qualifying trigger decision.
-    </div>
-    <div style="text-align:center;">
-      <button class="btn" id="runBtn" disabled onclick="runInference()">
-        &#9654; Run Inference &amp; Monitoring
-      </button>
-    </div>
-    <div class="spinner" id="spinner">
-      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" stroke="#3b82f6" stroke-width="4" fill="none" stroke-dasharray="80" stroke-dashoffset="60"/></svg>
-    </div>
-  </div>
-
-  <!-- Results (hidden until inference runs) -->
-  <div id="results" class="hidden">
-
-    <!-- Summary chips -->
-    <div class="card">
-      <h2><span class="icon">&#x1F4CA;</span> Summary</h2>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;" id="summaryChips"></div>
-    </div>
-
-    <!-- Monitoring -->
-    <div class="card">
-      <h2><span class="icon">&#x1F6E1;</span> 3-Layer Monitoring</h2>
-      <div class="monitor-layers" id="monitorLayers"></div>
-    </div>
-
-    <!-- Grid: Activity Distribution + Confidence -->
-    <div class="grid">
-      <div class="card">
-        <h2><span class="icon">&#x1F3C3;</span> Activity Distribution</h2>
-        <div id="activityBars"></div>
-      </div>
-      <div class="card">
-        <h2><span class="icon">&#x1F4C8;</span> Confidence Statistics</h2>
-        <div id="confStats"></div>
-      </div>
-    </div>
-
-    <!-- Predictions table -->
-    <div class="card">
-      <h2><span class="icon">&#x1F4DD;</span> Window Predictions</h2>
-      <div style="max-height:400px;overflow-y:auto;">
-        <table>
-          <thead><tr><th>#</th><th>Activity</th><th>ID</th><th>Confidence</th><th></th></tr></thead>
-          <tbody id="predTable"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Info -->
-    <div class="info-box">
-      <strong>How it works:</strong> Your CSV is split into sliding windows of 200 samples
-      (50% overlap). Each window is classified by a 1D-CNN-BiLSTM model. Then 3-layer
-      monitoring checks confidence, temporal consistency, and distribution drift.
-      Labeled uploads are marked as retraining-eligible, but model mutation remains gated outside this API call.
-    </div>
-  </div>
-
-</div>
-
-<footer>
-  HAR MLOps Pipeline &middot; Master Thesis &middot; 1D-CNN-BiLSTM &middot; TensorFlow/Keras
-</footer>
-
-<script>
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const accelInput = document.getElementById('accelInput');
-const gyroInput = document.getElementById('gyroInput');
-const runBtn = document.getElementById('runBtn');
-const spinner = document.getElementById('spinner');
-let selectedFusedFile = null;
-let selectedAccelFile = null;
-let selectedGyroFile = null;
-
-// Drag & drop
-['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
-['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
-dropZone.addEventListener('drop', ev => { if (ev.dataTransfer.files.length) selectFusedFile(ev.dataTransfer.files[0]); });
-fileInput.addEventListener('change', () => { if (fileInput.files.length) selectFusedFile(fileInput.files[0]); });
-accelInput.addEventListener('change', () => { if (accelInput.files.length) selectPairFile('accel', accelInput.files[0]); });
-gyroInput.addEventListener('change', () => { if (gyroInput.files.length) selectPairFile('gyro', gyroInput.files[0]); });
-
-function selectFusedFile(f) {
-  selectedFusedFile = f;
-  selectedAccelFile = null;
-  selectedGyroFile = null;
-  accelInput.value = '';
-  gyroInput.value = '';
-  document.getElementById('accelName').textContent = '';
-  document.getElementById('gyroName').textContent = '';
-  document.getElementById('fileName').textContent = f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
-  updateRunButton();
-}
-
-function selectPairFile(kind, f) {
-  selectedFusedFile = null;
-  fileInput.value = '';
-  document.getElementById('fileName').textContent = '';
-  if (kind === 'accel') {
-    selectedAccelFile = f;
-    document.getElementById('accelName').textContent = f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
-  } else {
-    selectedGyroFile = f;
-    document.getElementById('gyroName').textContent = f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
-  }
-  updateRunButton();
-}
-
-function updateRunButton() {
-  runBtn.disabled = !(selectedFusedFile || (selectedAccelFile && selectedGyroFile));
-}
-
-// Health check on load
-fetch('/api/health').then(r=>r.json()).then(d => {
-  set('dotModel', d.model_loaded ? 'green' : 'red');
-  set('statusModel', d.model_loaded ? 'Model loaded' : 'Model missing');
-  set('dotBaseline', d.baseline_loaded ? 'green' : 'yellow');
-  set('statusBaseline', d.baseline_loaded ? 'Baseline loaded' : 'No baseline');
-  set('dotApi', 'green'); document.getElementById('statusApi').textContent = 'API ready';
-}).catch(() => {
-  set('dotApi', 'red'); document.getElementById('statusApi').textContent = 'API error';
-});
-
-function set(id, cls) {
-  const el = document.getElementById(id);
-  el.className = el.className.replace(/green|yellow|red|gray/g, '').trim() + ' ' + cls;
-}
-
-async function runInference() {
-  if (!(selectedFusedFile || (selectedAccelFile && selectedGyroFile))) return;
-  runBtn.disabled = true;
-  spinner.classList.add('active');
-  document.getElementById('results').classList.add('hidden');
-
-  const fd = new FormData();
-  if (selectedFusedFile) {
-    fd.append('file', selectedFusedFile);
-  } else {
-    fd.append('accelerometer_file', selectedAccelFile);
-    fd.append('gyroscope_file', selectedGyroFile);
-  }
-
-  try {
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    if (!res.ok) {
-      const err = await res.json();
-      alert('Error: ' + (err.detail || res.statusText));
-      return;
-    }
-    const data = await res.json();
-    renderResults(data);
-  } catch (e) {
-    alert('Request failed: ' + e.message);
-  } finally {
-    updateRunButton();
-    spinner.classList.remove('active');
-  }
-}
-
-function updateStages(d) {
-  const m = d.monitoring;
-  const stateOf = status => status === 'HEALTHY' ? 'pass' : status === 'PASS' ? 'pass' : status === 'WARNING' ? 'warn' : status === 'SKIPPED' ? '' : 'fail';
-
-  // S4 Inference — always runs if we got results
-  setStage('s4', 'pass');
-  // S5 Evaluate — always runs alongside inference in the API
-  setStage('s5', 'pass');
-  // S6 Monitor
-  setStage('s6', stateOf(m.overall_status) || 'pass');
-  // S7 Trigger — infer from monitoring outcome
-  const needsAction = m.overall_status !== 'HEALTHY';
-  setStage('s7', needsAction ? 'warn' : 'pass');
-  // S8-S10 stay gated in the API. Review, labels, and QA are required outside this request.
-  document.getElementById('arrowRetrain').style.opacity = '0.3';
-  ['s8','s9','s10'].forEach(id => setStage(id, 'gated'));
-}
-
-function setStage(id, cls) {
-  const el = document.getElementById(id);
-  el.classList.remove('gated','pass','warn','fail','active');
-  if (cls) el.classList.add(cls);
-}
-
-function resetStages() {
-  ['s4','s5','s6','s7'].forEach(id => setStage(id, ''));
-  ['s8','s9','s10'].forEach(id => { setStage(id, 'gated'); });
-  document.getElementById('arrowRetrain').style.opacity = '0.3';
-}
-
-function renderResults(d) {
-  document.getElementById('results').classList.remove('hidden');
-  updateStages(d);
-
-  // Summary chips
-  const chips = [
-    { label: 'File', value: d.filename },
-    { label: 'Mode', value: d.upload_mode },
-    { label: 'Rows', value: d.total_rows.toLocaleString() },
-    { label: 'Windows', value: d.windows_created },
-    { label: 'Time', value: d.processing_time_ms.toFixed(0) + ' ms' },
-    { label: 'Labels', value: d.has_labels ? d.label_column : 'none' },
-    { label: 'Input', value: d.preprocessing.model_input_space || 'raw physical' },
-    { label: 'Monitoring', value: d.monitoring.overall_status, color: d.monitoring.overall_status === 'HEALTHY' ? 'var(--green)' : d.monitoring.overall_status === 'CRITICAL' ? 'var(--red)' : 'var(--yellow)' },
-  ];
-  document.getElementById('summaryChips').innerHTML = chips.map(c =>
-    `<div class="status-chip"><strong>${c.label}:</strong>&nbsp;` +
-    `<span style="color:${c.color||'var(--text)'}">${c.value}</span></div>`
-  ).join('');
-
-  // Monitoring layers
-  const m = d.monitoring;
-  const layers = [
-    { name: 'Confidence', status: m.layer1_confidence.status,
-      value: (m.layer1_confidence.mean_confidence * 100).toFixed(1) + '%',
-      detail: m.layer1_confidence.uncertain_pct.toFixed(1) + '% uncertain' },
-    { name: 'Temporal', status: m.layer2_temporal.status,
-      value: m.layer2_temporal.transition_rate_pct.toFixed(1) + '%',
-      detail: m.layer2_temporal.transitions + ' transitions' },
-    { name: 'Drift', status: m.layer3_drift.status,
-      value: m.layer3_drift.status === 'SKIPPED' ? 'N/A' : m.layer3_drift.max_drift.toFixed(4),
-      detail: m.layer3_drift.status === 'SKIPPED' ? 'No baseline' : 'max drift z-score' },
-  ];
-  document.getElementById('monitorLayers').innerHTML = layers.map(l => {
-    const color = l.status === 'HEALTHY' ? 'var(--green)' : l.status === 'WARNING' ? 'var(--yellow)' : l.status === 'CRITICAL' ? 'var(--red)' : 'var(--muted)';
-    return `<div class="layer-pill"><div class="label">${l.name}</div>` +
-           `<div class="value" style="color:${color}">${l.value}</div>` +
-           `<div class="detail">${l.detail} &middot; ${l.status}</div></div>`;
-  }).join('');
-
-  // Activity bars
-  const maxCount = Math.max(...Object.values(d.activity_summary));
-  document.getElementById('activityBars').innerHTML = Object.entries(d.activity_summary).map(([name, count]) => {
-    const pct = (count / maxCount * 100).toFixed(0);
-    const hue = (Object.keys(d.activity_summary).indexOf(name) * 32) % 360;
-    return `<div class="activity-bar-row"><span class="name">${name}</span>` +
-           `<div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:hsl(${hue},60%,55%)"></div></div>` +
-           `<span class="count">${count}</span></div>`;
-  }).join('');
-
-  // Confidence stats
-  const cs = d.confidence_stats;
-  document.getElementById('confStats').innerHTML =
-    `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">` +
-    ['mean','std','min','max'].map(k =>
-      `<div class="layer-pill"><div class="label">${k}</div><div class="value">${(cs[k]*100).toFixed(1)}%</div></div>`
-    ).join('') + `</div>`;
-
-  // Predictions table
-  const rows = d.predictions.slice(0, 200);  // show first 200
-  document.getElementById('predTable').innerHTML = rows.map(p => {
-    const pct = (p.confidence * 100).toFixed(1);
-    const barColor = p.confidence >= 0.8 ? 'var(--green)' : p.confidence >= 0.5 ? 'var(--yellow)' : 'var(--red)';
-    return `<tr><td>${p.window}</td><td>${p.activity}</td><td>${p.activity_id}</td>` +
-           `<td>${pct}%</td><td><div class="conf-bar"><div class="fill" style="width:${pct}%;background:${barColor}"></div></div></td></tr>`;
-  }).join('') + (d.predictions.length > 200 ? `<tr><td colspan="5" style="text-align:center;color:var(--muted)">… ${d.predictions.length - 200} more windows</td></tr>` : '');
-}
-</script>
-</body>
-</html>
-"""
+    return _DASHBOARD_PATH.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

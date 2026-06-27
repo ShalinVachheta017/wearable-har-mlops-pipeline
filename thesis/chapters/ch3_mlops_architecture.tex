@@ -1,0 +1,220 @@
+\chapter{Offline-First MLOps System Architecture}
+\label{chap:architecture}
+
+
+Building on the MLOps lifecycle framing developed in Sections~2.5--2.7, this chapter presents the offline-first system architecture that operationalizes the thesis contribution. The architecture is not a software wrapper around a trained HAR model. It defines how recorded wearable sensor sessions are ingested, validated, transformed, inferred, monitored, and routed to governance decisions while model mutation remains explicitly separated from ordinary assessment. Throughout this thesis, \emph{mutation} denotes any operation that changes the deployed model or its baseline, such as retraining, model registration, or baseline promotion, whereas \emph{assessment} only observes a recorded session and reports on it without altering the active model. The chapter therefore establishes the system-level rules that Chapters~\ref{chap:data_model}, \ref{chap:implementation}, and \ref{chap:monitoring} instantiate in data, code, and monitoring logic.
+
+\section{Architectural Goals and Constraints}
+\label{sec:architecture_goals}
+
+As established in Chapter~\ref{chap:background}, this thesis adopts an MLOps lifecycle perspective but bounds it to an offline-first, label-scarce, governance-gated setting. Standard production-oriented MLOps often assumes cloud infrastructure, continuous delivery, online monitoring, and feedback-driven retraining \cite{amershi2019mlops,kreuzberger2023mlops,paleyes2022challenges,hewage2022mlops}. This thesis uses a different operating envelope: local execution, recorded wearable sessions, run-scoped artifacts, manual promotion, and review-gated mutation. Table~\ref{tab:offline_first_comparison} summarizes this architectural contrast.
+
+\renewcommand{\arraystretch}{1.18}
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption[Comparison between standard production-oriented MLOps and the...]{Comparison between standard production-oriented MLOps and the offline-first MLOps setting used in this thesis.}
+\label{tab:offline_first_comparison}
+\begin{tabularx}{\textwidth}{p{3.0cm} X X}
+\toprule
+\textbf{Aspect} & \textbf{Standard production-oriented MLOps} & \textbf{This thesis: offline-first MLOps} \\
+\midrule
+
+Execution venue
+& Cloud services, managed platforms, or orchestration infrastructure.
+& Single-machine, file-based, session-bounded execution. \\
+
+Deployment cadence
+& Continuous delivery, staging/production environments, traffic splitting, or live service updates.
+& Manual promotion of versioned runtime-contract folders. \\
+
+Monitoring substrate
+& Online monitoring over live traffic or continuous data streams.
+& Batch or session-level monitoring after each recorded wearable inference run. \\
+
+Retraining trigger
+& May be triggered by metric drift, delayed feedback, or automated lifecycle policies.
+& Review-gated; labels, quality checks, and validation evidence are required before mutation. \\
+
+Train--serve binding
+& Often distributed across model registry, serving infrastructure, and preprocessing services.
+& Explicit runtime-contract folder tying model, scaler, label order, monitoring baseline, metadata, and evidence together. \\
+
+Label availability
+& May use delayed feedback, shadow evaluation, or online ground truth.
+& Labels are usually unavailable at inference time; labeled evaluation is handled separately. \\
+
+Scope of claim
+& May target deployed production service behavior.
+& Targets reproducible thesis evidence, local execution, and governed wearable-HAR assessment. \\
+
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+\end{table}
+
+The architecture is shaped by four practical goals. First, the system must be reproducible on a local machine from versioned code, configuration files, input data, and model artifacts \cite{gardner2018enabling,bahaidarah2021reusable}. Second, stage boundaries must be explicit so that intermediate outputs, monitoring signals, and final trigger decisions can be inspected after execution. Third, the runtime must support deployment-style wearable sessions where labels may be unavailable at inference time. Fourth, the architecture must separate risk observation from model mutation, which keeps hidden dependencies between data, preprocessing, and model code from accumulating silently \cite{sculley2015debt}.
+
+These goals are especially important in wearable HAR because apparently small implementation decisions can change the numerical meaning of the model input. Unit conversion, channel order, scaler policy, window size, label order, and monitoring thresholds are therefore architectural concerns, not only preprocessing details. The defended system is intentionally bounded: it is an offline-first thesis prototype, not a cloud production service, a Kubernetes deployment, an on-device wearable application, or a real-time clinical product.
+
+\section{Pipeline Stages and Execution Views}
+\label{sec:pipeline_execution_views}
+
+The architecture is organized into two linked execution views. The first view is the operational assessment path. This path processes a recorded wearable session, validates its structure, transforms the data into the expected model input format, runs inference, computes evaluation metrics when labels are available, performs monitoring, and produces a trigger decision. This path corresponds to Stages~1--7 and is executed for ordinary assessment runs.
+
+The second view is the governed mutation path. This path covers retraining, model registration, and baseline update. It corresponds to Stages~8--10 and is not entered automatically during normal inference. Instead, it requires evidence, review, and an explicit decision to change the active runtime contract. Calibration is treated separately as an optional extension because it can support uncertainty analysis, but it is not required for the minimal defended runtime.
+
+This separation is central to the thesis. The operational path can observe risk and preserve evidence without changing the deployed model. The mutation path can replace or update the model only after the required governance conditions are satisfied. This makes the system conservative by design: it can detect that a session may be unreliable without assuming that automatic retraining is the correct response \cite{kreuzberger2023mlops,paleyes2022challenges}. Figure~\ref{fig:offline_architecture} instantiates the generic MLOps lifecycle introduced in Figure~\ref{fig:mlops_lifecycle} for the offline-first wearable HAR pipeline developed in this thesis.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width= 0.90\textwidth]{figures/Figure_3_1_Offline_MLOps_Architecture.pdf}
+    \caption[Offline-first MLOps architecture of the defended pipeline]{Offline-first MLOps architecture of the defended pipeline. Stages~1--7 form the operational assessment path and can run on each recorded session without mutating the active model. Stages~8--10 form the governed mutation path and are entered only when review, labels, and validation evidence justify a model or baseline update. Calibration is treated as an optional extension rather than as part of the minimal runtime claim.}
+    \label{fig:offline_architecture}
+\end{figure}
+
+The deep-learning model that drives Stages~3 and~4 of this pipeline is a 1D-CNN-BiLSTM. Figure~\ref{fig:deep_har_workflow} shows the concrete model path: the six-channel IMU stream is segmented into fixed windows, passed through a 1D-CNN for local motion-feature extraction and a BiLSTM for temporal-context modeling, and classified by a softmax output layer.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth,height=0.42\textheight,keepaspectratio]{figures/Figure_2_3_Deep_HAR_workflow.pdf}
+    \caption[Deep-learning pipeline adopted in this thesis]{Deep-learning pipeline adopted in this thesis. The six-channel IMU stream (Ax, Ay, Az, Gx, Gy, Gz) is segmented into fixed windows, passed through a 1D-CNN for local motion-feature extraction and a BiLSTM for temporal-context modeling, and classified by a softmax layer. This instantiates the generic deep-HAR model family introduced in Figure~\ref{fig:har_deep_learning_pipeline}.}
+    \label{fig:deep_har_workflow}
+\end{figure}
+
+
+\section{The Operational Assessment Path: Stages 1--7}
+\label{sec:operational_assessment_path}
+
+The operational assessment path consists of seven stages. Stage~1 ingests wearable sensor data and brings the input into the expected file and column structure. Stage~2 validates the data against schema, unit, timestamp, and completeness expectations. Stage~3 applies the transformation logic required by the runtime contract, including unit handling, channel ordering, scaling policy, and window construction. Stage~4 performs model inference and records class probabilities. Stage~5 evaluates predictions when ground-truth labels are available. Stage~6 monitors the run using confidence-related signals, temporal behavior, dominant-class concentration, and distribution-shift indicators. Stage~7 combines these signals into a governance outcome. In practical terms, the later trigger policy uses a collapse guard to catch one-class output concentration, signal voting to require more than one warning before escalation, and a cooldown gate to prevent repeated review requests from the same unresolved condition.
+
+None of these seven stages mutates the active model. They may generate warnings, reports, evaluation files, monitoring summaries, and trigger decisions, but they do not retrain, register, or promote a new model. This preserves a clean separation between observation and action \cite{amershi2019mlops,gift2021practicalmlops}. It also makes negative or unexpected results easier to interpret because the system state remains fixed during the assessment run.
+
+This design also supports preprocessing and contract-sensitivity experiments. The same recorded session can be processed under different controlled configuration settings while the model artifact remains fixed. Such a run can show whether a change in preprocessing, normalization, unit handling, or baseline selection changes monitoring severity. A single alert is not proof of model failure; the architecture preserves the evidence so that a later review can determine whether retraining is warranted.
+
+\renewcommand{\arraystretch}{1.15}
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption[Summary of the architecture stages and whether they are allowed to...]{Summary of the architecture stages and whether they are allowed to mutate the active model.}
+\label{tab:architecture_stage_summary}
+\begin{tabularx}{\textwidth}{p{2.1cm} p{1.1cm} X p{2.1cm}}
+\toprule
+\textbf{Path} & \textbf{Stage} & \textbf{Role and typical output} & \textbf{Mutates model?} \\
+\midrule
+Assessment & S1 & Ingest wearable session data and standardize input access; produces ingestion metadata. & No \\
+Assessment & S2 & Validate schema, columns, units, timestamps, and basic quality checks; produces validation report. & No \\
+Assessment & S3 & Apply runtime transformation, scaling policy, and windowing; produces transformed windows. & No \\
+Assessment & S4 & Run model inference and store class probabilities; produces prediction outputs. & No \\
+Assessment & S5 & Compute evaluation metrics when labels are available; produces evaluation report. & No \\
+Assessment & S6 & Monitor confidence, temporal behavior, collapse risk, and drift; produces monitoring report. & No \\
+Assessment & S7 & Convert monitoring signals into a governance decision; produces trigger decision. & No \\
+Mutation & S8 & Retrain or fine-tune a candidate model under controlled conditions; produces candidate artifacts. & No (produces candidate) \\
+Mutation & S9 & Register candidate model with version and provenance metadata; produces registry evidence. & No (registers candidate) \\
+Mutation & S10 & Promote compatible baseline and runtime package after review; produces updated contract. & Conditional (promotes) \\
+Optional & S11 & Calibration or uncertainty analysis when activated; produces supplementary evidence. Not implemented in the defended pipeline; architectural placeholder for future extension. & No in defended runtime \\
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+\end{table}
+\FloatBarrier
+
+Within this assessment path, Stages~3 and~4 segment the raw six-channel IMU stream into fixed windows and apply the 1D-CNN-BiLSTM model shown in Figure~\ref{fig:deep_har_workflow}. The convolutional layers extract local motion features from each window, and the BiLSTM layer models temporal context before softmax classification.
+
+
+\section{The Governed Mutation Path: Stages 8--10}
+\label{sec:governed_mutation_path}
+
+The governed mutation path contains the stages that can change the operational state of the system. Stage~8 performs retraining or fine-tuning on a candidate dataset. Stage~9 registers the candidate model together with its provenance, configuration, and evaluation evidence. Stage~10 updates the active baseline and runtime package only if the candidate satisfies the required contract and review conditions.
+
+This path is deliberately separated from ordinary inference because monitoring signals are not training labels. A critical drift signal, dominant-class warning, or low-confidence run can indicate operational risk, but it does not prove that retraining would improve the system. In label-scarce wearable monitoring, automatic mutation can be unsafe because the model may reinforce its own errors if it is retrained from unreliable predictions \cite{lee2013pseudolabel,arazo2020pseudolabel}. For this reason, the mutation path requires explicit governance rather than automatic execution.
+
+The governance gate has three practical functions. First, it protects the active runtime from being replaced by a candidate that only improves one specific failure case observed during debugging. Second, it requires the reviewer to inspect the available evidence, including labels, preprocessing assumptions, evaluation metrics, monitoring reports, and contract compatibility. Third, it preserves rollback capability: if a candidate fails validation or later proves unsuitable, the previous runtime package remains available as a known reference point. In this design, retraining is not treated as the natural consequence of a monitoring alert. It is treated as a controlled intervention that must be justified.
+
+A candidate model should therefore not be promoted as a single checkpoint file. It must enter the system as a complete runtime package, including preprocessing assumptions, scaler, label order, monitoring baseline, integrity metadata, and evaluation evidence. This makes the update process reviewable and reversible, and it prevents silent changes to only one part of the inference contract.
+
+
+\section{Artifact Lineage and Runtime Contract}
+\label{sec:artifact_lineage_runtime_contract}
+
+The strongest architectural rule in this thesis is that the model is not the deployment unit; the runtime contract is. A model file alone is insufficient because its predictions are meaningful only when the input data are transformed in the same way as during training and interpreted with the same label order, scaler policy, and monitoring assumptions. The runtime contract therefore combines the model artifact, scaler, channel order, unit policy, window shape, label mapping, monitoring baseline, configuration snapshot, integrity metadata, and validation evidence.
+
+This contract view addresses a common source of hidden technical debt in ML systems: dependencies between data, preprocessing, model code, and evaluation assumptions may remain implicit until the system fails \cite{sculley2015debt}. In this thesis, those dependencies are made explicit. Each pipeline run should be traceable from input file to transformed tensor, prediction output, monitoring report, and trigger decision. Reproducibility therefore depends not only on preserving code, but also on preserving the artifact set that defines the model's operating conditions \cite{gardner2018enabling,bahaidarah2021reusable,munappy2019data}.
+
+\subsection{Runtime Contract as a Same-Folder Invariant}
+\label{sec:same_folder_invariant}
+
+To prevent silent mismatch, the active model, scaler, label order, and monitoring baseline are treated as a same-folder runtime contract. The system should not allow the model to be loaded from one folder while the scaler or baseline is silently taken from another historical experiment. If a newer model is promoted, its compatible scaler, label order, baseline, metadata, and evidence must be promoted with it. If a configured scaler or baseline path points outside the active model folder, the runtime should either correct the path to the matching contract artifact or fail fast when no compatible artifact exists.
+
+This invariant is an architectural rule, not only a coding convenience. It prevents a common failure mode in wearable HAR: the pipeline may execute successfully, but the model may receive numerically inconsistent input because normalization, unit handling, or baseline statistics belong to another training context. In a health-adjacent monitoring setting, such a mismatch is especially dangerous because the system may still produce confident predictions. The same-folder invariant therefore makes contract coherence inspectable before inference results are interpreted.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+      node distance=2.6mm,
+      chip/.style={rectangle, rounded corners=2pt, draw=black!55, fill=white,
+                   text width=0.76\textwidth, align=left, inner sep=5pt, font=\footnotesize}
+    ]
+    \node[rectangle, rounded corners=2pt, fill=blue!12, draw=blue!55!black,
+          text width=0.76\textwidth, align=center, inner sep=6pt,
+          font=\ttfamily\footnotesize\bfseries] (title)
+          {Runtime Contract Package:Proposed Model};
+    \node[chip, below=of title] (c1) {\textbf{model/}:trained or promoted model artifact};
+    \node[chip, below=of c1] (c2) {\textbf{scaler.json}:train-only preprocessing parameters};
+    \node[chip, below=of c2] (c3) {\textbf{label\_order.json}:canonical class-index mapping};
+    \node[chip, below=of c3] (c4) {\textbf{monitoring\_baseline.json}:reference distribution for monitoring};
+    \node[chip, below=of c4] (c5) {\textbf{model\_contract.json}:schema, units, windowing, validation protocol};
+    \node[chip, below=of c5] (c6) {\textbf{artifact\_md5.json}:integrity metadata};
+    \node[chip, below=of c6] (c7) {\textbf{evaluation\_summary.json}:validation and review evidence};
+    \draw[rounded corners=3pt, thick, draw=blue!55!black]
+         ([xshift=-8pt, yshift=8pt]title.north west) rectangle ([xshift=8pt, yshift=-8pt]c7.south east);
+    \end{tikzpicture}
+    \caption[Runtime contract package for the proposed model]{Runtime contract package for the promoted runtime of the proposed model. The model file is only one component of the deployable unit; the scaler, label order, monitoring baseline, contract metadata, integrity hashes, and evaluation evidence must be promoted together to preserve train--serve consistency.}
+    \label{fig:runtime_contract_folder}
+\end{figure}
+
+\vspace{-6pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption[Runtime-contract consistency rules for the same-folder invariant.]{Runtime-contract consistency rules for the same-folder invariant.}
+\label{tab:runtime_contract_rules}
+\begin{tabularx}{\textwidth}{p{3.7cm} X X}
+\toprule
+\textbf{Condition} & \textbf{Pipeline behavior} & \textbf{Log or governance signal} \\
+\midrule
+
+Scaler, label order, and baseline are found inside the active model contract folder.
+& Use the artifacts as the coherent runtime package.
+& Runtime contract accepted. \\
+
+A configured scaler or baseline path points outside the active model folder, but a matching artifact exists inside the active folder.
+& Override the stale path with the matching same-folder artifact.
+& Warning that mismatch was corrected. \\
+
+A configured scaler or baseline artifact points outside the active model folder and no compatible same-folder artifact exists.
+& Fail fast before inference or promotion.
+& Error with rollback or contract-repair instruction. \\
+
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+\end{table}
+
+The runtime contract also supports cross-environment reproducibility. Training and inference may occur in different Python, TensorFlow, or Keras environments. If model artifacts are saved only in a format tied to one environment, a technically correct model may become difficult to load elsewhere. For this reason, the architecture treats portable artifact format as part of the reproducibility layer. A candidate model should be stored in a form that can be loaded by the defended inference environment, with legacy or training-environment formats retained only as supporting evidence or rollback material.
+
+\section{Scope Boundary}
+\label{sec:architecture_scope_boundary}
+
+The offline-first boundary is technical. Offline-first means that the complete pipeline can run locally on stored wearable sessions using versioned code, configuration files, model artifacts, and run-scoped evidence. It does not mean that the model runs directly on the wearable device. It also does not mean that the system is a real-time cloud service or a Kubernetes-based deployment. Distributed orchestration is outside the defended runtime boundary because it would add infrastructure complexity without directly strengthening the thesis evidence about preprocessing contracts, monitoring, and governance.
+
+The mental-health boundary is separate. In line with the fixed thesis title, continuous mental health monitoring is used as the application context, not as a claim of clinical diagnosis or prognosis. The system recognizes observable wrist-motion activities that may be relevant for mental-health-adjacent interpretation, but it does not diagnose anxiety, stress, depression, or any other clinical state. Activity predictions are behavioral outputs, not clinical conclusions. This boundary is important because the architecture is designed to make risk and uncertainty visible rather than to replace clinical interpretation.
+
+These scope boundaries keep the contribution focused and verifiable. The contribution is an offline-first, reproducible, and governed MLOps architecture for wearable HAR under a mental-health-adjacent monitoring context. It is not a clinical deployment, not a medical device, not an on-device smartwatch application, and not an unrestricted automatic retraining system.
+
+\section{Chapter Summary}
+\label{sec:chapter3_summary}
+
+This chapter defined the system architecture that supports the thesis contribution: an operational assessment path for reproducible inference and monitoring, a governed mutation path for controlled model updates, and a runtime-contract layer that treats the model, scaler, baseline, label order, metadata, and evidence as one coherent deployment unit. Chapter~\ref{chap:data_model} next defines the data, preprocessing, windowing, and model assumptions that this architecture must preserve. Chapter~\ref{chap:implementation} then explains how the architecture is realized in the repository implementation. Chapter~\ref{chap:monitoring} returns to the monitoring signals and trigger logic that drive the governance boundary.
+

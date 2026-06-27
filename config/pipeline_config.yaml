@@ -7,8 +7,8 @@
 # RESEARCH PAPER REFERENCE (ICTH_16, Oleh & Obermaisser 2025):
 #   Paper-aligned preprocessing is: milliG -> m/s2 -> Window(200, 50% overlap).
 #   No external StandardScaler, gravity removal, or calibration is documented.
-#   The final 2026-05-08 Model A package adds a documented Garmin train-only
-#   StandardScaler as the deployed model contract.
+#   The active 2026-05-28 Model D1 package adds a documented Garmin users-1-6
+#   train-only StandardScaler as the deployed model contract.
 #
 # RULE: Production preprocessing must make the model input space explicit.
 #       Mismatch = domain shift = wrong predictions.
@@ -38,16 +38,16 @@ preprocessing:
   enable_domain_calibration: false
 
   # Data Normalization  (saved StandardScaler / RobustScaler)
-  # PRODUCTION DEFAULT after final Model A selection: true.
-  # WHY: the selected clean-contract Model A was trained and evaluated with a
-  #      Garmin train-only StandardScaler. The scaler is fitted on Garmin train
-  #      only; validation, User 7, and production inputs use the saved stats.
-  #      normalization_variant controls WHICH scaler: "zscore" | "robust" | "none"
+  # PRODUCTION DEFAULT after Model D1 promotion (2026-05-28): true.
+  # WHY: the deployed Model D1 was trained and evaluated with a Garmin
+  #      train-only StandardScaler fit on users 1-6. Validation, User 7,
+  #      and production inputs use the saved stats. Both `mean`/`scale` and
+  #      `scaler_mean`/`scaler_scale` keys are present for loader compat.
+  #      normalization_variant controls WHICH scaler: "zscore" | "robust" | "none".
+  #      Rollback target (archived): _archive/presubmission_2026-06-27/models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json
   enable_normalization: true
   normalization_variant: "zscore"  # zscore | robust | none
-  scaler_path: "models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json"
-
-  # Gravity removal filter parameters (only used if enable_gravity_removal: true)
+  scaler_path: "models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json"
   gravity_filter:
     cutoff_hz: 0.3       # Cutoff frequency (0.3 Hz is standard from UCI HAR)
     order: 3              # Filter order (3 is typical)

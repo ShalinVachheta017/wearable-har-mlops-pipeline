@@ -1,0 +1,46 @@
+{
+  "protocol": "LOUO_users_1_6_train_only_scaler_per_fold",
+  "early_stopping_signal": "inner 10% stratified split of training users; held-out user never used for selection",
+  "folds": [
+    {
+      "held_user": 1,
+      "accuracy": 0.45516074450084604,
+      "macro_f1": 0.4176479490144548,
+      "n_windows": 591
+    },
+    {
+      "held_user": 2,
+      "accuracy": 0.05688622754491018,
+      "macro_f1": 0.05724384358573136,
+      "n_windows": 668
+    },
+    {
+      "held_user": 3,
+      "accuracy": 0.505,
+      "macro_f1": 0.47433136614178134,
+      "n_windows": 600
+    },
+    {
+      "held_user": 4,
+      "accuracy": 0.5374592833876222,
+      "macro_f1": 0.5186222204326617,
+      "n_windows": 614
+    },
+    {
+      "held_user": 5,
+      "accuracy": 0.5,
+      "macro_f1": 0.44097245434722326,
+      "n_windows": 624
+    },
+    {
+      "held_user": 6,
+      "accuracy": 0.6109422492401215,
+      "macro_f1": 0.603790838248572,
+      "n_windows": 658
+    }
+  ],
+  "mean_accuracy": 0.4442414174455833,
+  "std_accuracy": 0.19669399461122586,
+  "mean_macro_f1": 0.4187681119617374,
+  "std_macro_f1": 0.18893682099941186
+}

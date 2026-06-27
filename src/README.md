@@ -87,12 +87,12 @@ DATA_RAW = DATA_DIR / "raw"
 DATA_PROCESSED = DATA_DIR / "processed"
 DATA_PREPARED = DATA_DIR / "prepared"
 
-# Model paths
-MODELS_PRETRAINED = MODELS_DIR / "pretrained"
-PRETRAINED_MODEL = MODELS_PRETRAINED / "fine_tuned_model_1dcnnbilstm.keras"
+# Model paths (deployed D1 contract since 2026-05-28)
+MODEL_D1_FINAL_DIR = MODELS_DIR / "runtime_contract" / "model_d1_final_20260528"
+FINAL_MODEL_D1_PATH = MODEL_D1_FINAL_DIR / "finetuned_1DCNNBILSTM_HAR_model.keras"
 
-# Config files
-SCALER_CONFIG = DATA_PREPARED / "config.json"
+# Canonical scaler (Garmin users 1-6, train-only; travels with the contract)
+SCALER_CANONICAL = MODEL_D1_FINAL_DIR / "garmin_train_scaler.json"
 ```
 
 **Why important:**
@@ -577,19 +577,7 @@ python src/preprocess_data.py \
 5. ✅ **run_inference.py** - Model inference (NEW, with logging)
 6. ✅ **components/model_evaluation.py** - Prediction analysis (with logging)
 
-### ⏳ **TODO (Next Steps)**
-
-7. ⏳ **api_server.py** - REST API (FastAPI)
-   - Upload sensor data endpoint
-   - Preprocessing + inference
-   - Return predictions
-   - Health check
-
-8. ⏳ **train_model.py** - Model training script
-   - Load training data
-   - Build 1D-CNN-BiLSTM
-   - Train with validation
-   - Save model + metrics
+7. ✅ **api/app.py** - REST API (FastAPI) — shipped; endpoints: /predict, /health, /dashboard
 
 ---
 
@@ -610,24 +598,26 @@ python src/preprocess_data.py \
 - [x] Confidence validation
 - [x] Logging for all scripts
 
-### **Phase 3: MLOps Infrastructure** ⏳ (NEXT)
-- [ ] REST API (FastAPI)
-- [ ] Docker containerization
-- [ ] CI/CD pipeline
-- [ ] Monitoring & logging (basic done ✅)
-- [ ] Model versioning (DVC/MLflow)
+### **Phase 3: MLOps Infrastructure** ✅ (DONE)
 
-### **Phase 4: Deployment & Testing** ⏳ (FUTURE)
-- [ ] Cloud deployment (Azure/AWS)
+- [x] REST API (FastAPI) — src/api/app.py
+- [x] Docker containerization — Dockerfile.inference
+- [x] CI/CD pipeline — .github/workflows/ci.yml
+- [x] Monitoring & logging
+- [ ] Model versioning (DVC/MLflow) — out of scope for thesis
+
+### **Phase 4: Deployment & Testing** ⏳ (out of scope)
+
+- [ ] Cloud deployment — out of thesis scope
 - [ ] Performance testing
 - [ ] User acceptance testing
-- [ ] Documentation finalization
 
-### **Phase 5: Thesis Writing** ⏳ (FUTURE)
-- [ ] Introduction & background
-- [ ] Methodology
-- [ ] Results & analysis
-- [ ] Discussion & conclusion
+### **Phase 5: Thesis Writing** ✅ (DONE)
+
+- [x] Introduction & background
+- [x] Methodology
+- [x] Results & analysis
+- [x] Discussion & conclusion
 
 ---
 

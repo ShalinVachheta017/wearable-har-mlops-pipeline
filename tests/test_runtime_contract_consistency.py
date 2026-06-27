@@ -1,17 +1,17 @@
 from src.config import (
     DEFAULT_MODEL_PATH,
-    FINAL_MODEL_A_PATH,
-    FINAL_MODEL_A_SCALER_JSON,
+    FINAL_MODEL_D1_PATH,
+    FINAL_MODEL_D1_SCALER_JSON,
     MILLIG_TO_MS2,
     PROJECT_ROOT,
     SCALER_CANONICAL,
 )
 
 
-FINAL_MODEL_REL = "models/runtime_contract/model_a_final_20260508/fine_tuned_clean_model.keras"
-FINAL_SCALER_REL = "models/runtime_contract/model_a_final_20260508/garmin_train_scaler.json"
+FINAL_MODEL_REL = "models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras"
+FINAL_SCALER_REL = "models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json"
 FINAL_BASELINE_REL = (
-    "models/runtime_contract/model_a_final_20260508/garmin_train_scaled_baseline.json"
+    "models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json"
 )
 LEGACY_MODEL_REL = "models/pretrained/fine_tuned_model_1dcnnbilstm.keras"
 
@@ -20,10 +20,10 @@ def _read_repo_file(relative_path: str) -> str:
     return (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
 
 
-def test_runtime_defaults_use_final_model_a_contract():
-    assert DEFAULT_MODEL_PATH == FINAL_MODEL_A_PATH
+def test_runtime_defaults_use_final_model_d1_contract():
+    assert DEFAULT_MODEL_PATH == FINAL_MODEL_D1_PATH
     assert DEFAULT_MODEL_PATH.as_posix().endswith(FINAL_MODEL_REL)
-    assert SCALER_CANONICAL == FINAL_MODEL_A_SCALER_JSON
+    assert SCALER_CANONICAL == FINAL_MODEL_D1_SCALER_JSON
     assert SCALER_CANONICAL.as_posix().endswith(FINAL_SCALER_REL)
 
 
@@ -51,7 +51,7 @@ def test_api_upload_path_uses_saved_scaler_not_runtime_fit():
     assert ".fit(" not in app_source
     assert ".fit_transform(" not in app_source
     assert "SCALER_CONFIG_PATH" in app_source
-    assert "FINAL_MODEL_A_SCALER_JSON" in app_source
+    assert "SCALER_CANONICAL" in app_source
 
 
 def test_unit_conversion_constant_is_shared_by_api_and_preprocess():

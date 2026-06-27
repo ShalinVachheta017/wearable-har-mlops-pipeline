@@ -50,7 +50,26 @@ class InferenceResponse:
 
 
 def _file_md5(path: Path) -> str:
+    """Compute MD5 of a model artifact.
+
+    For a regular file (e.g. legacy .keras / HDF5), this hashes the file
+    bytes directly. For a TF SavedModel directory (Model D1 since
+    2026-05-26), this walks the directory in sorted order and folds each
+    file's relative path + contents into the same digest, so the result is
+    deterministic and tracks any change inside the directory.
+    """
     digest = hashlib.md5()
+    if path.is_dir():
+        for member in sorted(path.rglob("*")):
+            if not member.is_file():
+                continue
+            rel = member.relative_to(path).as_posix().encode("utf-8")
+            digest.update(rel)
+            digest.update(b"\x00")
+            with member.open("rb") as f:
+                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        return digest.hexdigest()
     with path.open("rb") as file_obj:
         for chunk in iter(lambda: file_obj.read(1024 * 1024), b""):
             digest.update(chunk)
@@ -629,10 +648,6 @@ class ModelInference:
                     {
                         "total_windows": report["n_predictions"],
                         "avg_confidence": report["confidence_stats"]["mean"],
-                        "std_confidence": report["confidence_stats"]["std"],
-                        "entropy_mean": report["entropy_stats"]["mean"],
-                        "top2_margin_mean": report["top2_margin_stats"]["mean"],
-                        "dominant_pct": report["dominant_pct"],
                     }
                 )
                 for activity, count in report["prediction_distribution"].items():

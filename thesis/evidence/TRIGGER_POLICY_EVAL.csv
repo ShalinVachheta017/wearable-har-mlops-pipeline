@@ -1,0 +1,6 @@
+policy,total_triggers,TP,FP,FN,precision,episode_recall,tradeoff_f1,episodes_detected,n_episodes,false_alarm_rate
+single_signal,251,211,40,1,0.8406,1.0,0.9134,16,16,0.1389
+two_of_three,164,162,2,50,0.9878,1.0,0.9939,16,16,0.0069
+two_of_three_cooldown6h,42,40,2,172,0.9524,1.0,0.9756,16,16,0.0069
+two_of_three_cooldown12h,24,22,2,190,0.9167,1.0,0.9565,16,16,0.0069
+two_of_three_cooldown24h,14,14,0,198,1.0,0.875,0.9333,14,16,0.0

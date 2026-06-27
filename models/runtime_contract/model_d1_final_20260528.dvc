@@ -1,0 +1,6 @@
+outs:
+- md5: 4a2486280211eef352768855dbeb2c79.dir
+  size: 19897948
+  nfiles: 13
+  hash: md5
+  path: model_d1_final_20260528

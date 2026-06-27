@@ -30,3 +30,10 @@ def test_retraining_config_defaults():
     cfg = ModelRetrainingConfig()
     # Defended runtime: supervised retraining only — no unsupervised hooks.
     assert not hasattr(cfg, "enable_adaptation") or cfg.enable_adaptation is False
+
+
+def test_retraining_config_finetune_fields():
+    """Fine-tune-from-current-D1 retraining exposes base-model + augmentation knobs."""
+    cfg = ModelRetrainingConfig()
+    assert cfg.base_model_path is None  # defaults to the deployed D1 at runtime
+    assert cfg.augment_multiplier == 3  # train-only augmentation, matches D1 recipe

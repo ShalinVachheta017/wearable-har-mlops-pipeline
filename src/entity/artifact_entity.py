@@ -178,6 +178,7 @@ class ModelRetrainingArtifact:
     training_report: Dict = field(default_factory=dict)
     metrics: Dict[str, float] = field(default_factory=dict)
     n_source_samples: int = 0
+    n_target_samples: int = 0
     retraining_timestamp: str = ""
 
 

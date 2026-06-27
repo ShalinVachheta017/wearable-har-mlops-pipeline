@@ -30,9 +30,10 @@ COPY config/requirements.txt /app/requirements.txt
 # Single pip install — all deps are in requirements.txt; no OS build tools needed
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy source code
+# Copy source code and pipeline entry point
 COPY src/ /app/src/
 COPY config/ /app/config/
+COPY run_pipeline.py /app/run_pipeline.py
 
 # Create directories for data and outputs
 RUN mkdir -p /app/data /app/models /app/mlruns /app/logs

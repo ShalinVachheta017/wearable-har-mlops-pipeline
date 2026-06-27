@@ -1,37 +1,36 @@
 # THESIS EVIDENCE
 
-Track every thesis claim with a reproducible artifact.
+Track every thesis claim with a reproducible artifact (D1 runtime contract).
 
 ## Mapping Table
 
 | Experiment | Artifact | Chapter | Notes |
 |---|---|---|---|
-| Baseline evaluation | mlruns/<run_id> | Chapter 7 | Accuracy/F1 summary |
-| Drift experiment | artifacts/<run_id>/monitoring/monitoring_summary.json | Chapter 6 | Include max_drift and channel counts |
-| Trigger evaluation | artifacts/<run_id>/trigger/trigger_decision.json | Chapter 6 | Include alert level + should_retrain |
-| Runtime benchmark | outputs/evaluation/* or custom benchmark outputs | Chapter 7 | Include throughput and latency |
-| Unit-fix + abstain comparison (26 sessions) | thesis/tables/before_vs_after_26datasets.csv + thesis/chapters/before_vs_after_26datasets.md | Chapter 7 | Negative-result ablation; confidence unchanged, review routing increased |
-| Self-recorded Garmin external evaluation | reports/self_recorded_eval_2026_05_05/EVALUATION_REPORT.md | Chapters 5-7 | Parser fixed, labels fixed, units fixed, frozen model evaluated on User 7 |
-| Self-recorded domain-shift comparison | reports/self_recorded_eval_2026_05_05/DISTRIBUTION_COMPARISON_REPORT.md | Chapters 7-8 | Self-recorded data closest to training but still shifted; retraining remains gated |
-| Self-recorded claim-evidence table | reports/self_recorded_eval_2026_05_05/CLAIM_EVIDENCE_TABLE.md | Appendix / defense | Compact evidence map for parser, labels, units, metrics, distribution, governance |
+| 5-fold within-distribution CV | `notebooks/model_HAR_27may_artifacts/garmin_5fold_window_cv_results.json` | Chapter 7 | mean 93.61%, F1 0.937 (optimistic; global scaler) |
+| LOUO unseen-user generalization | `notebooks/model_HAR_27may_artifacts/garmin_louo_users_1_6_results.json` | Chapter 7 | mean 44.42%, F1 0.419 |
+| User-7 blind evaluation | `models/runtime_contract/model_d1_final_20260528/user7_blind_probe_summary.json` | Chapter 7 | 36.96% / F1 0.350 / conf 0.858, CI [0.339, 0.398] |
+| User-7 schedule-aligned proxy | `models/runtime_contract/model_d1_final_20260528/user7_unlabeled_probe_summary.json` | Chapter 7 | 989 windows; 36.70% proxy ≈ 36.96% labeled |
+| Contract-sensitivity ablation | `reports/ABLATION_WINDOWING.csv` | Chapter 7 | RQ2: window/overlap → accuracy, F1, flip-rate |
+| Trigger-policy evaluation | `reports/TRIGGER_POLICY_EVAL.csv` | Chapter 7 | RQ3: 2-of-3 voting precision 0.988 / FAR 0.007 vs single-signal 0.841 / 0.139 |
+| 25-session monitoring decomposition | `reports/unlabeled_sessions_monitoring.csv` | Chapter 6/7 | 23 review / 1 monitor / 1 none; queue_retrain never fired |
+| Threshold calibration | `reports/THRESHOLD_CALIBRATION.csv` | Chapter 6 | threshold provenance |
+| Runtime contract definition | `models/runtime_contract/model_d1_final_20260528/model_contract.json` | Chapter 3/5 | model, scaler, baseline, label order, units |
 
-## Current Wave Evidence
-
-| Wave | Report | Verdict |
-|---|---|---|
-| Wave 1 | ../../reports/repo_audit/WAVE1_STAGE5_STAGE7_LABELMAP_FIXES.md | PASS |
-| Wave 2 Step 1 | ../../reports/repo_audit/WAVE2_BASELINE_SPACE_VERIFICATION.md | FAIL |
-| Wave 2 Step 2 | ../../reports/repo_audit/WAVE2_STAGE6_BASELINE_SPACE_FIX_VALIDATION.md | PASS |
-| Wave 3 (unit-fix + abstain, 26 sessions) | ../../thesis/chapters/before_vs_after_26datasets.md | FAIL |
-| Self-recorded Garmin external evaluation | ../../reports/self_recorded_eval_2026_05_05/EVALUATION_REPORT.md | PASS as external evaluation evidence; FAIL as retraining justification |
-
-## Current Defense Evidence Summary
+## Defense Evidence Summary
 
 | Claim | Primary artifact | Status |
 |---|---|---|
-| Parser timestamp issue fixed | `recording/labels/2026-05-05-15-11-15/LABELING_REPORT.md` | PASS |
-| Training-style User 7 labels produced | `recording/labels/2026-05-05-15-11-15/2026-05-05-15-11-15_labeled_50Hz_user7_ms2.csv` | PASS |
-| Unit contract aligned | `reports/self_recorded_eval_2026_05_05/schema_unit_checks.json` | PASS |
-| Frozen model weak on external session | `reports/self_recorded_eval_2026_05_05/evaluation_metrics.json` | PASS |
-| Distribution shift measured | `reports/self_recorded_eval_2026_05_05/distribution_pair_summary.csv` | PASS |
-| Review-gate retraining policy justified | `reports/self_recorded_eval_2026_05_05/CLAIM_EVIDENCE_TABLE.md` | PASS |
+| Deployment unit is the runtime contract | `model_contract.json` + `artifact_md5.json` | PASS |
+| Train-only StandardScaler (users 1–6) | `garmin_train_scaler.json` | PASS |
+| Label order parity (4-way) | `label_order.json` ↔ `src/config.py` ↔ `src/utils/label_mapping.py` ↔ `data/prepared/config.json` | PASS |
+| Within-distribution learnability | `garmin_5fold_window_cv_results.json` | PASS |
+| Unseen-user generalization limit | `garmin_louo_users_1_6_results.json` | PASS |
+| High-confidence-but-wrong User-7 failure | `user7_blind_probe_summary.json` | PASS |
+| Schedule-aligned proxy validates monitoring | `user7_unlabeled_probe_summary.json` | PASS |
+| Governed trigger beats naive single-signal | `reports/TRIGGER_POLICY_EVAL.csv` | PASS |
+| No auto-mutation on real data | `reports/unlabeled_sessions_monitoring.csv` (should_retrain=False ×25) | PASS |
+
+> Superseded: the pre-D1 `self_recorded_eval_2026_05_05/*` evidence tree and the
+> Wave 1/2/3 audit reports described an earlier Model-A (raw-units/no-scaler)
+> contract with a 0.086 User-7 result. They are historical and must not be
+> quoted for the D1 story.

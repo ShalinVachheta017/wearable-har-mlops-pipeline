@@ -48,7 +48,7 @@ Thumbs.db
 
 # Logs
 *.log
-logs/
+logs/*
 
 # Testing
 .pytest_cache/
@@ -107,7 +107,7 @@ credentials/
 # Outputs & Artifacts
 # ============================================================================
 outputs/
-artifacts/
+artifacts/*
 reports/*
 !reports/repo_inventory/
 images/
@@ -162,6 +162,7 @@ docs/figures/
 # ============================================================================
 Thesis_report/
 WORKLOG.md
+RELEASE.md
 
 
 
@@ -183,9 +184,27 @@ thesis/*.fls
 thesis/*.fdb_latexmk
 thesis/*.synctex.gz
 thesis/chapters/*.aux
+thesis/**/*.aux
+thesis/**/*.bbl
+thesis/**/*.blg
+thesis/**/*.toc
+thesis/**/*.out
+thesis/**/*.fls
+thesis/**/*.fdb_latexmk
+thesis/**/*.synctex.gz
+thesis/**/*.lot
+thesis/**/*.lof
 
 # Private thesis dashboard app (local-only)
 thesis/handbook-dashboard/
+
+# Thesis support material — not part of the submitted source (archived locally)
+thesis/papers_to_read/
+thesis/cited_papers/
+thesis/tables/
+thesis/paper/
+thesis/webui+mlops images/
+thesis/chnage suggested  by mentor/
 
 # Root-level audit artifacts
 REPOSITORY_*.md
@@ -201,8 +220,8 @@ qna_30 march to ask google scholor.txt
 # Local archive — not for git, move to separate folder later
 _archive/
 
-# thesis (chapters, notes, drafts)
-thesis/
+# Defense presentation prep — local only, not examiner-facing
+defense reference/
 
 # Large datasets / raw sensor files
 data/raw/
@@ -222,8 +241,6 @@ notebooks/synthetic_labeled.csv
 27 april meet/
 
 # Runtime/evidence outputs
-artifacts/
-outputs/
 reports/inference_parity_all_*/
 evidence/inference_parity_all_*/
 evidence/final_runtime_freeze_2026_05_05/
@@ -239,6 +256,7 @@ mlruns/
 
 # Pytest root-level temp directories
 .pytest_tmp/
+.pytest_tmp_cleanup_verify/
 .tmp_pytest/
 .tmp_pytest_current/
 .tmp_stage6_pytest_current/
@@ -254,13 +272,6 @@ reasoningtxt.txt
 thesis_doc.txt
 pt.md
 
-# Local evidence and generated outputs
-evidence/
-artifacts/
-outputs/
-mlruns/
-logs/
-
 # Local DVC storage
 .dvc_storage/
 
@@ -270,4 +281,33 @@ models/registry/*.keras
 
 # Notebook and notebook-generated local files
 nb/
-notebooks/
+notebooks/model_d1_artifacts/
+notebooks/model_d1_final_artifacts/
+notebooks/model_d3_centered_artifacts/
+
+# Ignore notebooks/ wholesale; keep only the cited build notebook + 27may result
+# JSONs (negations at end of file). Experiment notebooks live in _archive/.
+notebooks/*
+
+# Unused pipeline diagram images (not referenced by thesis/docs)
+images/
+
+# ============================================================================
+# Submission evidence exceptions (2026-06-11)
+# Must stay at end of file: negations override the generic rules above
+# (*.csv, *.pdf, artifacts/*). Cited by thesis Ch7/Appendix C.
+# ============================================================================
+!reports/THRESHOLD_CALIBRATION.csv
+!reports/unlabeled_sessions_monitoring.csv
+# (ABLATION_WINDOWING.csv + TRIGGER_POLICY_EVAL.csv moved to thesis/evidence/)
+!artifacts/*.dvc
+!thesis/main.pdf
+!logs/pipeline/
+logs/pipeline/*
+!logs/pipeline/pipeline_result_20260528_122625.json
+_archive/internal_planning/
+
+# Cited notebook artifacts (override the notebooks/* ignore above)
+!notebooks/Model_D1_Final_Build_Runtime_Contract.ipynb
+!notebooks/model_HAR_27may_artifacts/
+!notebooks/model_HAR_27may_artifacts/*.json

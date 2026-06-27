@@ -1,455 +1,296 @@
-\chapter{Experiments and System Evaluation}
+\chapter{Experiments and Evaluation}
 \label{chap:experiments}
 
-This chapter evaluates the thesis claims as bounded empirical questions rather than as a single benchmark exercise. The experiments serve different roles: some establish a labeled reference point, some test how monitoring signals behave under degraded conditions, some probe sensitivity to production-style preprocessing choices, and some evaluate whether governance decisions improve operational behavior. This distinction matters because a strong offline metric alone does not answer RQ1--RQ4, especially in wearable settings where transfer across activities, users, or collection conditions is known to be fragile \cite{dhekane2024transfer,sahu2025anxiety}.
+The previous chapters defined the data and model contract (Chapter~\ref{chap:data_model}), the implementation (Chapter~\ref{chap:implementation}), and the monitoring and governance logic (Chapter~\ref{chap:monitoring}). This chapter reports the empirical evidence. Its purpose is not to claim a high final accuracy, but to measure what the proposed model actually does under three conditions of increasing difficulty: within-distribution validation, a blind external probe, and label-scarce monitoring. The central observation is a large and consistent gap between within-distribution learnability and blind-probe performance. This gap is reported openly because it is the empirical motivation for the runtime-contract, monitoring, and governance contribution of this thesis.
 
-A second design choice is that claims are intentionally limited to what the stored artifacts can support. The chapter therefore distinguishes between evidence that supports a thesis claim, evidence that only suggests a trend, and negative results that show why certain interventions should not be interpreted as quality improvements. Reproducibility follows the artifact structure described in Chapter~\ref{chap:implementation}: the results below are backed by versioned run outputs, evaluation JSON files, and thesis summary tables rather than by ad hoc inspection alone \cite{amershi2019mlops,kreuzberger2023mlops}.
+\section{Evaluation Setup and Evidence Boundary}
+\label{sec:ch7_setup}
 
-\section{Evaluation Philosophy and Evidence Map}
+All results in this chapter are produced under the fixed runtime contract of the proposed model defined in Chapter~\ref{chap:data_model}: a six-channel IMU input of shape \((200,6)\), a 50~Hz sampling rate, a 200-sample window with a 100-sample stride, the eleven-class label order, and the train-only Garmin scaler. No result in this chapter changes any architecture, hyperparameter, augmentation, threshold, or acceptance decision after observing the held-out or blind data. The provenance of the numbers is also fixed: the model-building results were produced in the version-controlled build notebook that constructs and freezes the runtime contract, while the pipeline of Chapter~\ref{chap:implementation} consumes that frozen contract for inference, evaluation, monitoring, and governance; Appendix~\ref{app:evidence} maps every reported number to its artifact.
 
-An MLOps-oriented thesis needs multiple experiment types because different risks appear at different lifecycle stages. Labeled reference evaluation is needed to show that the retained model is competent on known data. Production-style ablations are needed to expose train--serve sensitivity. Governance experiments are needed because monitoring and retraining quality cannot be inferred from classifier accuracy alone. Table~\ref{tab:chapter7_map} summarizes how the chapter is organized.
+\subsection{Evidence Boundary}
+\label{sec:ch7_evidence_boundary}
 
+The data sources are not interchangeable, and each can support only a specific kind of claim. Labeled Garmin users~1--6 support accuracy, macro-F1, and confusion analysis. The blind User~7 session supports a single descriptive external measurement, excluded from training, scaler fitting, hyperparameter selection, and model selection. The unlabeled session supports monitoring, confidence, drift, and trigger-policy evidence, but not direct accuracy claims, because ground-truth labels are unavailable at inference time. This boundary is enforced throughout the chapter so that no source is used beyond what it can prove.
+
+\subsection{Fixed Runtime Contract and Evaluation Protocols}
+\label{sec:ch7_protocols_setup}
+
+The proposed model contains 967{,}499 parameters and is fine-tuned from an ADAMSense-pretrained base on Garmin users~1--6. The five-fold protocol is a window-level split with the scaler fitted on users~1--6 before splitting; it measures within-distribution learnability and is, by construction, optimistic relative to deployment on a new wearer. It uses the 3{,}755 contiguous-activity windows from Garmin users~1--6~\cite{hammerla2016deep,bulling2014tutorial,reiss2012pamap}.
+
+Augmentation is applied only at training time and only to the training split of each fold. The three-fold augmentation (time-warping, magnitude scaling, and jitter) expands the training set; it is not an additional input feature and does not change the six-channel input contract from Chapter~\ref{chap:data_model}. Balanced class weights are used to counter class imbalance. The fixed random seed is recorded with each run for reproducibility.
+
+\subsection{Evaluation Metrics}
+\label{sec:ch7_metrics}
+
+Recognition is summarized with accuracy and macro-averaged F1. Accuracy over \(N\) windows with predicted labels \(\hat{y}_i\) and true labels \(y_i\) is
+\[
+\mathrm{Acc}=\frac{1}{N}\sum_{i=1}^{N}\mathbf{1}\!\left[\hat{y}_i=y_i\right].
+\]
+For each class \(k\), precision and recall are
+\[
+P_k=\frac{TP_k}{TP_k+FP_k},
+\qquad
+R_k=\frac{TP_k}{TP_k+FN_k},
+\]
+and the per-class F1 and macro-averaged F1 over \(K=11\) classes are
+\[
+F1_k=\frac{2P_kR_k}{P_k+R_k},
+\qquad
+\mathrm{MacroF1}=\frac{1}{K}\sum_{k=1}^{K}F1_k.
+\]
+Macro-F1 is reported alongside accuracy because the eleven activity classes are imbalanced, and accuracy alone can hide minority-class collapse. Calibration is assessed separately in Section~\ref{sec:ch7_calibration}.
+
+\section{Recognition Performance: Within-Distribution and Blind Probe}
+\label{sec:ch7_recognition}
+
+Two labeled evaluations were conducted. Under five-fold window-level cross-validation on Garmin users~1--6, the model reaches 93.61\% mean accuracy and 0.937 macro-F1. On the blind User~7 probe, evaluated exactly once after the model was frozen, accuracy falls to 36.96\% (macro-F1 0.350), a 57-point gap that is the central empirical finding of this chapter. The subsections below describe each result and what it can, and cannot, be taken to mean.
+\FloatBarrier
+
+\subsection{Within-Distribution Five-Fold Cross-Validation}
+\label{sec:ch7_fivefold}
+
+The per-fold breakdown is given in Table~\ref{tab:ch7_fivefold}. Fold-level variance is low: all five folds fall within one percentage point of the 93.61\% mean, which confirms the result is not driven by a single favorable split (Appendix~\ref{app:supplementary}, Figure~\ref{fig:ch7_fivefold_stability}). This is in the same range as the published Garmin HAR benchmark of 87.0\%~$\pm$~1.2\%, obtained under a comparable five-fold protocol~\cite{oleh2025recognition}; the augmentation recipe and scaler policy differ between the two studies, so the comparison indicates consistency of magnitude rather than a like-for-like ranking. The result confirms the architecture and preprocessing contract are sound for the labeled training distribution.
+
+This number is reported as a within-distribution measurement and not as a deployment estimate. Because the scaler is fitted on all six users before the windows are split, because windows from the same wearer appear in both training and validation folds, and because adjacent windows overlap by 50\% so that windows sharing half their raw samples can land in different folds, the protocol measures how well the model fits the known data rather than how well it transfers to a new person. The next subsection makes this distinction explicit.
+
+\renewcommand{\arraystretch}{1.15}
 \begin{table}[htbp]
 \centering
-\caption{Compact evidence map for Chapter~\ref{chap:experiments}. Detailed metrics are reported in the corresponding experiment sections rather than compressed into this overview.}
-\label{tab:chapter7_map}
-{\setlength{\tabcolsep}{4pt}
-\small
-\begin{tabular}{p{0.24\textwidth}p{0.30\textwidth}p{0.36\textwidth}}
-\hline
-Experiment & Evidence role & Main claim boundary \\
-\hline
-Labeled baseline reference & Internal competence check on a matched labeled set & Context for later failures; not subject-independent runtime proof \\
-Uncertainty under realism change & Tests whether confidence and uncertainty move under degraded realism & Directional proxy evidence; not a full calibration study \\
-Preprocessing ablation & Tests train--serve sensitivity under A/B/C/D replay configurations & Unlabeled proxy evidence; not a universal preprocessing rule \\
-Trigger-policy comparison & Compares governance aggregation rules on the same monitored evidence stream & Best tested policy, not a globally optimal trigger rule \\
-Calibrated MMD branch audit & Evaluates stronger drift visibility against the defended lightweight monitor & Branch evidence for alerting; not the defended mutation trigger \\
-Same-input old vs.\ new model & Isolates model choice on one fixed unlabeled session & Behavioral attribution; no label-based accuracy ranking \\
-Unit-fix plus abstain intervention & Separates routing changes from genuine quality gains over 26 sessions & Compound intervention; proxy evidence only \\
-External contract check & Checks the defended runtime contract on User~7, Garmin, and internal all\_users diagnostic evidence & Supporting contract evidence; not the thesis centerpiece \\
-\hline
+\footnotesize
+\caption[Five-fold window-level cross-validation on Garmin users~1--6 (751...]{Five-fold window-level cross-validation on Garmin users~1--6 (751 windows per fold).}
+\label{tab:ch7_fivefold}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Fold} & \textbf{Accuracy} & \textbf{Macro-F1} & \textbf{Windows} \\
+\midrule
+1 & 93.34\% & 0.934 & 751 \\
+2 & 94.41\% & 0.945 & 751 \\
+3 & 94.14\% & 0.942 & 751 \\
+4 & 93.48\% & 0.935 & 751 \\
+5 & 92.68\% & 0.928 & 751 \\
+\midrule
+\textbf{Mean / Total} & \textbf{93.61\%} & \textbf{0.937} & 3{,}755 \\
+\bottomrule
 \end{tabular}
-}
+\renewcommand{\arraystretch}{1.0}
 \end{table}
 
-The remaining sections follow this evidence map. Each experiment is presented with purpose, setup, method, metrics, results, interpretation, and limitation so that the claimed contribution can be traced back to a concrete and bounded empirical question.
+\subsection{Blind User~7 External Probe}
+\label{sec:ch7_user7}
 
-\section{Baseline Reference on Labeled Data}
+User~7 is a self-recorded session excluded from every model-development decision (training, scaler fitting, hyperparameter selection, and model selection) and evaluated exactly once after the model was frozen. On its 989 windows, accuracy is 36.96\% (macro-F1 0.350), with a 95\% bootstrap confidence interval of \([33.9\%, 39.8\%]\). This is reported as a single descriptive external measurement, not a selection or validation metric.
 
-\textbf{Purpose.} This experiment establishes the labeled reference point for the retained baseline model. The question is not whether the thesis achieves a novel benchmark, but whether later runtime-style failure modes should be interpreted relative to a competent baseline.
+The degradation is expected. The session is self-recorded and self-labeled, so watch placement, wrist orientation, and gesture execution style vary relative to the training population, on top of the natural cross-user distribution shift. The eleven activities here are predominantly fine-contact hand-to-face gestures (nail biting, smoking, hair pulling, ear rubbing, nape rubbing, hand scratching) whose wrist-sensor signatures differ mainly in arm angle, contact force, and timing, all of which are person-specific. A six-user training set cannot cover this variation. Activities with a wearer-stable IMU signature transfer better: hand tapping is recognized at 91\% even on User~7, while most fine-contact gestures fail. The cross-user gap, not model capacity, is the binding constraint.
 
-\textbf{Data and setup.} The model used here is the pre-sprint retrained 1D-CNN + BiLSTM artifact \texttt{har\_model\_20260327\_223917.keras}, which served as the original labeled baseline before the May 2026 model sprint. This model is \emph{not} Model~A (the defended proof-of-concept runtime candidate selected in the May sprint). It is used here specifically to establish a labeled-set reference baseline and to provide context for later production-style sensitivity experiments. Model~A's actual defended numbers --- 42.4\% accuracy on the all\_users diagnostic and 37.6\% on User~7 --- are reported in the runtime contract check (Section~\ref{sec:abc_comparison}). The pre-sprint model's stored training report recorded 92.2\% final accuracy and 92.2\% macro F1 under the configured offline training procedure; the thesis-facing reference evaluation ran the same model end-to-end through the pipeline evaluation stage on a labeled set containing 3{,}852 windows across all eleven classes.
+What the result also exposes is that prediction confidence does not track accuracy. Mean confidence on the User~7 session is 0.858 despite accuracy of 36.96\%. A model that is wrong the majority of the time while reporting high confidence is precisely the behavior a threshold on softmax confidence would miss, and it is the direct motivation for the multi-signal monitoring design of Section~\ref{sec:ch7_calibration}. Comparison with prior work must be read carefully: the ADAMSense study reports up to 92.16\% on a single best-case held-out user using twelve-second windows and an additional magnitude feature~\cite{khan2021adamsense}, a different sensor setup and evaluation design, not directly comparable to a four-second six-channel blind probe on a different device. External cross-user validation is rarely reported in the wearable HAR literature, which is precisely the gap this probe addresses~\cite{shen2025passivesensing}.
 
-\textbf{Method.} The pipeline was executed without changing the retained model or evaluation logic. Predictions were generated for the labeled reference set, and the resulting JSON artifact was used to compute standard classification metrics together with confidence and temporal summary statistics.
+\section{Calibration and the High-Confidence Failure Mode}
+\label{sec:ch7_calibration}
 
-\textbf{Metrics.} Accuracy and macro F1 quantify recognition quality on the labeled reference set. Mean confidence and uncertain-rate quantify how decisive the model is under matched conditions. Dominant-class share and transition rate provide a simple check against pathological collapse or temporal instability.
+The User~7 result exposes a calibration gap: prediction confidence and empirical correctness do not align. Modern neural networks are frequently poorly calibrated~\cite{guo2017calibration,blasiok2024calibration}, and in the label-scarce wearable setting this is not a minor issue but the dominant operational risk, because a shifted session can still produce high-confidence predictions. The dominant failure mode observed here is therefore high-confidence misprediction rather than low-confidence uncertainty.
 
-\textbf{Results.} The labeled end-to-end reference evaluation reached 98.9\% accuracy and 98.9\% macro F1. Mean confidence was 98.6\%, the uncertain rate was 0.18\%, the dominant predicted class occupied only 10.0\% of windows, and the transition rate was 0.032 (Table~\ref{tab:labeled_baseline_reference}).
+Calibration is quantified with the expected calibration error, which compares accuracy and confidence across \(M\) confidence bins \(B_m\),
+\[
+\mathrm{ECE}=\sum_{m=1}^{M}\frac{|B_m|}{N}\left|\mathrm{acc}(B_m)-\mathrm{conf}(B_m)\right|,
+\]
+and visualized with a reliability diagram and confidence summaries in Figure~\ref{fig:ch7_reliability}. The reliability diagram shows the model sitting below the diagonal in the high-confidence bins, the signature of overconfidence. The bootstrap confidence interval reported for User~7 is a window-level bootstrap interval over the windows of a single session; it does not represent population-level uncertainty across users, and it should not be read as a generalization guarantee. Adjacent windows overlap by half, so the bootstrap samples are correlated and the interval is approximate; a block bootstrap over contiguous segments would yield a wider, more conservative interval.
 
-\begin{table}[htbp]
+This calibration gap is the direct justification for the multi-signal monitoring design of Chapter~\ref{chap:monitoring}. A single threshold on softmax confidence would pass a confident-but-wrong session silently, so the monitor combines confidence with temporal stability, dominant-class concentration, and input drift, and the trigger policy requires agreement across signals rather than trusting any one of them.
+
+\begin{figure}[!htb]
 \centering
-\caption{Labeled reference performance of the retained baseline model.}
-\label{tab:labeled_baseline_reference}
-{\setlength{\tabcolsep}{4pt}
-\small
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccc}
-\hline
-Windows & Accuracy (\%) & Macro F1 (\%) & Mean confidence (\%) & Uncertain rate (\%) & Dominant share (\%) & Transition rate \\
-\hline
-3{,}852 & 98.9 & 98.9 & 98.6 & 0.18 & 10.0 & 0.032 \\
-\hline
-\end{tabular}
-}
-}
-\end{table}
+\makebox[\textwidth][c]{\includegraphics[width=1.04\textwidth]{figures/Figure_7_3_reliability_confidence_printsafe.png}}
+\caption[User-7 proxy monitoring signals: confidence, per-activity proxy accuracy, temporal stability]{User-7 proxy monitoring signals from the unlabeled schedule-aligned run (no ground-truth labels). \textit{(a)}~Confidence summary: mean confidence 84.6\%, low-confidence window rate 9.3\%, and median confidence 95.6\%. The 70\% warning threshold is not breached by the mean. \textit{(b)}~Per-activity proxy accuracy (colored bars) vs.\ mean softmax confidence (blue, transparent) across all 11 activity segments. Hand tapping and sitting transfer well, while hair pulling, nail biting, and hand scratching collapse despite high confidence. \textit{(c)}~Temporal transition rate drops from 40.6\% (raw) to 21.5\% after majority-vote smoothing ($k{=}3$), falling below the 35\% warning level. Input drift z-score is 1.18, below the 1.8 warning threshold.}
+\label{fig:ch7_reliability}
+\end{figure}
 
-\textbf{Interpretation.} This reference point shows that the retained model is strong when train and serve conditions remain aligned. The nearly flat class distribution also indicates that the model can represent all eleven classes without immediate collapse on matched labeled data. This matters for the rest of the chapter because later anomalies should be interpreted as operational sensitivity under changed conditions, not as evidence that the retained model is universally weak.
+Three key observations follow from these signals. First, mean confidence (84.6\%) sits well above the 70\% warning threshold even though proxy accuracy is only 36.70\%, confirming that softmax magnitude is not a reliable proxy for correctness on this session. Second, the per-activity breakdown in panel~(b) shows the error is concentrated: hand tapping achieves high proxy accuracy while gestures with similar hand-to-face trajectories (nail biting, hair pulling, hand scratching) collapse. Third, panel~(c) shows that raw temporal instability is substantially reduced by smoothing, which means many prediction flips are isolated single-window errors rather than sustained confusions. The drift z-score of 1.18 indicates the input distribution is shifted relative to the training baseline but not to a critical degree.
 
-\textbf{Limitation.} This evaluation is window-level and distribution-matched. It supports internal competence on a labeled reference set, but it does not establish subject-independent runtime performance, clinical validity, or robustness across unseen collection conditions.
+\FloatBarrier
 
-\section{Uncertainty Under Dataset Realism Change}
-
-\textbf{Purpose.} This experiment asks whether the monitoring-oriented signals used in the pipeline move in a meaningful direction when input realism degrades. The question is operational: can confidence and uncertainty summaries provide useful evidence when labels are absent or only partially available?
-
-\textbf{Data and setup.} The same retained model and the same evaluation path were applied to three datasets: an actual labeled reference set, Synth Codex, and Synth Other. Each dataset contains 3{,}852 windows, which keeps the comparison controlled at the evaluation level.
-
-\textbf{Method.} No model retraining or threshold retuning was performed between runs. For each dataset, the pipeline produced a classification report together with confidence, uncertainty, and temporal summaries. The comparison therefore isolates dataset realism as the main manipulated factor.
-
-\textbf{Metrics.} Accuracy and macro F1 remain useful where labels exist, but the central monitoring metrics here are mean confidence, uncertain rate, and transition rate. These matter because they remain observable even when production labels are unavailable. A full calibration study would additionally require dedicated metrics such as ECE; that is not the aim of this comparison.
-
-\textbf{Results.} The actual labeled set produced 98.9\% accuracy, 98.9\% macro F1, 98.6\% mean confidence, 0.18\% uncertain windows, and a transition rate of 0.032. Under the same evaluation path, Synth Codex dropped to 70.4\% accuracy and 71.1\% macro F1, with 86.8\% mean confidence, 6.5\% uncertain windows, and a transition rate of 0.285. Synth Other showed substantially stronger degradation, with 34.6\% accuracy and 31.7\% macro F1, while mean confidence decreased to 77.7\% and uncertain windows increased to 14.5\%, with a transition rate of 0.282. Figure~\ref{fig:actual_vs_synthetic} and Table~\ref{tab:actual_vs_synth} summarize the comparison.
+A per-class confusion matrix for User~7 (Figure~\ref{fig:ch7_confusion}) shows that the errors are structured rather than random. Hand tapping stands out as the reliably recognized activity, with 91\% of its windows correctly classified and a mean confidence of 0.99, reflecting a rhythmic motion pattern that is relatively distinctive and stable across wearers. Most other activities produce systematic confusions concentrated on a small set of wrong classes: hair pulling is predicted as knuckles cracking in 48\% of its windows; nail biting is predicted as smoking in 51\% of its windows; hand scratching goes predominantly to nape rubbing; and standing is confused with ear rubbing. These confusions are not random; they cluster among gestures with similar hand-to-face trajectories, confirming that the model is misled by the specific execution style of User~7 rather than being uniformly confused. A small set of classes therefore absorbs a disproportionate share of the predictions from many input segments. This is the dominant-class concentration pattern that the monitoring layer is designed to surface: when the output is heavily skewed toward one or two wrong classes, confidence stays high while accuracy collapses, and only the dominant-class signal can catch it.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.93\textwidth]{fig_09_actual_vs_synthetic.png}
-\caption{Comparison of actual labeled data with two synthetic datasets across performance, confidence, uncertainty, and temporal instability. Lower realism is associated with weaker recognition behavior and a less stable confidence profile.}
-\label{fig:actual_vs_synthetic}
+\includegraphics[width=\textwidth]{figures/Figure_7_4_user7_confusion.png}
+\caption[Per-class confusion matrix on the blind User~7 probe]{Per-class confusion matrix on the blind User~7 probe. Errors concentrate on a small set of gesturally similar wrong classes: hair pulling goes to knuckles cracking, nail biting to smoking, hand scratching to nape rubbing. Hand tapping is the exception, correctly classified at 91\%.}
+\label{fig:ch7_confusion}
 \end{figure}
+\FloatBarrier
 
-\begin{table}[htbp]
-\centering
-\caption{Behavior of the retained model under actual and synthetic inputs using the same evaluation path.}
-\label{tab:actual_vs_synth}
-{\setlength{\tabcolsep}{4pt}
-\small
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{lccccc}
-\hline
-Dataset & Accuracy (\%) & Macro F1 (\%) & Mean confidence (\%) & Uncertain rate (\%) & Transition rate \\
-\hline
-Actual labeled & 98.9 & 98.9 & 98.6 & 0.18 & 0.032 \\
-Synth Codex & 70.4 & 71.1 & 86.8 & 6.5 & 0.285 \\
-Synth Other & 34.6 & 31.7 & 77.7 & 14.5 & 0.282 \\
-\hline
-\end{tabular}
-}
-}
-\end{table}
+A per-class ranking of the User~7 F1 (Appendix~\ref{app:supplementary}, Figure~\ref{fig:ch7_user7_perclass}) confirms this pattern: a few activities, such as hand tapping, are recognized reliably, while several others receive an F1 close to zero. The macro-averaged F1 of 0.350 is therefore the average of a small number of well-recognized classes and many that the model fails on for this external user.
 
-\textbf{Interpretation.} The comparison supports the narrower claim that confidence-based and uncertainty-based monitoring signals respond directionally to realism degradation. Relative to the actual labeled reference, the two synthetic datasets show degradation at different severity levels, and the monitoring signals scale with that difference. Synth Codex shows a drop of approximately 12 percentage points in mean confidence (98.6\% to 86.8\%) and a rise in uncertain windows from 0.18\% to 6.5\%. Synth Other shows substantially stronger degradation: accuracy falls to 34.6\% compared to Synth Codex's 70.4\%, mean confidence drops a further 9 percentage points to 77.7\%, and uncertain windows rise to 14.5\%. This gradient matters for RQ1 because it indicates that the monitoring layer can surface problematic behavior even when production labels are unavailable, and that the signals scale with the severity of the distributional mismatch rather than triggering uniformly. It should not be interpreted as proof that synthetic data is uniformly poor; rather, it shows that the monitoring layer is sensitive to the degree of realism degradation \cite{gal2016dropout,guo2017calibration}.
+\section{User-7 Proxy Metrics: What the Pipeline Sees Without Labels}
+\label{sec:ch7_proxy}
 
-\textbf{Limitation.} This is not a full calibration study, and it does not establish universal out-of-distribution detection. The comparison only shows directional movement of confidence, uncertainty, and temporal instability under the tested synthetic conditions.
+The blind probe result in Section~\ref{sec:ch7_user7} was obtained with ground-truth labels. In deployment, labels are not available. This section addresses a practical question: can the pipeline reach the same conclusions about session quality using only what it can observe at inference time, namely per-window confidence scores, the predicted class sequence, and input drift statistics?
 
-\section{Preprocessing Sensitivity Under Replay}
-
-\textbf{Purpose.} This experiment asks how strongly production-style inference behavior depends on preprocessing consistency. The targeted question for RQ2 is whether seemingly reasonable preprocessing changes improve behavior automatically, or whether they can instead worsen collapse.
-
-\textbf{Data and setup.} The ablation was run on 25 production-style session pairs under four preprocessing configurations: A = baseline, B = calibration only, C = gravity removal only, and D = gravity removal plus calibration. The same retained model and the same downstream evaluation path were used for every run, yielding 100 total evaluations.
-
-\textbf{Method.} Only the preprocessing configuration was changed. Each session pair was replayed under configurations A--D, and the resulting prediction distributions were aggregated across sessions. This holds model choice and downstream monitoring logic fixed while varying gravity removal and calibration choices. Because the replay sessions are unlabeled, the result is descriptive proxy evidence about output behavior rather than an inferential accuracy test.
-
-\textbf{Metrics.} Mean unique classes predicted measures behavioral diversity and acts as a coarse proxy against single-class collapse. Mean hand-tapping share measures how strongly the output distribution is dominated by the class that was historically problematic in production-style runs.
-
-\textbf{Results.} The four configurations separate clearly as descriptive output summaries. On mean unique classes, the configurations score A = 7.08, B = 7.88, C = 5.32, and D = 9.72. On mean hand-tapping share, they score A = 78.37\%, B = 73.22\%, C = 96.72\%, and D = 50.14\%. Configuration D therefore achieves the broadest class diversity, while Configuration C is the clearest warning case: gravity removal alone is associated with stronger collapse-like concentration rather than an automatic improvement (Figure~\ref{fig:ablation_config_comparison}, Table~\ref{tab:ablation_summary}).
+To test this, the same User~7 recording was processed a second time as a schedule-aligned unlabeled run. The recording followed a scripted protocol in which one activity was performed per timed segment, so the known activity schedule provides proxy ground truth without requiring manual per-window annotation. Schedule-aligned accuracy is the fraction of windows whose predicted class matches the activity scheduled for that time interval. The labeled blind probe yields 36.96\% accuracy (macro-F1 0.350) at mean confidence 0.858, while the schedule-aligned unlabeled proxy yields 36.70\% accuracy (macro-F1 0.351) at mean confidence 0.846. The two conditions agree to within 0.3 percentage points on every metric, showing the monitoring signals track ground-truth session quality without requiring manual annotation.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.92\textwidth]{fig_07_ablation_config_comparison.png}
-\caption{Comparison of the four preprocessing configurations used in the ablation study. Configuration D achieves the strongest class diversity, while Configuration C is associated with stronger collapse-like output concentration in this setup.}
-\label{fig:ablation_config_comparison}
+\includegraphics[width=0.82\textwidth]{figures/Figure_7_8_user7_labeled_vs_unlabeled.png}
+\caption[User-7 softmax confidence and low-confidence window rate]{Softmax confidence for the User-7 session. The two leftmost bars show mean confidence under the labeled blind probe (85.8\%) and the schedule-aligned unlabeled proxy (84.6\%), both well above the 70\% warning threshold. The rightmost bar shows that only 9.3\% of unlabeled windows fall below the 0.70 confidence level, confirming the overconfidence pattern: the model produces high softmax outputs even when its predictions are predominantly wrong.}
+\label{fig:ch7_proxy_comparison}
 \end{figure}
+\FloatBarrier
 
+The agreement matters because the pipeline cannot rely on ground-truth labels in production. The confidence, temporal-transition, and dominant-class signals that Stage~6 computes from unlabeled windows carry the same diagnostic information as the labeled accuracy. Yet confidence alone is not sufficient: mean confidence is 0.846 on the unlabeled run while accuracy is only 36.70\%. The model is systematically overconfident, so a threshold on softmax confidence alone would pass this session without any alert. The monitoring design of Chapter~\ref{chap:monitoring} addresses this by combining confidence with temporal stability and dominant-class concentration, requiring agreement across signals before escalating.
+
+A further indicator available without labels is the low-confidence window rate. On the User-7 unlabeled run, 9.3\% of windows have a softmax peak below 0.70. On the training distribution this rate is near zero. An elevated rate therefore signals, without any label, that the session lies outside the model's confident operating region. Combined with the elevated temporal transition rate (40.6\% raw), the pipeline has multiple label-free signals pointing to the same conclusion the labeled evaluation confirms.
+
+Temporal smoothing offers a partial improvement. Passing per-window predictions through the majority-vote stage~\cite{bulling2014tutorial,lester2006practical} (soft vote over $k{=}3$ neighboring windows) raises schedule-aligned accuracy from 36.70\% to 39.43\% and macro-F1 from 0.351 to 0.373, and lowers the temporal transition rate from 40.6\% to 21.5\%, which falls below the 35\% warning threshold (Figure~\ref{fig:ch7_temporal_smoothing}). Mean confidence (0.846) and the drift z-score are unchanged by smoothing, since it only reorders predicted labels without touching the per-window softmax or input statistics.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/Figure_7_9_temporal_smoothing.png}
+\caption[Effect of majority-vote temporal smoothing on the User-7 session]{Majority-vote temporal smoothing on the User-7 session (989 windows). The transition rate falls from 40.6\% to 21.5\%, below the 35\% warning level, and accuracy and macro-F1 each gain roughly two to three points. Confidence and drift are unaffected.}
+\label{fig:ch7_temporal_smoothing}
+\end{figure}
+\FloatBarrier
+
+The accuracy improvement is real but modest, and the reason is structural. Smoothing corrects isolated single-window prediction flips, but the dominant errors on User-7 are sustained confusions across consecutive windows: hair pulling is predicted as knuckles cracking across an entire segment, nail biting as smoking, and hand scratching as nape rubbing. A three-window majority vote cannot resolve a confusion that persists for dozens of consecutive windows. On the training users, where the base predictions are already strong, the same smoothing raises accuracy from 95.7\% to 97.9\% because the residual errors there are mostly isolated flips. The contrast between the two settings shows that smoothing is effective for jitter but not for systematic cross-user confusion, which requires additional training data or a personalization step.
+
+\section{Monitoring and Trigger-Policy Evidence}
+\label{sec:ch7_monitoring}
+
+Section~\ref{sec:ch7_proxy} showed that the pipeline can track session quality without labels on a single reference session. This section extends that to scale: 25 recorded unlabeled sessions processed through Stages~1--7 under the same fixed runtime contract, and the trigger-policy and contract-sensitivity calibration that justifies the deployed defaults. On every defended evidence run the Stage~7 outcome is \texttt{action=review} with \texttt{should\_retrain=false}: the session is flagged for human review, and no model mutation is triggered. This is the intended behavior: a label-scarce monitoring signal indicates operational risk, not verified error, and does not on its own justify changing the deployed model. The preprocessing and threshold sweeps reported alongside these runs are treated as contract-sensitivity evidence, showing that monitoring severity responds to controlled changes in preprocessing while the model artifact remains fixed.
+
+\subsection{Session-Level Monitoring Outcomes}
+\label{sec:ch7_sessions25}
+
+To test the monitoring and governance layer at scale, the recorded unlabeled sessions in the repository were processed through Stages~1--7 under the same fixed runtime contract. The analysis covers the 25 sessions that processed successfully under the standard per-sample ingestion path; two recordings with unusable layouts (one empty accelerometer file, one stored in a legacy Excel format) are excluded. Figures~\ref{fig:ch7_mon_confidence}--\ref{fig:ch7_mon_dominant} show each monitoring signal separately. Across the twenty-five sessions, prediction confidence stayed high: the average was 0.83 and no session fell below the 0.70 level, confirming that the overconfidence pattern from Section~\ref{sec:ch7_calibration} persists in deployment-style data. Temporal transition rates were frequently elevated (mean 40.3\%, 21 of 25 above the 35\% warning threshold). Distribution drift was mostly contained (mean z-score 1.18) with one session exceeding the critical level. Dominant-class share flagged two sessions, one reaching 99.7\%. The governance result is the central finding: the trigger policy routed \textbf{23 of the 25 sessions to review}, left one at monitor-only and one healthy, while authorizing automatic retraining on \textbf{none} of them.
+
+This pattern is operationally important because the signals do not fail in the same direction. Confidence remains high and therefore contributes little to detection; transition rate surfaces instability in most sessions; drift identifies a smaller number of input-shift cases; and dominant-class share catches rare collapse. The review decision is therefore not a restatement of one chart, but the result of combining partially independent warnings under the no-auto-retrain governance rule.
+
+\begin{figure}[!htb]
+\centering
+\includegraphics[width=\textwidth]{figures/Figure_7_7a_confidence.png}
+\caption[Mean prediction confidence across the 25 unlabeled sessions]{Mean prediction confidence per session across all 25 unlabeled sessions. Every session stays above the 70\% warning threshold (dashed line), which is the overconfidence pattern: high softmax output persists even on sessions the model handles poorly, so a confidence-only filter would flag nothing.}
+\label{fig:ch7_mon_confidence}
+\end{figure}
+\FloatBarrier
+
+Confidence alone is therefore not a useful discriminator here. The temporal transition rate tells a different story.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/Figure_7_7b_transition.png}
+\caption[Temporal transition rate across the 25 unlabeled sessions: raw vs smoothed]{Temporal transition rate per session (raw per-window, bars) and after majority-vote smoothing $k{=}3$ (line). Twenty-one of twenty-five sessions exceed the 35\% warning level on the raw stream; smoothing brings all of them below it, confirming the instability is predominantly single-window jitter. The monitoring system evaluates the raw stream; smoothing is a post-processing step applied afterward.}
+\label{fig:ch7_mon_transition}
+\end{figure}
+\FloatBarrier
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/Figure_7_7c_drift.png}
+\caption[Input drift z-score across the 25 unlabeled sessions]{Input drift z-score per session. Drift is mostly contained (mean 1.18, below the 1.8 warning threshold) but four sessions reach warning level and one exceeds the critical threshold of 3.0. Drift contributes to the review routing for these sessions independently of the transition signal.}
+\label{fig:ch7_mon_drift}
+\end{figure}
+\FloatBarrier
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/Figure_7_7d_dominant.png}
+\caption[Dominant-class share across the 25 unlabeled sessions]{Dominant-class share per session, defined as the fraction of windows assigned to the single most predicted class. Two sessions exceed the 85\% warning threshold, one reaching 99.7\%. This near-total collapse onto a single output class is not detectable from confidence alone; the collapse guard in Stage~6 catches these cases.}
+\label{fig:ch7_mon_dominant}
+\end{figure}
+\FloatBarrier
+
+Table~\ref{tab:ch7_decomposition} decomposes this outcome by trigger action and signal. Risk was surfaced predominantly by the temporal-transition signal (21 of 25 sessions above the 35\% warning level, seven above the 50\% critical level), with drift contributing four warning-level excursions including one critical, and the dominant-class signal flagging two sessions (one of which reached a 99.7\% dominant share, a collapse-level concentration caught by the collapse guard). Confidence alone would have flagged nothing: every session stayed above the 0.70 warning level, which is the overconfidence pattern of Section~\ref{sec:ch7_calibration} reappearing in deployment-style data. The \texttt{queue\_retrain} escalation path never fired on any of the twenty-five sessions: \texttt{should\_retrain} was \texttt{false} throughout, so every review was reached through critical signals or the collapse guard rather than through warning accumulation; this is itself a finding about how risk manifests in these sessions. No code path converted any severity level into a model mutation, so the no-auto-retrain invariant of Chapter~\ref{chap:monitoring} held on real data, not only by construction.
+
+\renewcommand{\arraystretch}{1.2}
 \begin{table}[htbp]
 \centering
-\caption{Preprocessing ablation summary across configurations A--D.}
-\label{tab:ablation_summary}
-{\setlength{\tabcolsep}{4pt}
-\small
-\resizebox{0.88\textwidth}{!}{%
-\begin{tabular}{lcc}
-\hline
-Configuration & Mean unique classes & Mean hand-tapping share (\%) \\
-\hline
-A (baseline) & 7.08 & 78.37 \\
-B (calibration only) & 7.88 & 73.22 \\
-C (gravity removal only) & 5.32 & 96.72 \\
-D (gravity + calibration) & 9.72 & 50.14 \\
-\hline
+\footnotesize
+\caption[Decomposition of trigger actions and monitoring-signal incidence...]{Decomposition of trigger actions and monitoring-signal incidence across the 25 unlabeled sessions.}
+\label{tab:ch7_decomposition}
+\begin{tabular}{lc}
+\toprule
+\textbf{Outcome / signal incidence} & \textbf{Sessions} \\
+\midrule
+Trigger action \texttt{review} & 23 \\
+Trigger action \texttt{monitor} & 1 \\
+Trigger action \texttt{none} (healthy) & 1 \\
+Retraining queued (\texttt{should\_retrain=true}) & 0 \\
+\midrule
+Stage-6 severity \textsc{critical} / \textsc{warning} / \textsc{healthy} & 5 / 19 / 1 \\
+Transition rate above warning (35\%) / critical (50\%) & 21 / 7 \\
+Drift $z$-score above warning (1.8) / critical (3.0) & 4 / 1 \\
+Dominant-class share above 85\% (maximum 99.7\%) & 2 \\
+Mean confidence below the 0.70 warning level & 0 \\
+\bottomrule
 \end{tabular}
-}
-}
+\renewcommand{\arraystretch}{1.0}
 \end{table}
+\FloatBarrier
 
-\textbf{Interpretation.} The ablation supports the claim that preprocessing consistency is not a cosmetic detail in this pipeline. In this unlabeled replay setting, an apparently plausible signal-cleaning step, gravity removal, was associated with less stable output behavior when applied without the compensating configuration that kept the evaluation path behaviorally broader. This matters for the thesis because train--serve parity is one of the main operational risks in wearable HAR systems, and the descriptive evidence makes that risk visible rather than merely theoretical \cite{dhekane2024transfer,wang2024enhancing}.
+One apparent tension is worth addressing. Temporal smoothing (Section~\ref{sec:ch7_proxy}) brings the mean transition rate from 40.2\% raw to 21.6\% smoothed across the 25 sessions, below the 35\% warning level on every session. If smoothing resolves the instability, why did 23 sessions trigger a review? The monitoring system always evaluates the raw prediction stream; smoothing is applied afterward in the serving path as a display aid for clinicians, not as input to the trigger policy. The review actions were based on the raw stream, where 21 of 25 sessions exceeded 35\% transition. This separation is deliberate: monitoring the raw stream captures the model's instability as it occurs, whereas monitoring the smoothed stream would suppress the signal the system is designed to surface. Appendix~\ref{app:walkthrough} illustrates these outcomes through the live dashboard.
 
-\textbf{Limitation.} The evidence is based on unlabeled production-style sessions and distributional output summaries rather than on ground-truth activity labels. It therefore supports sensitivity of pipeline behavior, not a universal claim that gravity removal is generally harmful in wearable HAR.
+\subsection{Trigger-Policy Calibration}
+\label{sec:ch7_triggerpolicy}
 
-\section{Governance and Model-Mutation Evidence}
+The voting policy and cooldown used by Stage~7 were not chosen arbitrarily; they were selected in a development-time calibration study retained here because it quantifies why the governed policy is safer than naive alternatives. In the study, candidate trigger policies were replayed over the recorded monitoring history, and their triggers were scored against sixteen reference risk episodes identified in that history. Table~\ref{tab:ch7_triggerpolicy} reports the outcome. A single-signal policy, which fires whenever any one monitoring signal crosses its threshold, detects every episode but emits 251 triggers at a 13.9\% false-alarm rate. Requiring agreement of two of the three voting signals keeps episode recall at 100\% while cutting the false-alarm rate to 0.7\% and raising precision from 0.841 to 0.988. Adding the 24-hour cooldown of the deployed configuration reduces trigger volume further, to fourteen triggers at perfect precision, at the cost of not re-triggering on repeat episodes inside the cooldown window (episode recall 0.875). This trade is acceptable under the no-auto-retrain design because a triggered review remains open until a human closes it: suppressing a duplicate trigger does not suppress the underlying review. These numbers are calibration evidence from development, not a deployment benchmark; they are reported because they are the empirical justification for the two-of-three voting and cooldown defaults of Chapter~\ref{chap:monitoring}.
 
-Once the baseline and monitoring context are established, the remaining experiments evaluate governance choices more directly: how alerts should be aggregated, how much collapse can be attributed to model choice, and whether a plausible intervention bundle improved model quality or merely changed routing behavior.
-
-\subsection{Trigger-Policy Evaluation}
-
-\textbf{Purpose.} This experiment asks which retraining-trigger policy provides the most defensible governance trade-off. The question is central to RQ3 because the thesis claims that controlled retraining should be gated by explicit policy rather than by the first alert signal that fires.
-
-\textbf{Data and setup.} The policy comparison uses a stored replay evaluation over 16 episodes. The evaluated variants are \texttt{single\_signal}, \texttt{two\_of\_three}, and three cooldown variants layered on top of the two-of-three voting rule.
-
-\textbf{Method.} The monitored evidence stream was held fixed while the trigger aggregation policy was varied. The artifact reports precision, episode recall, trade-off F1, and false alarm rate for each rule, which makes the comparison about governance logic rather than about classifier retraining.
-
-\textbf{Metrics.} Precision measures how often alerts correspond to true episodes. Episode recall measures how many of the 16 episodes are still detected. Trade-off F1 summarizes the balance between responsiveness and reliability, while false alarm rate captures the operational cost of noisy triggering.
-
-\textbf{Results.} The \texttt{two\_of\_three} policy provides the strongest overall balance among the tested rules. It records precision 0.9878, episode recall 1.0, trade-off F1 0.9939, and false alarm rate 0.0069. By contrast, \texttt{single\_signal} is materially noisier, with precision 0.8406, trade-off F1 0.9134, and false alarm rate 0.1389. Cooldown variants reduce trigger volume further, but the 24-hour cooldown also misses two of the 16 episodes and drops recall to 0.875 (Table~\ref{tab:trigger_policy}, Figure~\ref{fig:trigger_policy_comparison}).
-
+\renewcommand{\arraystretch}{1.2}
 \begin{table}[htbp]
 \centering
-\caption{Trigger-policy comparison on the replay evaluation set with 16 monitored episodes. Higher precision and trade-off F1, and lower false alarm rate, are better; alerts are counted under the same monitored evidence stream while only the aggregation policy changes.}
-\label{tab:trigger_policy}
-{\setlength{\tabcolsep}{4pt}
-\small
-\resizebox{\textwidth}{!}{%
+\footnotesize
+\caption[Trigger-policy calibration against sixteen reference risk episodes...]{Trigger-policy calibration against sixteen reference risk episodes in the recorded monitoring history.}
+\label{tab:ch7_triggerpolicy}
 \begin{tabular}{lcccc}
-\hline
-Policy & Precision & Episode recall & Trade-off F1 & False alarm rate \\
-\hline
-single\_signal & 0.8406 & 1.0 & 0.9134 & 0.1389 \\
-two\_of\_three & 0.9878 & 1.0 & 0.9939 & 0.0069 \\
-two\_of\_three + cooldown 6h & 0.9524 & 1.0 & 0.9756 & 0.0069 \\
-two\_of\_three + cooldown 12h & 0.9167 & 1.0 & 0.9565 & 0.0069 \\
-two\_of\_three + cooldown 24h & 1.0000 & 0.875 & 0.9333 & 0.0000 \\
-\hline
+\toprule
+\textbf{Policy} & \textbf{Triggers} & \textbf{Precision} & \textbf{Episode recall} & \textbf{False-alarm rate} \\
+\midrule
+Single signal & 251 & 0.841 & 1.000 & 13.9\% \\
+Two-of-three voting & 164 & 0.988 & 1.000 & 0.7\% \\
+Two-of-three + 6\,h cooldown & 42 & 0.952 & 1.000 & 0.7\% \\
+Two-of-three + 12\,h cooldown & 24 & 0.917 & 1.000 & 0.7\% \\
+Two-of-three + 24\,h cooldown (deployed) & 14 & 1.000 & 0.875 & 0.0\% \\
+\bottomrule
 \end{tabular}
-}
-}
+\renewcommand{\arraystretch}{1.0}
 \end{table}
+\FloatBarrier
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.94\textwidth]{fig_08_trigger_policy_comparison.png}
-\caption{Trigger-policy comparison across precision, trade-off F1, false alarm rate, and episode recall. The \texttt{two\_of\_three} policy provides the strongest balance among the tested alternatives.}
-\label{fig:trigger_policy_comparison}
-\end{figure}
+\subsection{Preprocessing and Contract Sensitivity}
+\label{sec:ch7_ablation}
 
-\textbf{Interpretation.} This experiment supports the thesis claim that governance quality depends on how multiple monitoring signals are aggregated, not only on whether those signals exist. In the tested replay, a two-of-three voting rule preserves full episode recall while sharply reducing false alarms relative to single-signal triggering. That makes retraining governance materially safer because fewer unnecessary mutations are proposed while the relevant episodes are still detected \cite{hewage2022mlops,khattak2023mlhops}.
+The claim that contract choices materially change runtime behavior is supported by a controlled windowing experiment. The same labeled Garmin data are re-windowed under six combinations of window size (128, 200, and 256 samples) and overlap (25\% and 50\%), and a lightweight surrogate model is refit per configuration under an identical reduced training budget. Because of that reduced budget, the absolute scores are not comparable to the proposed-model results in Section~\ref{sec:ch7_recognition}; the sweep is read for relative differences between configurations under identical data and code.
 
-\textbf{Limitation.} The policy comparison is bounded to one replay dataset and one family of thresholds. It identifies the best rule among the tested variants, but it does not establish a universally optimal trigger policy for all wearable HAR deployments.
-
-\subsection{Calibrated MMD Drift-Audit and Staged Governance Test}
-\label{sec:mmd_branch_evaluation}
-
-\textbf{Purpose.} This experiment asks whether a stronger distribution-level drift signal improves governance quality, not merely drift visibility. The methodological distinction is important: the defended runtime keeps a raw physical production input contract, while MMD is evaluated as a batch-level drift-audit signal. The question is therefore not ``scaler versus MMD'', but whether calibrated MMD should replace or augment the defended runtime drift monitor in the governance path.
-
-\textbf{Data and setup.} The comparison reuses the same retained model and the same four replay datasets used in the branch-comparison artifacts: one healthy labeled reference set, two degraded labeled synthetic/replay sets, and one degraded unlabeled synthetic/replay set. No new data were invented for this experiment.
-
-\textbf{Method.} The experiment was run in three rounds. First, the current lightweight z-score mean-shift drift monitor was compared with an MMD branch while all other conditions were held fixed. Second, MMD thresholds were calibrated from healthy reference comparisons by repeatedly splitting the reference-window artifact and computing reference-vs-reference MMD over per-window summary features. Third, a staged MMD policy was evaluated with healthy, warning, and critical MMD bands. The staged policies allowed MMD to create warning-level alerts, but did not allow MMD alone to queue retraining.
-
-\textbf{Metrics.} Drift-warning count measures visibility of distribution shift. Risk alerts measure non-mutating governance surfacing. Queue/retrain count and recall measure whether the policy actually improves final mutation decisions. Precision, recall, and false alarm rate are reported where the replay labels define healthy versus problematic datasets.
-
-\textbf{Results.} The calibration used 500 reference-vs-reference comparisons with 384 windows per side. The empirical warning threshold was 0.00276403 (95th percentile), and the critical candidate threshold was 0.00322704 (99th percentile). These thresholds are dataset-specific and should not be interpreted as universal MMD values.
-
-The branch comparison showed that MMD was more sensitive than the current drift monitor on degraded replay sets. The current policy produced 0 drift warnings out of 4 datasets, 0 risk alerts, and 0 queue/retrain decisions. With MMD active in trigger evaluation, drift warnings increased to 3 of 4 datasets and risk alerts increased to 3, with risk precision 1.0 and risk recall 1.0. Queue/retrain decisions remained 0.
-
-The final staged-policy redesign confirmed the same governance boundary (Table~\ref{tab:mmd_staged_policy}). The current baseline had risk recall 0.0 and queue recall 0.0. The conservative MMD staged policy marked the three degraded datasets as MMD-critical but produced risk recall 0.0 and queue recall 0.0 because no behavior-risk signal agreed with MMD under the configured thresholds. The hybrid staged policy produced 3 risk alerts, risk recall 1.0, and false alarm rate 0.0, but queue recall still remained 0.0 because retraining was not permitted on MMD alone.
-
+\renewcommand{\arraystretch}{1.2}
 \begin{table}[htbp]
 \centering
-\caption{Final staged MMD policy comparison. MMD improves non-mutating alert visibility but not queue/retrain decisions under the tested policies.}
-\label{tab:mmd_staged_policy}
-{\setlength{\tabcolsep}{4pt}
-\small
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccc}
-\hline
-Policy & Drift warnings & MMD critical & Risk alerts & Risk recall & Queue/retrain & Queue recall \\
-\hline
-Current baseline & 0 & 0 & 0 & 0.0 & 0 & 0.0 \\
-MMD staged conservative & 3 & 3 & 0 & 0.0 & 0 & 0.0 \\
-MMD staged hybrid & 3 & 3 & 3 & 1.0 & 0 & 0.0 \\
-\hline
+\footnotesize
+\caption[Contract-sensitivity ablation over window size and overlap...]{Contract-sensitivity ablation over window size and overlap (surrogate refit per configuration; read for relative differences, not absolute performance). The deployed contract uses 200 samples at 50\% overlap.}
+\label{tab:ch7_ablation}
+\begin{tabular}{cccccc}
+\toprule
+\textbf{Window} & \textbf{Overlap} & \textbf{Duration} & \textbf{Accuracy} & \textbf{Macro-F1} & \textbf{Flip rate (median)} \\
+\midrule
+128 & 25\% & 2.56\,s & 0.673 & 0.671 & 0.282 \\
+128 & 50\% & 2.56\,s & 0.666 & 0.661 & 0.223 \\
+200 & 25\% & 4.00\,s & 0.676 & 0.676 & 0.292 \\
+\textbf{200} & \textbf{50\%} & \textbf{4.00\,s} & \textbf{0.688} & \textbf{0.685} & \textbf{0.240} \\
+256 & 25\% & 5.12\,s & 0.678 & 0.670 & 0.304 \\
+256 & 50\% & 5.12\,s & 0.735 & 0.731 & 0.233 \\
+\bottomrule
 \end{tabular}
-}
-}
+\renewcommand{\arraystretch}{1.0}
 \end{table}
+\FloatBarrier
 
-\textbf{Interpretation.} The result supports a mature distinction between monitoring strength and governance quality. MMD clearly improves drift visibility under the tested conditions and can support calibrated warning-level surfacing of degraded batches. However, this does not translate into improved queue/retrain decisions once the policy correctly prevents model mutation from being triggered by MMD alone. The defended runtime therefore remains the lightweight multi-signal governance path, while MMD is retained as a calibrated experimental/offline audit and future alerting direction.
+Windowing alone moves surrogate accuracy across an approximately seven-percentage-point range (66.6\% to 73.5\%) with the architecture, data, and training budget fixed, confirming that preprocessing choices are not cosmetic. The 50\% overlap lowers the prediction flip rate at every window size (for the 200-sample window, from 0.292 to 0.240 median), so the overlap choice directly shapes the temporal-stability signal that Stage~6 monitors. Longer windows raise surrogate accuracy but lengthen the decision interval to 5.12 seconds. The deployed contract (200 samples at 50\% overlap) balances recognition quality, the four-second window duration, and temporal stability. Together with the trigger-policy calibration above, this sweep is the quantitative basis for the contract-sensitivity claim of Chapters~\ref{chap:architecture} and~\ref{chap:data_model}: window construction and preprocessing change accuracy, confidence, and stability even when everything else is fixed, which is precisely why they are bound into the runtime contract rather than left as free parameters.
 
-\textbf{Limitation.} The comparison is bounded to four replay datasets, one retained model, one reference artifact, and one per-window summary-feature representation. It does not establish universal MMD thresholds, subject-independent robustness, or readiness to use MMD as a runtime retraining trigger.
+\section{Synthesis and Implications}
+\label{sec:ch7_synthesis}
 
-\subsection{Same-Input Old Versus New Model Comparison}
+The four sections of evidence in this chapter tell one consistent story. Within the labeled training distribution the model reaches 93.61\% five-fold accuracy, confirming the architecture and preprocessing contract are technically sound. On a blind external session evaluated once after the model was frozen, accuracy falls to 36.96\% while mean confidence remains 0.858: the model is wrong most of the time but does not know it. The proxy evaluation in Section~\ref{sec:ch7_proxy} then shows the pipeline can detect this without labels: schedule-aligned accuracy tracks the labeled result to within 0.3 percentage points, and the transition rate, low-confidence window rate, and dominant-class share all point to the same degraded session quality the labels confirm. Temporal smoothing narrows the gap modestly (to 39.43\%) and resolves single-window jitter, but cannot fix the sustained cross-user confusions that drive the bulk of the error. At scale, 23 of 25 unlabeled sessions are correctly routed to review, with no false retrain authorization.
 
-\textbf{Purpose.} This experiment tests RQ4 directly by asking whether the severe collapse observed on a problematic production-style session is primarily attributable to the input data itself or to the active model.
+The implication is not that the model is inadequate. Within-distribution accuracy is an insufficient basis for trusting a wearable HAR model in deployment. A model can match a published benchmark on the training population and still be systematically wrong and overconfident on a new wearer. The pipeline is built for this condition: the runtime contract keeps preprocessing and model coupled to prevent silent mismatch, the multi-signal monitor surfaces risk without labels, and the governance boundary routes that risk to human review rather than automatic mutation. The trigger-policy calibration shows two-of-three voting raises precision from 0.841 to 0.988 at full episode recall; the windowing ablation shows preprocessing choices alone move recognition and stability by several points. The experimental result is therefore the governance architecture, not a high final accuracy.
 
-\textbf{Data and setup.} The comparison uses one unlabeled raw accelerometer/gyroscope pair containing 3{,}162 windows. Three runs are compared: the historical old-model reference, the new retained retrained model, and a controlled rerun of the old model on the same input pair.
+\section{Chapter Summary}
+\label{sec:ch7_summary}
 
-\textbf{Method.} The input session was held constant while the active model was varied. The old-model rerun acts as a control to verify that any previously observed collapse pattern was reproducible and not an artifact of a single historical log.
-
-\textbf{Metrics.} Mean confidence and uncertain rate quantify decisiveness. Top-class share measures collapse severity. The number of predicted classes measures how broadly the model uses the class space on the fixed input session.
-
-\textbf{Results.} The old-model reference produced mean confidence 0.876, uncertain rate 4.4\%, top-class share 85.6\%, and predictions spanning only 9 of the 11 classes. The new retrained model produced mean confidence 0.7897, uncertain rate 15.0\%, top-class share 29.0\%, and predictions spanning all 11 classes. The controlled old-model rerun reproduced the original collapse pattern almost exactly, with 0.8762 mean confidence, 4.40\% uncertain windows, 85.64\% top-class share, and 9 predicted classes (Table~\ref{tab:old_vs_new_model}, Figure~\ref{fig:old_vs_new_model_comparison}).
-
-\begin{table}[htbp]
-\centering
-\caption{Same-input comparison between the historical model and the retrained model on one unlabeled raw session.}
-\label{tab:old_vs_new_model}
-{\setlength{\tabcolsep}{4pt}
-\small
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccc}
-\hline
-Run & Mean confidence & Uncertain rate (\%) & Top class share (\%) & Predicted classes \\
-\hline
-Old model reference & 0.8760 & 4.40 & 85.60 & 9 \\
-New retrained model & 0.7897 & 15.02 & 28.97 & 11 \\
-Old model control rerun & 0.8762 & 4.40 & 85.64 & 9 \\
-\hline
-\end{tabular}
-}
-}
-\end{table}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.93\textwidth]{fig_10_old_vs_new_model_comparison.png}
-\caption{Same-input comparison between the historical pretrained model and the retrained model. The old model is more overconfident and strongly collapsed, whereas the retrained model is less overconfident and behaviorally broader.}
-\label{fig:old_vs_new_model_comparison}
-\end{figure}
-
-\textbf{Interpretation.} This is one of the clearest results in the chapter. Because the old-model rerun reproduces the same high-confidence collapse on the same raw input pair, the input data alone is not an adequate explanation. The result supports the narrower claim that model choice was a major driver of collapse on this session. It does \emph{not} show that the retrained model is universally better on all production data, but it does show that collapse severity on a fixed session can change materially when the active model changes.
-
-\textbf{Limitation.} The session is unlabeled, so this experiment cannot rank true accuracy between the two models. It supports causal attribution of behavior change to model choice on a fixed input, not a global generalization claim.
-
-\subsection{Systematic 25-Session Comparison: Pseudo-Labeled Versus Raw Retrained Model}
-\label{sec:pseudolabel_vs_raw}
-
-\textbf{Purpose.} The single-session comparison in the previous subsection isolated model choice as a driver of collapse on one fixed input. This subsection asks whether that finding holds systematically across all 25 collected production sessions, and whether the observed difference in collapse severity can be explained by the training strategy used for each model.
-
-\textbf{Background: pseudo-label fine-tuning and its bias risk.} The historical model was produced by fine-tuning the mentor-provided 1D-CNN-BiLSTM baseline on unlabeled production sessions using a pseudo-labeling strategy: the model's own high-confidence predictions on unlabeled data were treated as ground-truth labels for a subsequent fine-tuning pass. Pseudo-labeling is a well-studied semi-supervised technique that can improve generalisation when the base model is well-calibrated and the unlabeled data is representative \cite{lee2013pseudolabel}. However, it carries a known failure mode: if the base model already exhibits a prediction bias on the target domain, pseudo-labeling reinforces that bias rather than correcting it, because the generated labels are drawn from the model's own distribution rather than from true ground truth \cite{arazo2020pseudolabel}. In the present case, the production sessions were dominated by wrist-worn hand-tapping motion, and the base model already predicted hand-tapping with high confidence on such inputs. The pseudo-label fine-tuning pass therefore exposed the model predominantly to hand-tapping-labelled windows, amplifying the existing bias into a structural collapse pattern.
-
-\textbf{Data and setup.} All 25 production sessions from the raw-backup collection were processed through stages 1--3 of the standard pipeline to obtain windowed representations. Both models were then run on the same windowed input for each session without any re-preprocessing or threshold change, yielding 50 paired inference runs.
-
-\textbf{Metrics.} The same collapse metrics used in the single-session comparison are applied here: mean confidence, dominant-class share, and number of unique predicted classes. Dominant-class share and class count provide a distributional view across sessions without requiring ground-truth labels.
-
-\textbf{Results.} The aggregate comparison is summarised in Table~\ref{tab:pseudolabel_vs_raw_summary} and Figure~\ref{fig:model_compare_dashboard}. The pseudo-labeled fine-tuned model predicted hand-tapping as the dominant class in 24 of 25 sessions, with a mean dominant-class share of 82.4\% and a mean of 7.1 unique predicted classes. The raw retrained model predicted all 11 classes in 22 of 25 sessions, with a mean dominant-class share of 37.2\% and a mean of 10.5 unique predicted classes. Mean confidence was higher for the fine-tuned model (0.866) than for the raw retrained model (0.791), reflecting the overconfidence that arises when pseudo-label fine-tuning narrows the effective prediction distribution.
-
-One exception is notable in each direction. In session \texttt{2025-07-19}, the fine-tuned model predicted ear-rubbing rather than hand-tapping as dominant (84.6\%), suggesting that this session contained unusual wrist-motion patterns that even the biased model could not assign to hand-tapping. On the raw retrained side, session \texttt{2025-08-11} showed a smoking-dominant collapse at 97.9\% with only 4 predicted classes, indicating that even a well-generalising raw model can collapse on specific session characteristics. Both of these outliers reinforce the thesis case for runtime monitoring rather than assumption-based trust in any fixed model.
-
-\begin{table}[htbp]
-\centering
-\caption{Aggregate comparison of pseudo-labeled fine-tuned model versus raw retrained model across 25 production sessions.}
-\label{tab:pseudolabel_vs_raw_summary}
-{\setlength{\tabcolsep}{5pt}
-\small
-\begin{tabular}{lcc}
-\hline
-Metric & Fine-tuned (pseudo-labeled) & Raw retrained \\
-\hline
-Mean confidence & 0.866 & 0.791 \\
-Mean dominant-class share (\%) & 82.4 & 37.2 \\
-Mean unique predicted classes & 7.1 & 10.5 \\
-Sessions with hand-tapping dominant & 24/25 & 1/25 \\
-Sessions with all 11 classes predicted & 1/25 & 22/25 \\
-Sessions with dominant share $\geq$ 95\% & 4 & 2 \\
-\hline
-\end{tabular}
-}
-\end{table}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.97\textwidth]{model_compare_E_dashboard.png}
-\caption{Six-panel dashboard comparing the pseudo-labeled fine-tuned model and the raw retrained model across 25 production sessions. Top row: confidence scatter, dominant-class share sorted by fine-tuned collapse severity, class-diversity histogram. Bottom row: per-session confidence delta, dominant-activity frequency, and dominant-share heatmap. The heatmap in the bottom right shows the fine-tuned model as persistently red (collapsed) while the raw model is predominantly green (diverse).}
-\label{fig:model_compare_dashboard}
-\end{figure}
-
-\textbf{Interpretation.} This result extends the single-session finding to a systematic cross-session pattern. The pseudo-label fine-tuning process reinforced the hand-tapping dominance already present in the base model's production-facing predictions, producing a model that is more confident on average but far less diverse in its class use. The raw retrained model, trained exclusively on labeled data that covers all 11 activity classes, maintains full class diversity across almost all sessions. This provides direct empirical evidence for the thesis claim that model governance must include both the training strategy and the deployment history as auditable components of the lifecycle, not only model accuracy metrics \cite{amershi2019mlops,kreuzberger2023mlops}. It also directly motivates the collapse guard in Stage~7: a model that collapses with high confidence is not detectable through confidence thresholds alone, which is why dominant-class share was introduced as a complementary monitoring signal.
-
-\textbf{Limitation.} All sessions are unlabeled, so neither model can be ranked by true accuracy on this data. The comparison measures behavioral diversity, not correctness. A model predicting 11 classes per session is not necessarily more accurate than one predicting fewer; it is, however, operationally more defensible as a monitoring subject, because its outputs are not structurally predetermined.
-
-\subsection{Negative Result: Unit-Fix Plus Abstain Intervention}
-
-\textbf{Purpose.} This experiment tests whether an apparently sensible intervention bundle genuinely improved model behavior. The bundle combined g-unit detection and conversion, stream-reuse guarding, and low-motion/out-of-distribution abstain-to-review behavior.
-
-\textbf{Data and setup.} A before/after comparison was run on 26 production sessions. Twenty-five sessions succeeded in both variants; one failed in both due to a corrupted accelerometer file, so the paired aggregate comparison is based on 25 successful sessions.
-
-\textbf{Method.} The baseline pipeline and the modified pipeline were run on the same session set. The modified variant enabled the full intervention bundle, and the resulting thesis summary table was used to compare confidence, dominance, review routing, and run success.
-
-\textbf{Metrics.} Mean confidence is the key quality proxy. Mean dominant-class share measures collapse severity, review share measures abstain routing, and successful-run counts verify that the intervention did not degrade execution reliability.
-
-\textbf{Results.} Mean confidence was unchanged at 0.8578 before and after the intervention. Mean dominant-class share decreased from 81.17\% to 67.34\%, but mean review share after the intervention reached 66.09\%. Both variants succeeded on 25 of 26 sessions, and the number of sessions with dominant-class share at or above 95\% remained three in both variants. Figures~\ref{fig:neg_result_dominant} and \ref{fig:neg_result_review} illustrate the change in routing behavior, and Table~\ref{tab:negative_result_summary} summarizes the paired comparison.
-
-\begin{table}[htbp]
-\centering
-\caption{Summary of the 26-session unit-fix plus abstain comparison.}
-\label{tab:negative_result_summary}
-\begin{tabular}{lcc}
-\hline
-Measure & Baseline & Modified bundle \\
-\hline
-Successful runs & 25/26 & 25/26 \\
-Mean confidence & 0.8578 & 0.8578 \\
-Mean dominant share (\%) & 81.17 & 67.34 \\
-Mean review share (\%) & 0.00 & 66.09 \\
-Sessions with dominant share $\geq$ 95\% & 3 & 3 \\
-\hline
-\end{tabular}
-\end{table}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.88\textwidth]{chart_04_26sessions_dominant_before_vs_after.png}
-\caption{Dominant-class share across 26 production sessions, before and after the unit-fix plus abstain intervention. The apparent drop in dominance is driven mainly by routing windows into \texttt{REVIEW} rather than by improved class discrimination.}
-\label{fig:neg_result_dominant}
-\end{figure}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.88\textwidth]{chart_05_26sessions_review_before_vs_after.png}
-\caption{Review-routing share across the same sessions, before and after the intervention. The increase in \texttt{REVIEW} volume, paired with unchanged mean confidence, explains the apparent drop in dominant-class share.}
-\label{fig:neg_result_review}
-\end{figure}
-
-\textbf{Interpretation.} This negative result is academically valuable because it separates safer routing behavior from genuine predictive improvement. The intervention bundle made the system route many more windows into \texttt{REVIEW}, which reduced apparent dominance, but it did not improve mean confidence at all. The result therefore supports a more disciplined governance interpretation: reduced single-class dominance should not be treated as evidence of better classification unless the supporting quality signal also improves.
-
-\textbf{Limitation.} The comparison is unlabeled and the intervention is compound, so the result cannot identify which sub-change caused each observed effect. It supports the conclusion that the bundle did not improve the chosen quality proxy, not a fine-grained causal analysis of each modification.
-
-\section{External Evaluation and Runtime Contract Check}
-\label{sec:abc_comparison}
-
-\textbf{Purpose.} The earlier sections evaluated model and pipeline behaviour under controlled, replayed, or distribution-matched conditions. This section is a supporting contract check for the pipeline: it reports the defended runtime candidate's behaviour on a true cross-user external dataset (User~7), verifies runtime-style monitoring on a real unlabeled Garmin session, and uses two contrast artifacts only to show why artifact contracts must be verified. The targeted question is whether the pipeline reports an honest external accuracy ceiling and preserves its preprocessing, monitoring, and governance semantics under the defended runtime contract.
-
-\textbf{Data and setup.} Three datasets are used. The User~7 labeled external dataset (99{,}017 rows, 989 windows, 50~Hz, accelerometer unit \(\mathrm{m/s^2}\)) is the primary external evaluation set. The Garmin unlabeled production-style session (130{,}500 rows, 1{,}304 windows, milliG converted to \(\mathrm{m/s^2}\)) is the primary unlabeled runtime test. The all\_users dataset (385{,}326 rows, 3{,}852 windows) is reported as an internal diagnostic only, because it is drawn from the same labeled population used to train Model A.
-
-Three artifacts are checked. Model~A is the defended clean proof-of-concept runtime candidate, run under the clean pipeline contract with a time-major row-wise tensor layout and a persisted Garmin-train-only scaler whose JSON and joblib forms agree to 0.0 absolute difference. Model~B is a legacy/native diagnostic reference that uses a channel-major reshape and fits a StandardScaler on the entire evaluation dataframe at run time; it is reported only as a forensic reference and is not a runtime alternative. Model~C uses the same checkpoint as Model~B but is run under the clean row-wise layout with no scaler, which deliberately exposes checkpoint-contract mismatch behaviour.
-
-\textbf{Method.} Each (model, dataset) pair was run under its declared contract without altering model weights or trigger thresholds, producing the nine evaluations summarised in \texttt{reports/abc\_comparison/abc\_results.csv}. No clean-pipeline run is reported for Model~B because Model~B has no persisted legacy scaler and its tensor layout is incompatible with the clean contract.
-
-\textbf{Metrics.} Accuracy and macro F1 are reported on the labeled datasets. Classes used, mean confidence, uncertain-window percentage, trigger decision, and the auto-retrain flag are reported for all datasets, because they remain observable when labels are absent.
-
-\textbf{Results.} The summary across the External User~7 set and the internal all\_users diagnostic is given in Table~\ref{tab:abc_summary}. On User~7, Model~A reaches 37.6\% accuracy and 34.1\% macro F1 with all 11 classes used and a mean confidence of 0.359; Model~B reaches 43.8\% accuracy and 41.9\% macro F1 with mean confidence 0.775; Model~C reaches 7.6\% accuracy and 2.5\% macro F1 using only 4 of 11 classes with mean confidence 0.748. On the internal all\_users diagnostic, Model~A reaches 42.4\% accuracy and 39.5\% macro F1, Model~B reaches 90.8\% accuracy and 90.9\% macro F1, and Model~C reaches 10.6\% accuracy and 3.6\% macro F1. The Garmin unlabeled run produced 1{,}304 windows for Model~A with mean confidence 0.393, drift status \texttt{HEALTHY}, trigger \texttt{REVIEW}, and \texttt{auto\_retrain=false}.
-
-\begin{table}[htbp]
-\centering
-\caption{Runtime contract diagnostic on the External User~7 evaluation set and the internal all\_users diagnostic. The Model~B clean-pipeline cell is unsupported because Model~B has no persisted scaler and its tensor layout is incompatible with the clean contract.}
-\label{tab:abc_summary}
-{\setlength{\tabcolsep}{4pt}
-\small
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{llcccccc}
-\hline
-Model & Dataset & Accuracy (\%) & Macro F1 (\%) & Classes used & Mean confidence & Trigger & Auto-retrain \\
-\hline
-Model A & User 7 (external) & 37.6 & 34.1 & 11 & 0.359 & REVIEW & false \\
-Model B & User 7 (external) & 43.8 & 41.9 & 11 & 0.775 & REVIEW & false \\
-Model C & User 7 (external) & 7.6 & 2.5 & 4 & 0.748 & REVIEW & false \\
-\hline
-Model A & all\_users (diagnostic) & 42.4 & 39.5 & 11 & 0.378 & REVIEW & false \\
-Model B & all\_users (diagnostic) & 90.8 & 90.9 & 11 & 0.930 & NO\_ACTION & false \\
-Model C & all\_users (diagnostic) & 10.6 & 3.6 & 7 & 0.767 & REVIEW & false \\
-\hline
-\end{tabular}
-}
-}
-\end{table}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.97\textwidth]{fig_ch7_abc_comparison.png}
-\caption{Runtime contract diagnostic across two evaluation datasets. Left: accuracy (\%) with classes-used annotations; right: mean confidence. Model~A shows consistent but modest accuracy on both datasets (37.6\% external, 42.4\% diagnostic) and low mean confidence (0.359), which is the honest external accuracy and calibration ceiling. Model~B shows a 47-percentage-point gap between its internal diagnostic score (90.8\%) and its User~7 external score (43.8\%), consistent with its non-persisted full-evaluation scaler limiting transferability. Model~C collapses to 7.6\% accuracy on User~7 using only 4 of 11 classes, directly demonstrating that a checkpoint without its matching preprocessing contract is not a runnable runtime artefact.}
-\label{fig:abc_comparison}
-\end{figure}
-
-\textbf{Interpretation.} The interpretation is structured around the six claims this section is intended to support.
-
-\emph{Cross-user generalisation gap on User~7.} Model~A's drop to 37.6\% accuracy on a single external participant is the honest external accuracy ceiling under the defended contract. The retained model is not subject-independent; the User~7 score should be read as evidence of weak cross-user generalisation and domain shift, not as a pipeline failure.
-
-\emph{All\_users diagnostic is not primary evidence.} Model~A's 42.4\% on all\_users is reported for completeness, but the all\_users dataset is drawn from the same labeled training population. It is therefore an internal diagnostic, and the User~7 set remains the primary external-evaluation point.
-
-\emph{Mixed-label window noise is not the main cause.} Of the 989 User~7 windows, only 20 ($2.02\%$) carry mixed activity labels under the majority-label-with-lexicographic-tiebreak windowing policy (3.35\% on all\_users). This rules out window-boundary label noise as the primary explanation for the User~7 accuracy; the dominant explanatory factor is cross-user domain shift.
-
-\emph{Model~B does not transfer cleanly.} The roughly 47-percentage-point gap between Model~B's all\_users score (90.8\%) and its User~7 score (43.8\%) is consistent with its non-persisted full-evaluation scaler and legacy native setup limiting transferability outside the native diagnostic context. The internal score is not a runtime-quality claim. Model~B is therefore retained as a forensic reference and not as a defended candidate.
-
-\emph{Model~C demonstrates checkpoint-contract mismatch risk.} Loading the same checkpoint as Model~B but under the clean row-wise layout with no scaler collapses accuracy to 7.6\% on User~7 and 10.6\% on all\_users, with predictions concentrated in 4 and 7 classes respectively. A checkpoint alone is not sufficient: the preprocessing contract under which the checkpoint was trained is what determines runnable behaviour. This is the clearest evidence in the chapter that the model artifact and the preprocessing contract are inseparable governance objects.
-
-\emph{Garmin unlabeled run as runtime-style proof of concept.} The Garmin run produced 1{,}304 windows, a mean confidence of 0.393, drift status \texttt{HEALTHY}, trigger \texttt{REVIEW}, and \texttt{auto\_retrain=false}. This shows that the monitoring and trigger layer can route a real unlabeled session into human review on the basis of confidence and uncertainty signals alone, without ground-truth labels. It is a runtime-style proof of concept, not evidence of service readiness.
-
-\textbf{Contract-check summary.} The main point is not that one model wins an ABC benchmark. The point is that the pipeline must know exactly which artifact, scaler, label order, tensor layout, and monitoring baseline it is operating with before downstream governance decisions are meaningful. Model~A is the defended runtime candidate and is presented with its limitations. Model~B and Model~C are retained only as diagnostic evidence that internal scores and checkpoints are not enough without the matching preprocessing contract. Together, these results support the pipeline-centered claim that runtime governance must verify the preprocessing contract end-to-end and must not infer runtime quality from internal diagnostic scores alone.
-
-\textbf{Limitation.} The external evaluation is bounded to one external participant (User~7) and one unlabeled Garmin session. The reported numbers bound cross-user generalisation and runtime-monitoring behaviour for these specific datasets; they do not establish population-level generalisation, clinical validity, or production readiness.
-
-\section{Chapter Synthesis}
-
-\textbf{Strongly supported findings.} Five conclusions are strongly supported by the experiments. First, preprocessing consistency materially affects downstream behavior: gravity removal alone was associated with stronger collapse-like output concentration, while the gravity-plus-calibration combination broadened class use, and the final runtime contract is kept explicit and governed to avoid unsupported scaler or preprocessing changes at inference. Second, governance policy design changes the operational safety profile of the pipeline: the \texttt{two\_of\_three} trigger rule sharply reduced false alarms without sacrificing episode recall on the tested replay. Third, calibrated MMD branch experiments show that stronger drift visibility can be achieved without changing the retained model, but that this visibility should be evaluated separately from mutation decisions. Fourth, collapse on a fixed production-style session can be driven primarily by model choice rather than by the input alone, as shown by the same-input old-versus-new comparison. Fifth, the external contract check in Section~\ref{sec:abc_comparison} shows that the defended runtime candidate reports an honest external accuracy ceiling on User~7, while the diagnostic contrast artifacts show that checkpoints, internal scores, and tensor shapes cannot be interpreted without their matching preprocessing contracts. This is direct evidence that the model artifact and its preprocessing contract are inseparable governance objects inside the MLOps pipeline.
-
-\textbf{Partially supported findings.} The actual-versus-synthetic comparison suggests that uncertainty and temporal-instability signals can act as useful proxy monitors when labels are absent. Under degraded realism, confidence drops, uncertain-window rates rise, and temporal switching increases. MMD strengthens this proxy-monitoring evidence by surfacing 3 of 4 degraded/reference replay comparisons as warning-level drift cases while the current drift monitor surfaces none, but the staged-policy tests show that this does not by itself justify retraining. The Garmin unlabeled run (1{,}304 windows, mean confidence 0.393, drift \texttt{HEALTHY}, trigger \texttt{REVIEW}, \texttt{auto\_retrain=false}) extends this evidence to a real production-style session and demonstrates label-free runtime-style monitoring, but it remains a proof of concept on one session rather than evidence of broad runtime robustness. This supports the thesis monitoring story directionally; it does not establish universal calibration or out-of-distribution detection performance.
-
-\textbf{What this chapter does not establish.} The evaluation does not prove subject-independent runtime quality, universal robustness across unseen domains, globally optimal retraining thresholds, or universal MMD cutoffs. The 37.6\% User~7 accuracy is not a broad runtime claim; it bounds the cross-user generalisation gap on a single external participant under the defended contract. The 90.8\% all\_users score for Model~B is not a runtime-quality claim either; it is an internal diagnostic on data drawn from the same labeled population, run under a non-persisted full-evaluation scaler that does not transfer to external evaluation. The chapter also does not justify interpreting all routing changes as model-quality gains, as shown by the negative result, and it does not justify promoting MMD into the defended runtime mutation path. The supported thesis claim is narrower and more defensible: under the tested datasets, replay conditions, and one external participant, the pipeline is reproducible, operationally monitorable, and governable in a way that makes degradation and retraining decisions more explicit than a benchmark-only wearable HAR workflow.
+This chapter reported the empirical evidence across three conditions. Five-fold cross-validation on the six labeled users confirms the model learns the training distribution and is consistent in magnitude with the published benchmark~\cite{oleh2025recognition}. The blind User~7 probe exposes a 57-point accuracy drop accompanied by high overconfidence, and the proxy evaluation in Section~\ref{sec:ch7_proxy} shows the pipeline detects this degradation without labels: schedule-aligned accuracy, low-confidence window rate, and temporal transition rate all flag the same session the labeled probe confirms is poor. Temporal smoothing partially recovers stability but not the underlying cross-user confusion. At scale, 23 of 25 unlabeled sessions are routed to human review with no automatic retraining, the trigger-policy calibration establishes the two-of-three voting and cooldown defaults, and the windowing ablation grounds the contract-sensitivity argument. Chapter~\ref{chap:discussion_conclusion} interprets these findings against the research questions and states the limitations and future directions.

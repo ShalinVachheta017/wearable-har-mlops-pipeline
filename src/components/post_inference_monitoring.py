@@ -139,7 +139,7 @@ class PostInferenceMonitoring:
                 else (self.pipeline_config.models_dir / "normalized_baseline.json")
             )
         else:
-            # Default production path: raw physical units.
+            # Batch pipeline audit path: raw-physical-units baseline.
             candidate = getattr(self.config, "raw_baseline_path", None)
             baseline_json = (
                 Path(candidate)
@@ -150,9 +150,9 @@ class PostInferenceMonitoring:
         if not baseline_json.exists():
             if baseline_mode == "raw_physical":
                 logger.warning(
-                    "Raw physical baseline not found: %s. "
+                    "Raw-physical-units monitoring baseline not found: %s. "
                     "Drift status will be DRIFT_BASELINE_MISSING. "
-                    "Run scripts/build_raw_physical_baseline.py to create it.",
+                    "Build it via src/monitoring/baseline_builder.py.",
                     baseline_json,
                 )
                 return None, "DRIFT_BASELINE_MISSING"
@@ -186,7 +186,7 @@ class PostInferenceMonitoring:
                     "baseline file has feature_space='%s' (%s). "
                     "This would produce fake-critical drift (raw Az ≈ -9.8 m/s² vs "
                     "normalized baseline mean ≈ 0). Drift layer skipped. "
-                    "Rebuild with scripts/build_raw_physical_baseline.py.",
+                    "Rebuild via src/monitoring/baseline_builder.py.",
                     baseline_feature_space,
                     baseline_json,
                 )

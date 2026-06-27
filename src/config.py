@@ -20,7 +20,10 @@ SRC_DIR = PROJECT_ROOT / "src"
 # Model directories
 MODELS_DIR = PROJECT_ROOT / "models"
 MODELS_PRETRAINED = MODELS_DIR / "pretrained"
-MODEL_A_FINAL_DIR = MODELS_DIR / "runtime_contract" / "model_a_final_20260508"
+# Model D1 final freeze (deployed default since 2026-05-26). The superseded
+# Model A package is retained as offline rollback/evidence in
+# _archive/presubmission_2026-06-27/models/runtime_contract/model_a_final_20260508.
+MODEL_D1_FINAL_DIR = MODELS_DIR / "runtime_contract" / "model_d1_final_20260528"
 
 # API
 API_DIR = PROJECT_ROOT / "api"
@@ -50,18 +53,25 @@ DOCKER_DIR = PROJECT_ROOT / "docker"
 LABELED_DATA_FILE = DATA_RAW / "all_users_data_labeled.csv"
 PROCESSED_SENSOR_FUSED = DATA_PROCESSED / "sensor_fused_50Hz.csv"
 LEGACY_PRETRAINED_MODEL = MODELS_PRETRAINED / "fine_tuned_model_1dcnnbilstm.keras"
-FINAL_MODEL_A_PATH = MODEL_A_FINAL_DIR / "fine_tuned_clean_model.keras"
-FINAL_MODEL_A_SCALER_JSON = MODEL_A_FINAL_DIR / "garmin_train_scaler.json"
-FINAL_MODEL_A_SCALER_JOBLIB = MODEL_A_FINAL_DIR / "garmin_train_scaler.joblib"
 
-# Submission policy after the 2026-05-08 A/B/C decision: use the clean-contract
-# Model A package by default. The legacy pretrained model remains evidence only.
-PRETRAINED_MODEL = FINAL_MODEL_A_PATH
-DEFAULT_MODEL_PATH = FINAL_MODEL_A_PATH
+# Model D1 final freeze (2026-05-28): ADAMSense-pretrained 1D-CNN + BiLSTM,
+# frozen on Garmin users 1-6 and exported from Keras 3 in thesis-mlops. The
+# native .keras artifact is the pipeline/API default. The matching scaler and
+# baseline must stay in the same runtime_contract folder.
+FINAL_MODEL_D1_PATH = MODEL_D1_FINAL_DIR / "finetuned_1DCNNBILSTM_HAR_model.keras"
+FINAL_MODEL_D1_SAVEDMODEL_DIR = MODEL_D1_FINAL_DIR / "finetuned_1DCNNBILSTM_HAR_model_savedmodel"
+FINAL_MODEL_D1_SCALER_JSON = MODEL_D1_FINAL_DIR / "garmin_train_scaler.json"
+FINAL_MODEL_D1_SCALER_JOBLIB = MODEL_D1_FINAL_DIR / "garmin_train_scaler.joblib"
+FINAL_MODEL_D1_CONTRACT = MODEL_D1_FINAL_DIR / "model_contract.json"
+
+# Default runtime model: Model D1 final freeze (since 2026-05-26).
+# Rollback target: the archived Model A package under
+# _archive/presubmission_2026-06-27/models/runtime_contract/model_a_final_20260508
+# (restore it into models/runtime_contract/ if D1 integration regresses).
+PRETRAINED_MODEL = FINAL_MODEL_D1_PATH
+DEFAULT_MODEL_PATH = FINAL_MODEL_D1_PATH
 MODEL_INFO_JSON = MODELS_PRETRAINED / "model_info.json"
-# Final Model A uses a Garmin train-only StandardScaler. Older train-users-only
-# scalers under data/prepared remain legacy/A-B evidence.
-SCALER_CANONICAL = FINAL_MODEL_A_SCALER_JSON
+SCALER_CANONICAL = FINAL_MODEL_D1_SCALER_JSON
 # Backward-compatible alias used by older modules.
 SCALER_CONFIG = SCALER_CANONICAL
 
@@ -109,7 +119,7 @@ PRETRAINED_MODEL_STATUS = {
         "and docs/pretrained_model_exclusion_report.md for full evidence."
     ),
     "investigation_date": "2026-04-24",
-    "investigation_script": "scripts/forensic_investigation.py",
+    "investigation_script": "_archive/scripts/forensic_investigation.py",
 }
 
 # data/prepared/config.json is retained only as historical evidence of the

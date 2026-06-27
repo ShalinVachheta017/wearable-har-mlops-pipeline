@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="758.313013pt" height="402.941812pt" viewBox="0 0 758.313013 402.941812" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-04-19T00:56:19.987041</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.8, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 402.941812 
+L 758.313013 402.941812 
+L 758.313013 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 41.48352 187.908341 
+L 201.47328 187.908341 
+Q 215.75808 187.908341 215.75808 180.59026 
+L 215.75808 98.627765 
+Q 215.75808 91.309685 201.47328 91.309685 
+L 41.48352 91.309685 
+Q 27.19872 91.309685 27.19872 98.627765 
+L 27.19872 180.59026 
+Q 27.19872 187.908341 41.48352 187.908341 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #d9e2ec; stroke: #243b53; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 41.48352 326.95186 
+L 201.47328 326.95186 
+Q 215.75808 326.95186 215.75808 319.633781 
+L 215.75808 237.671284 
+Q 215.75808 230.353204 201.47328 230.353204 
+L 41.48352 230.353204 
+Q 27.19872 230.353204 27.19872 237.671284 
+L 27.19872 319.633781 
+Q 27.19872 326.95186 41.48352 326.95186 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #d3eceb; stroke: #3a7d7c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 284.32512 187.908341 
+L 444.31488 187.908341 
+Q 458.59968 187.908341 458.59968 180.59026 
+L 458.59968 98.627765 
+Q 458.59968 91.309685 444.31488 91.309685 
+L 284.32512 91.309685 
+Q 270.04032 91.309685 270.04032 98.627765 
+L 270.04032 180.59026 
+Q 270.04032 187.908341 284.32512 187.908341 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #efe5d0; stroke: #c5a46d; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 284.32512 326.95186 
+L 444.31488 326.95186 
+Q 458.59968 326.95186 458.59968 319.633781 
+L 458.59968 237.671284 
+Q 458.59968 230.353204 444.31488 230.353204 
+L 284.32512 230.353204 
+Q 270.04032 230.353204 270.04032 237.671284 
+L 270.04032 319.633781 
+Q 270.04032 326.95186 284.32512 326.95186 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #f0f4f8; stroke: #52606d; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 527.16672 268.40722 
+L 672.87168 268.40722 
+Q 687.15648 268.40722 687.15648 261.08914 
+L 687.15648 164.490484 
+Q 687.15648 157.172404 672.87168 157.172404 
+L 527.16672 157.172404 
+Q 512.88192 157.172404 512.88192 164.490484 
+L 512.88192 261.08914 
+Q 512.88192 268.40722 527.16672 268.40722 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #ffffff; stroke: #b85c38; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 209.188153 139.609013 
+Q 242.897568 139.609013 275.041735 139.609013 
+" clip-path="url(#p3ace1e2959)" style="fill: none; stroke: #243b53; stroke-width: 1.4; stroke-linecap: round"/>
+    <path d="M 270.241735 137.209013 
+L 275.041735 139.609013 
+L 270.241735 142.009012 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #243b53; stroke: #243b53; stroke-width: 1.4; stroke-linecap: round"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 209.188153 278.652532 
+Q 242.897568 278.652532 275.041735 278.652532 
+" clip-path="url(#p3ace1e2959)" style="fill: none; stroke: #3a7d7c; stroke-width: 1.4; stroke-linecap: round"/>
+    <path d="M 270.241735 276.252532 
+L 275.041735 278.652532 
+L 270.241735 281.052532 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #3a7d7c; stroke: #3a7d7c; stroke-width: 1.4; stroke-linecap: round"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 451.574198 140.875741 
+Q 485.740459 168.881053 518.696172 195.894107 
+" clip-path="url(#p3ace1e2959)" style="fill: none; stroke: #c5a46d; stroke-width: 1.4; stroke-linecap: round"/>
+    <path d="M 516.505332 190.995105 
+L 518.696172 195.894107 
+L 513.462466 194.707377 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #c5a46d; stroke: #c5a46d; stroke-width: 1.4; stroke-linecap: round"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 451.652667 277.487866 
+Q 485.740089 253.039763 518.555582 229.503909 
+" clip-path="url(#p3ace1e2959)" style="fill: none; stroke: #52606d; stroke-width: 1.4; stroke-linecap: round"/>
+    <path d="M 513.256322 230.351167 
+L 518.555582 229.503909 
+L 516.053833 234.251672 
+z
+" clip-path="url(#p3ace1e2959)" style="fill: #52606d; stroke: #52606d; stroke-width: 1.4; stroke-linecap: round"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 10.4px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #243b53" x="40.912128" y="111.506434" transform="rotate(-0 40.912128 111.506434)">Raw session inputs</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(78.419025 130.840686)">Garmin wrist IMU</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(73.657306 142.038499)">accelerometer CSV</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(117.288556 153.236311)">+</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(84.0034 164.434124)">gyroscope CSV</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 10.4px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #3a7d7c" x="40.912128" y="250.549954" transform="rotate(-0 40.912128 250.549954)">Training source</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(55.117463 264.146238)">all_users_data_labeled.csv</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(86.954963 275.622175)">6 participants</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(95.433869 286.819988)">11 classes</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(78.429181 298.0178)">385,326 samples</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(107.142463 309.215613)">50 Hz</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 10.4px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #c5a46d" x="283.753728" y="111.506434" transform="rotate(-0 283.753728 111.506434)">Sensor structure</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(339.497344 136.439593)">Ax, Ay, Az</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(337.798125 147.637405)">Gx, Gy, Gz</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(327.095 158.835218)">wrist-worn IMU</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 10.4px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52606d" x="283.753728" y="250.549954" transform="rotate(-0 283.753728 250.549954)">Label space</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(321.572344 269.884206)">8 anxiety-related</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(339.768438 281.082019)">behaviors</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(360.130156 292.279831)">+</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(318.924688 303.477644)">3 baseline classes</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 10.4px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #b85c38" x="526.166784" y="178.686408" transform="rotate(-0 526.166784 178.686408)">Preprocessing entry point</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(575.402013 199.30075)">validation</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(561.452794 210.498562)">unit conversion</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(572.165294 221.696375)">resampling</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(565.844981 232.894187)">normalization</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(573.317638 244.092)">windowing</text>
+   </g>
+   <g id="text_11">
+    <g id="patch_11">
+     <path d="M 528.5952 347.853017 
+L 751.113013 347.853017 
+Q 754.333013 347.853017 754.333013 344.633017 
+L 754.333013 315.125167 
+Q 754.333013 311.905167 751.113013 311.905167 
+L 528.5952 311.905167 
+Q 525.3752 311.905167 525.3752 315.125167 
+L 525.3752 344.633017 
+Q 525.3752 347.853017 528.5952 347.853017 
+z
+" style="fill: #ffffff; stroke: #d9e2ec; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 9.2px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(528.5952 322.11573)">Controlled lab-style labeled data define the</text>
+    <text style="font-size: 9.2px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(528.5952 332.417717)">training baseline; paired raw session files define</text>
+    <text style="font-size: 9.2px; font-family: 'DejaVu Sans'; fill: #1f2933" transform="translate(528.5952 342.719705)">the reproducible inference path.</text>
+   </g>
+   <g id="text_12">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #1f2933" x="7.2" y="17.837812" transform="rotate(-0 7.2 17.837812)">Dataset inputs and thesis data boundary</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p3ace1e2959">
+   <rect x="7.2" y="29.837812" width="714.24" height="365.904"/>
+  </clipPath>
+ </defs>
+</svg>
