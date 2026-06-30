@@ -18,7 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 def main():
-    import importlib.util, sys
+    import importlib.util
 
     spec = importlib.util.spec_from_file_location(
         "run_pipeline", PROJECT_ROOT / "run_pipeline.py"
