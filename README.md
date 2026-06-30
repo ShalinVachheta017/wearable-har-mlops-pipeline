@@ -1,6 +1,17 @@
-# HAR MLOps Pipeline — Wearable Anxiety Recognition
+# HAR MLOps Pipeline — Wearable IMU-Based Activity Recognition
 
-Offline-first MLOps pipeline for human activity recognition (HAR) from wrist-worn IMU data (accelerometer + gyroscope). Built as a Master's thesis project at the University of Siegen.
+Offline-first MLOps pipeline for wearable IMU-based human activity recognition (HAR), developed in a mental-health-adjacent monitoring context as a Master's thesis at the University of Siegen.
+
+> **Scope:** Research prototype — not a clinical or diagnostic system. The pipeline focuses on reproducible inference, monitoring, drift evidence, and retraining governance for wearable activity signals.
+
+## Thesis Status
+
+| | |
+|---|---|
+| Submission date | 30 June 2026 |
+| Program | M.Sc. Mechatronics, University of Siegen |
+| Scope | Offline-first MLOps pipeline for wearable IMU-based HAR |
+| Submitted PDF | [Shalin_Vachheta_1701359_Master_Thesis.pdf](Shalin_Vachheta_1701359_Master_Thesis.pdf) |
 
 ---
 
