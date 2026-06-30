@@ -340,7 +340,7 @@ def _print_monitoring_metrics(result: PipelineResult) -> None:
         _safe_print(f"    - Drift Score: {score:.4f}")
         if status == "CRITICAL":
             _safe_print(
-                f"      [!] CRITICAL DRIFT ({score:.3f}) - Retraining recommended"
+                f"      [!] CRITICAL DRIFT ({score:.3f}) - Manual review required"
             )
         elif status == "WARNING":
             _safe_print(f"      [~] WARNING drift ({score:.3f}) - Monitor closely")

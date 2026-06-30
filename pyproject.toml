@@ -13,6 +13,9 @@ dynamic = ["dependencies"]
 [project.scripts]
 har-pipeline = "src.cli:main"
 
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=4.1", "flake8>=7.0", "black>=24.1", "mypy>=1.8", "isort>=5.12"]
+
 [tool.setuptools]
 packages = {find = {include = ["src*"]}}
 

@@ -18,9 +18,15 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 def main():
-    import run_pipeline
+    import importlib.util, sys
 
-    run_pipeline.main()
+    spec = importlib.util.spec_from_file_location(
+        "run_pipeline", PROJECT_ROOT / "run_pipeline.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["run_pipeline"] = mod
+    spec.loader.exec_module(mod)
+    mod.main()
 
 
 if __name__ == "__main__":

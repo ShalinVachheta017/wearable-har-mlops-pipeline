@@ -1,117 +1,108 @@
-﻿# Reproduce the Main Pipeline Result
+# Reproducing the Pipeline
 
-This guide reproduces the main offline inference cycle (stages 1-7) used for thesis evidence.
+Step-by-step guide to run the full Stage 1–7 pipeline on a fresh machine.
 
-## 1) Environment Setup
+---
 
-Option A (recommended, conda):
+## Step 1 — Clone the repository
+
+```powershell
+git clone <repo-url>
+cd MasterArbeit_MLops
+```
+
+---
+
+## Step 2 — Create the environment
 
 ```powershell
 conda create -n thesis-mlops python=3.11 -y
 conda activate thesis-mlops
-python -m pip install --upgrade pip
-python -m pip install -r config/requirements.txt
+pip install -r config/requirements.txt
 ```
 
-Option B (pip editable install):
+---
 
-```powershell
-python -m pip install --upgrade pip
-python -m pip install -e .
-python -m pip install -e .[dev]
-```
+## Step 3 — Restore model and data
 
-## 2) Data and Model Prerequisites
-
-Required files:
-
-- `models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras`
-- `models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json`
-- `models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json`
-- `models/runtime_contract/model_d1_final_20260528/label_order.json`
-- one accel/gyro pair under `data/raw/`
-
-Example pair already present in this repo:
-
-- `data/raw/2025-08-19-08-58-40_accelerometer.csv`
-- `data/raw/2025-08-19-08-58-40_gyroscope.csv`
-
-If running from a fresh clone and DVC assets are missing, restore DVC-tracked data/model artifacts first (if remote is accessible):
+The model and example data are DVC-tracked. Pull them:
 
 ```powershell
 dvc pull
 ```
 
-DVC is used here for data/model artifact versioning and restore support. The defended Stage 1-7 pipeline is orchestrated by `run_pipeline.py`, not by a full `dvc repro` stage graph.
+**If DVC is not available:** unzip the release artifact bundle over the repo root. It contains:
 
-### Without DVC: Release Artifact Bundle
-
-If DVC (or its storage) is not available, use the release artifact bundle instead.
-The bundle is a plain zip supplied alongside the repository (release asset or
-submission medium) containing the DVC-managed artifacts:
-
-```text
-data/raw/                                        (example session inputs)
-models/runtime_contract/model_d1_final_20260528/ (full D1 runtime contract)
-artifacts/20260528_122625/                       (defended evidence run)
+```
+data/raw/                                         ← example sensor session
+models/runtime_contract/model_d1_final_20260528/  ← defended D1 model package
+artifacts/20260528_122625/                        ← defended evidence run
 logs/pipeline/pipeline_result_20260528_122625.json
 ```
 
-Unzip it over the repository root and continue with step 3. Docker reproduces
-the software environment only; data and model artifacts always come from DVC
-or this bundle — they are intentionally not baked into the images
-(see `docker/README.md` for the image roles and rationale).
+After unzipping, continue to Step 4.
 
-### Docker Alternative (environment-only)
+Required files check — these must exist before running:
 
-```powershell
-docker compose build
-docker compose run training python run_pipeline.py --stages ingestion validation transformation inference evaluation monitoring trigger --accel-file data/raw/2025-08-19-08-58-40_accelerometer.csv --gyro-file data/raw/2025-08-19-08-58-40_gyroscope.csv
+```
+models/runtime_contract/model_d1_final_20260528/finetuned_1DCNNBILSTM_HAR_model.keras
+models/runtime_contract/model_d1_final_20260528/garmin_train_scaler.json
+models/runtime_contract/model_d1_final_20260528/garmin_train_scaled_baseline.json
+models/runtime_contract/model_d1_final_20260528/label_order.json
+data/raw/2025-08-19-08-58-40_accelerometer.csv
+data/raw/2025-08-19-08-58-40_gyroscope.csv
 ```
 
-The training image carries the full pipeline environment (`run_pipeline.py`,
-`src/`, `scripts/`, `config/`); the inference image serves the FastAPI app with
-the runtime contract mounted read-only. Data and models are mounted volumes in
-both cases (restored via DVC or the bundle above).
+---
 
-## 3) Exact Reproduction Command (Main Result Path)
+## Step 4 — Run the pipeline
 
-Run stages 1-7 explicitly on one concrete session:
+Run stages 1–7 on the included example session:
 
 ```powershell
 python run_pipeline.py --stages ingestion validation transformation inference evaluation monitoring trigger --accel-file data/raw/2025-08-19-08-58-40_accelerometer.csv --gyro-file data/raw/2025-08-19-08-58-40_gyroscope.csv
 ```
 
-## 4) Expected Outputs
+Or simply run with defaults (picks up the session automatically):
 
-After a successful run, expect:
+```powershell
+python run_pipeline.py
+```
 
-- Pipeline result summary:
-  - `logs/pipeline/pipeline_result_<run_id>.json`
-- Run artifact folder:
-  - `artifacts/<run_id>/run_info.json`
-  - `artifacts/<run_id>/data_ingestion/sensor_fused_50Hz.csv`
-  - `artifacts/<run_id>/data_transformation/production_X.npy`
-  - `artifacts/<run_id>/inference/predictions_<timestamp>.csv`
-  - `artifacts/<run_id>/evaluation/evaluation_summary.json`
-  - `artifacts/<run_id>/monitoring/monitoring_report.json`
-  - `artifacts/<run_id>/trigger/trigger_decision.json`
+---
 
-Observed reference shape in current repo (example):
+## Step 5 — Check outputs
 
-- `artifacts/20260329_212835/` contains stage 1-7 outputs with SUCCESS statuses in `run_info.json`.
+After a successful run you will see:
 
-## 5) Where Thesis Evidence Lives
+```
+logs/pipeline/pipeline_result_<run_id>.json       ← overall result
+artifacts/<run_id>/run_info.json                  ← stage statuses
+artifacts/<run_id>/data_ingestion/fused_<timestamp>_50Hz.csv
+artifacts/<run_id>/data_transformation/production_X.npy
+artifacts/<run_id>/inference/predictions_<timestamp>.csv
+artifacts/<run_id>/evaluation/evaluation_summary.json
+artifacts/<run_id>/monitoring/monitoring_report.json
+artifacts/<run_id>/trigger/trigger_decision.json
+```
 
-- Evidence index: `docs/thesis/THESIS_EVIDENCE.md`
-- 26-session negative-result table: `thesis/tables/before_vs_after_26datasets.csv`
-- 26-session interpretation note: `thesis/chapters/before_vs_after_26datasets.md`
-- Trigger logic explanation: `docs/TRIGGER_POLICY_EXPLANATION.md`
+Reference defended run for comparison: `artifacts/20260528_122625/`
 
-## 6) Quick Validation Command (Optional)
+---
+
+## Step 6 — Run tests (optional)
 
 ```powershell
 python -m pytest tests/ -m "not slow and not integration" -q --tb=short
 ```
 
-This does not reproduce pipeline outputs, but validates core non-slow behavior.
+---
+
+## Docker alternative (environment only)
+
+Docker reproduces the software environment. Data and model must still be provided via DVC or the bundle above.
+
+```powershell
+docker compose build
+docker compose run training python run_pipeline.py --stages ingestion validation transformation inference evaluation monitoring trigger --accel-file data/raw/2025-08-19-08-58-40_accelerometer.csv --gyro-file data/raw/2025-08-19-08-58-40_gyroscope.csv
+```
