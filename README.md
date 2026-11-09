@@ -10,7 +10,6 @@ I built a system that prepares sensor readings, predicts activities, and watches
 
 ## Technical Documentation
 
-
 Offline-first MLOps pipeline for wearable IMU-based human activity recognition (HAR), developed in a mental-health-adjacent monitoring context as a Master's thesis at the University of Siegen.
 
 > **Scope:** Research prototype — not a clinical or diagnostic system. The pipeline focuses on reproducible inference, monitoring, drift evidence, and retraining governance for wearable activity signals.
@@ -22,7 +21,7 @@ Offline-first MLOps pipeline for wearable IMU-based human activity recognition (
 | Submission date | 30 June 2026 |
 | Program | M.Sc. Mechatronics, University of Siegen |
 | Scope | Offline-first MLOps pipeline for wearable IMU-based HAR |
-| Submitted PDF | [Shalin_Vachheta_1701359_Master_Thesis.pdf](Shalin_Vachheta_1701359_Master_Thesis.pdf) |
+| Thesis material | Model contract, source code, evaluation notes and reproduction steps are documented in this repository. |
 
 ---
 
@@ -31,8 +30,8 @@ Offline-first MLOps pipeline for wearable IMU-based human activity recognition (
 ### 1. Clone and set up environment
 
 ```powershell
-git clone <repo-url>
-cd MasterArbeit_MLops
+git clone https://github.com/ShalinVachheta017/wearable-har-mlops-pipeline.git
+cd wearable-har-mlops-pipeline
 conda create -n thesis-mlops python=3.11 -y
 conda activate thesis-mlops
 pip install -r config/requirements.txt
@@ -101,6 +100,36 @@ The defended model package is at `models/runtime_contract/model_d1_final_2026052
 | Baseline | Normalized D1 (`garmin_train_scaled_baseline.json`) |
 | Accelerometer units | m/s² |
 | Gyroscope units | deg/s |
+
+---
+
+## Evaluation — what the model can and cannot do
+
+The model recognizes **11 activities** from six wrist-sensor channels. Results depend strongly on whether the people in the test data were also represented during training.
+
+| Evaluation | Accuracy | Macro F1 | What it means |
+|---|---:|---:|---|
+| Five-fold cross-validation, within the training distribution | **93.61%** | **0.952** | Strong performance when evaluation resembles the training data |
+| Leave-one-user-out, users 1–6 | **44.42% mean** | **0.397 mean** | Much harder when testing on a person excluded from training |
+| External labeled User 7 session | **36.96%** | **0.350** | A separate unseen-user test with 989 windows; mean prediction confidence was **0.858** |
+
+These are **different evaluation settings**, not interchangeable estimates of deployment accuracy. High confidence does not mean a prediction is correct. See [model artifacts and evaluation evidence](models/README.md) for the defended Model D1 package and the external User 7 probe.
+
+### Monitoring and controlled retraining
+
+The pipeline monitors prediction confidence, uncertain windows, activity changes, dominant predictions, and changes in sensor-data distributions. Its output is evidence for **review**, not a medical conclusion. Stages 1–7 ingest data, validate it, transform it, predict activities, evaluate outputs, monitor risks, and decide whether review is needed. Stages 8–10 (retraining, registration and baseline update) require labeled data and human approval. No model is automatically replaced.
+
+### Limitations
+
+- The labeled cohort is small. Performance dropped considerably for people not represented in training.
+- Sensor position, wearing style, recording conditions and one-device data limit generalization.
+- Monitoring thresholds are engineering choices, not clinically validated safety guarantees.
+- This is an **offline-first research prototype**. It does not diagnose, treat or clinically monitor mental health.
+- A successful local/Docker run is not proof of safe or accurate performance for arbitrary users.
+
+### Reproduction notes
+
+Use the [step-by-step reproduction guide](REPRODUCE.md). Models and some data are DVC-managed, so a clone by itself may not contain the weights or a runnable sensor session. Restoring the exact runtime contract and checking the six-channel scaler, label order and units are essential.
 
 ---
 
