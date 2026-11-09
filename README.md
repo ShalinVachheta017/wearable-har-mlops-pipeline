@@ -2,9 +2,9 @@
 
 ## Project Summary
 
-Imagine wearing a smartwatch that can recognize movements such as tapping your fingers, scratching, or biting your nails. This project uses movement data from a smartwatch to predict these activities. The difficult part is that everyone moves differently, so a model that works well on familiar people may not work as well on someone new.
+Imagine wearing a smartwatch that can recognize movements such as tapping your fingers, scratching, or biting your nails. This project uses wrist movement data to predict these activities. The challenge is that people move differently, so a model that works well with familiar data may struggle with someone new.
 
-I built a system that prepares sensor readings, makes predictions, and checks for unusual results that may need review. For example, it can flag uncertain activity predictions instead of treating every answer as correct. The biggest lesson for me was that training an AI model is only the beginning: careful testing, monitoring, and knowing its limits matter just as much. This is a research project, not a medical diagnosis tool.
+I built a system that prepares sensor readings, predicts activities, and watches for unusual results. For example, it can flag a prediction for review when the result seems uncertain. I learned that a good AI project needs careful testing and monitoring, not only a trained model. This is a research prototype, not a medical diagnosis tool.
 
 ---
 
