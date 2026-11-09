@@ -7,8 +7,8 @@ Step-by-step guide to run the full Stage 1–7 pipeline on a fresh machine.
 ## Step 1 — Clone the repository
 
 ```powershell
-git clone <repo-url>
-cd MasterArbeit_MLops
+git clone https://github.com/ShalinVachheta017/wearable-har-mlops-pipeline.git
+cd wearable-har-mlops-pipeline
 ```
 
 ---
