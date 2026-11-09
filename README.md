@@ -1,5 +1,13 @@
 # HAR MLOps Pipeline — Wearable IMU-Based Activity Recognition
 
+## In Simple Words
+
+A smartwatch records small movements of your wrist. This project uses those readings to recognize activities such as hand tapping or scratching. It also checks whether predictions still look reliable when new data arrives.
+
+**Real-life example:** Imagine wearing a smartwatch during the day. The system receives sensor readings, predicts an activity, and flags unusual results for review. This is a research prototype, not a medical diagnosis tool.
+
+---
+
 Offline-first MLOps pipeline for wearable IMU-based human activity recognition (HAR), developed in a mental-health-adjacent monitoring context as a Master's thesis at the University of Siegen.
 
 > **Scope:** Research prototype — not a clinical or diagnostic system. The pipeline focuses on reproducible inference, monitoring, drift evidence, and retraining governance for wearable activity signals.
