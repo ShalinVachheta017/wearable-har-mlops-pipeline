@@ -2,20 +2,9 @@
 
 ## Project Summary
 
-### What is this project?
-A smartwatch collects wrist movement data. This project uses that data to recognize hand activities and check whether predictions remain reliable.
+Imagine wearing a smartwatch that can recognize movements such as tapping your fingers, scratching, or biting your nails. This project uses movement data from a smartwatch to predict these activities. The difficult part is that everyone moves differently, so a model that works well on familiar people may not work as well on someone new.
 
-### Why is it interesting?
-An AI model should not only make predictions. It should also warn us when new data looks unusual.
-
-### How does it work?
-Sensor readings go into a trained model. The model predicts an activity, and monitoring checks for unusual patterns.
-
-### Real-life example
-A watch detects hand tapping or scratching and flags uncertain results for review. This is research, not a medical diagnosis.
-
-### What did I learn?
-I learned to connect model evaluation, data processing, monitoring, and reproducibility.
+I built a system that prepares sensor readings, makes predictions, and checks for unusual results that may need review. For example, it can flag uncertain activity predictions instead of treating every answer as correct. The biggest lesson for me was that training an AI model is only the beginning: careful testing, monitoring, and knowing its limits matter just as much. This is a research project, not a medical diagnosis tool.
 
 ---
 
