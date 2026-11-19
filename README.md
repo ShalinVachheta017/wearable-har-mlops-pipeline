@@ -113,7 +113,7 @@ The model recognizes **11 activities** from six wrist-sensor channels. Results d
 | Leave-one-user-out, users 1–6 | **44.42% mean** | **0.397 mean** | Much harder when testing on a person excluded from training |
 | External labeled User 7 session | **36.96%** | **0.350** | A separate unseen-user test with 989 windows; mean prediction confidence was **0.858** |
 
-These are **different evaluation settings**, not interchangeable estimates of deployment accuracy. High confidence does not mean a prediction is correct. See [model artifacts and evaluation evidence](models/README.md) for the defended Model D1 package and the external User 7 probe.
+The thesis report table above records macro-F1 values of 0.952 (CV) and 0.397 (LOUO). The committed fold-result JSON files report mean macro-F1 of 0.9368 and 0.4188 respectively for their recorded runs. The provenance of this discrepancy has not yet been reconciled; do not treat the two sets as interchangeable. See [CV results](notebooks/model_HAR_27may_artifacts/garmin_5fold_window_cv_results.json) and [LOUO results](notebooks/model_HAR_27may_artifacts/garmin_louo_users_1_6_results.json).\n\nThese are **different evaluation settings**, not interchangeable estimates of deployment accuracy. High confidence does not mean a prediction is correct. See [model artifacts and evaluation evidence](models/README.md) for the defended Model D1 package and the external User 7 probe.
 
 ### Monitoring and controlled retraining
 
